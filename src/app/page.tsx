@@ -23,7 +23,8 @@ export default function Home() {
         title,
         platform,
         url,
-        created_at,
+        chart_rank,
+        source,
         game_metrics (
           date,
           current_players,
@@ -31,7 +32,8 @@ export default function Home() {
           favorites
         )
       `)
-      .order('created_at', { ascending: false })
+      .eq('source', 'roblox_top_trending')
+      .order('chart_rank', { ascending: true })
 
     if (error) {
       console.error(error)
@@ -39,13 +41,16 @@ export default function Home() {
     }
 
     const formattedGames = data.map((game: any) => {
-      const latestMetric = game.game_metrics?.sort(
+      const sortedMetrics = [...(game.game_metrics || [])].sort(
         (a: any, b: any) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-      )[0]
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+      )
+
+      const latestMetric = sortedMetrics[sortedMetrics.length - 1]
 
       return {
         ...game,
+        game_metrics: sortedMetrics,
         latestMetric
       }
     })
@@ -91,22 +96,27 @@ export default function Home() {
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 900 }}>
-      <h1>UGC Trend Portal</h1>
+    <main style={{ padding: 32, maxWidth: 1000, margin: '0 auto' }}>
+      <h1 style={{ marginBottom: 8 }}>🔥 Top 25 Roblox Trending</h1>
 
-      <h2>Tracked Games</h2>
+      <p style={{ color: '#666', marginBottom: 24 }}>
+        Ranked from Roblox Top Trending and tracked over time by current players.
+      </p>
 
       {games.map((game) => (
         <div
           key={game.id}
           style={{
             border: '1px solid #ddd',
-            padding: 16,
-            marginBottom: 16,
-            borderRadius: 8
+            padding: 20,
+            marginBottom: 20,
+            borderRadius: 12,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
           }}
         >
-          <h3>{game.title}</h3>
+          <h2 style={{ marginBottom: 8 }}>
+            #{game.chart_rank} — {game.title}
+          </h2>
 
           <p>
             <strong>Platform:</strong> {game.platform}
@@ -131,51 +141,54 @@ export default function Home() {
             <strong>Last Updated:</strong>{' '}
             {game.latestMetric?.date || 'No metrics yet'}
           </p>
-{game.game_metrics && game.game_metrics.length > 0 && (
-  <div style={{ width: '100%', height: 250, marginTop: 20 }}>
-    <h4>Current Players Over Time</h4>
 
-    <ResponsiveContainer>
-      <LineChart
-        data={[...game.game_metrics].sort(
-          (a: any, b: any) =>
-            new Date(a.date).getTime() - new Date(b.date).getTime()
-        )}
-      >
-        <XAxis dataKey="date" />
-        <YAxis />
-        <Tooltip />
-        <Line
-          type="monotone"
-          dataKey="current_players"
-          stroke="#0070f3"
-          strokeWidth={2}
-        />
-      </LineChart>
-    </ResponsiveContainer>
-  </div>
-)}
+          {game.game_metrics && game.game_metrics.length > 0 && (
+            <div style={{ width: '100%', height: 260, marginTop: 24 }}>
+              <h3>Current Players Over Time</h3>
 
-         <button
-  onClick={() => refreshMetrics(game)}
-  disabled={loadingId === game.id}
-  style={{
-    marginTop: 12,
-    padding: '10px 16px',
-    backgroundColor: loadingId === game.id ? '#aaa' : '#0070f3',
-    color: 'white',
-    border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
-    fontWeight: 600
-  }}
->
-  {loadingId === game.id ? 'Refreshing...' : '🔄 Refresh Metrics'}
-</button>
+              <ResponsiveContainer>
+                <LineChart data={game.game_metrics}>
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="current_players"
+                    stroke="#0070f3"
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <button
+            onClick={() => refreshMetrics(game)}
+            disabled={loadingId === game.id}
+            style={{
+              marginTop: 16,
+              padding: '10px 16px',
+              backgroundColor: loadingId === game.id ? '#aaa' : '#0070f3',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            {loadingId === game.id ? 'Refreshing...' : '🔄 Refresh Metrics'}
+          </button>
 
           <br />
 
-          <a href={game.url} target="_blank">
+          <a
+            href={game.url}
+            target="_blank"
+            style={{
+              display: 'inline-block',
+              marginTop: 12
+            }}
+          >
             Open game
           </a>
         </div>
