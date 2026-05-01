@@ -1,0 +1,14 @@
+name: Refresh Roblox Metrics
+
+on:
+  schedule:
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call refresh endpoint
+        run: curl -f https://ugc-trend-portal.vercel.app/api/refresh-all
