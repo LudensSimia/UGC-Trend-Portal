@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireCronSecret } from '@/lib/serverAuth'
+import { createSupabaseServerClient } from '@/lib/supabaseServer'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabase = createSupabaseServerClient()
 
-export async function GET() {
+export async function GET(req: Request) {
+  const unauthorized = requireCronSecret(req)
+  if (unauthorized) return unauthorized
+
   try {
     const chartRes = await fetch(
       'https://apis.roblox.com/explore-api/v1/get-sort-content?sessionId=11111111-1111-1111-1111-111111111111&sortId=top-trending&device=computer&country=us'

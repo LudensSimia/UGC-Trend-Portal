@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireCronSecret } from '@/lib/serverAuth'
+import { createSupabaseServerClient } from '@/lib/supabaseServer'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabase = createSupabaseServerClient()
 
 function getPlaceId(url: string) {
   const match = url.match(/games\/(\d+)/)
   return match ? match[1] : null
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const unauthorized = requireCronSecret(req)
+  if (unauthorized) return unauthorized
+
   const { data: games, error } = await supabase.from('games').select('*')
 
   if (error) {

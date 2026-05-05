@@ -11,4 +11,4 @@ jobs:
 
     steps:
       - name: Call refresh endpoint
-        run: curl -f https://ugc-trend-portal.vercel.app/api/roblox/import-all-charts
+        run: curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/roblox/import-all-charts
