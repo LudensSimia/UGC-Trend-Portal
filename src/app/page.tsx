@@ -68,6 +68,7 @@ export default function Home() {
           design_pattern,
           audience_signal,
           build_complexity,
+          monetization_style,
           roblox_chart_snapshots (
             created_at,
             current_players,
@@ -445,22 +446,61 @@ export default function Home() {
               </ChartCard>
             </section>
 
-            <section className="mb-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+            <section className="mb-6 grid gap-6 lg:grid-cols-3">
+              <KeywordCloudCard
+                title="Top 25 Keyword Cloud"
+                subtitle="Most common terms in leading game descriptions"
+                items={buildKeywordCloud(
+                  activePlatform === "roblox"
+                    ? topRobloxGames.slice(0, 25)
+                    : topFortniteIslands.slice(0, 25)
+                )}
+                panel={panel}
+                accent={accent}
+              />
+
+              <TemplatePatternCard
+                title="Common Structure"
+                subtitle="Most repeated design pattern in the top set"
+                template={buildCommonTemplate(
+                  activePlatform === "roblox"
+                    ? topRobloxGames.slice(0, 25)
+                    : topFortniteIslands.slice(0, 25)
+                )}
+                panel={panel}
+                accent={accent}
+              />
+
+              <ColorBreakdownCard
+                title="Top Tile Colors"
+                subtitle="RGB breakdown from the five most played tiles"
+                games={
+                  activePlatform === "roblox"
+                    ? topRobloxGames.slice(0, 5)
+                    : topFortniteIslands.slice(0, 5)
+                }
+                panel={panel}
+                accent={accent}
+              />
+            </section>
+
+            <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
                 <h2 className="text-2xl font-bold">Opportunity Map</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Opportunity proxy is derived from visibility concentration and
-                  repeatable design patterns. Higher demand / visibility means
-                  more players or more frequent imported signals.
+                  Green indicates stronger opportunity; red indicates weaker opportunity or higher risk.
                 </p>
                 <BlockHeatMap
                   items={activeItems}
                   selectedGenre={selectedGenre}
                   selectedSubgenre={selectedSubgenre}
-                  accent={accent}
+                  platform={activePlatform}
+                  panel={panel}
                 />
               </div>
+            </section>
 
+            <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
                 <h2 className="text-2xl font-bold">My Game Idea Is</h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -498,28 +538,41 @@ export default function Home() {
                   </select>
                 </div>
 
-                <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-                  <ul className="list-disc space-y-2 pl-5">
-                    <li>
-                      This combination of genre and subgenre makes{" "}
-                      <strong>{ideaPercent}%</strong> of the imported{" "}
-                      {activePlatform === "roblox" ? "experiences" : "islands"}.
-                    </li>
-                    <li>
-                      This represents a potential pool of{" "}
-                      <strong>{formatNumber(totalPlayersInIdea)}</strong> current players.
-                    </li>
-                    <li>
-                      The top similar games are:{" "}
-                      <strong>
-                        {topSimilar.map((g) => g.title).join(", ") ||
-                          "Select a genre to populate suggestions"}
-                      </strong>
-                      .
-                    </li>
-                  </ul>
-                </div>
-              </div>
+	                <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+	                  <ul className="list-disc space-y-2 pl-5">
+	                    <li>
+	                      This combination of genre and subgenre makes{" "}
+	                      <strong>{ideaPercent}%</strong> of the imported{" "}
+	                      {activePlatform === "roblox" ? "experiences" : "islands"}.
+	                    </li>
+	                    <li>
+	                      This represents a potential pool of{" "}
+	                      <strong>{formatNumber(totalPlayersInIdea)}</strong> current players.
+	                    </li>
+	                  </ul>
+                    <div className="mt-5 border-t border-slate-200 pt-4">
+                      <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                        Similar top games
+                      </p>
+                      {topSimilar.length ? (
+                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                          {topSimilar.map((item: any, index: number) => (
+                            <MiniSimilarGameCard
+                              key={item.id}
+                              item={item}
+                              rank={index + 1}
+                              platform={activePlatform}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-slate-500">
+                          Select a genre to populate suggestions.
+                        </p>
+                      )}
+                    </div>
+	                </div>
+	              </div>
             </section>
 
             <section className="mb-6 grid gap-4 lg:grid-cols-3">
@@ -743,6 +796,95 @@ function buildFortniteGenreScoreboard(islands: any[]) {
     }))
     .sort((a, b) => b.rawValue - a.rawValue)
     .slice(0, 3);
+}
+
+function buildKeywordCloud(items: any[]) {
+  const stopWords = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "you",
+    "your",
+    "are",
+    "can",
+    "this",
+    "that",
+    "from",
+    "into",
+    "play",
+    "game",
+    "games",
+    "roblox",
+    "experience",
+    "new",
+    "all",
+    "get",
+    "now",
+    "more",
+    "will",
+    "have",
+    "has",
+    "our",
+    "out",
+    "join",
+    "use",
+  ]);
+  const counts: Record<string, number> = {};
+
+  items.forEach((item) => {
+    const text = [
+      item.description,
+      item.core_loop,
+      item.design_pattern,
+      ...(item.extracted_tags ?? []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    text
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length > 3 && !stopWords.has(word))
+      .forEach((word) => {
+        counts[word] = (counts[word] ?? 0) + 1;
+      });
+  });
+
+  const max = Math.max(...Object.values(counts), 1);
+
+  return Object.entries(counts)
+    .map(([word, count]) => ({
+      word,
+      count,
+      size: 13 + Math.round((count / max) * 17),
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 18)
+    .map((item, rank) => ({ ...item, rank }));
+}
+
+function buildCommonTemplate(items: any[]) {
+  const map: Record<string, number> = {};
+
+  items.forEach((item) => {
+    const key = item.design_pattern ?? item.core_loop ?? "Explore -> Play -> Return";
+    map[key] = (map[key] ?? 0) + 1;
+  });
+
+  const [pattern = "Explore -> Play -> Return", count = 0] =
+    Object.entries(map).sort((a, b) => b[1] - a[1])[0] ?? [];
+
+  return {
+    pattern,
+    count,
+    steps: pattern
+      .split(/→|->/)
+      .map((step) => step.trim())
+      .filter(Boolean)
+      .slice(0, 4),
+  };
 }
 
 function getTopGameByUtcDate(games: any[], daysAgo: number) {
@@ -1138,103 +1280,545 @@ function CandleVisual({ data, accent }: any) {
 function EmergingGameVisual({ game, accent, metadataOnly = false }: any) {
   if (!game) return <Unavailable text="No emerging game available." />;
 
+  const href = game.url ?? `https://fortnite.gg/island?code=${game.island_code}`;
+  const metric = metadataOnly
+    ? game.design_pattern ?? "Metadata"
+    : `${Math.round(game.playerGainPercent ?? 0)}% ▲`;
+  const detail = metadataOnly
+    ? game.inferred_genre ?? "Metadata Signal"
+    : `${formatNumber(game.latestPlayers)} current players`;
+
   return (
-    <div className="flex h-full flex-col justify-between">
-      <div>
-        <h4 className="text-2xl font-black">{game.title}</h4>
-        <p className="mt-2 text-sm text-slate-500">
-          {metadataOnly
-            ? game.inferred_genre ?? "Metadata Signal"
-            : `${formatNumber(game.latestPlayers)} current players`}
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="group block h-full"
+    >
+      <div className="relative mx-auto aspect-square h-full max-h-64 overflow-hidden rounded-2xl bg-slate-900 shadow-sm">
+        {game.thumbnail_url ? (
+          <img
+            src={game.thumbnail_url}
+            alt={game.title}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-slate-200 text-sm font-bold text-slate-500">
+            No image
+          </div>
+        )}
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+
+        <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+          <p className="mb-2 inline-flex rounded-full bg-white/15 px-2 py-1 text-[10px] font-black uppercase tracking-wide backdrop-blur">
+            {metadataOnly ? "Signal" : "Player Gain"}
+          </p>
+          <h4 className="line-clamp-2 text-lg font-black leading-tight">
+            {game.title}
+          </h4>
+          <div className="mt-2 flex items-end justify-between gap-3">
+            <p className="text-xs font-semibold text-white/75">{detail}</p>
+            <p className="text-xl font-black" style={{ color: accent }}>
+              {metric}
+            </p>
+          </div>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function KeywordCloudCard({ title, subtitle, items, panel, accent }: any) {
+  return (
+    <div className={`rounded-3xl border p-5 ${panel}`}>
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <p className="text-xs text-slate-400">{subtitle}</p>
+      <div className="mt-5 flex min-h-48 flex-wrap content-center items-center gap-x-3 gap-y-2">
+        {items.length ? (
+          items.map((item: any) => (
+            <span
+              key={item.word}
+              className="font-black leading-none"
+              style={{
+                color: item.rank < 4 ? accent : undefined,
+                fontSize: `${item.size}px`,
+                opacity: item.rank < 6 ? 1 : 0.72,
+              }}
+            >
+              {item.word}
+            </span>
+          ))
+        ) : (
+          <Unavailable text="No description keywords available yet." />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TemplatePatternCard({ title, subtitle, template, panel, accent }: any) {
+  return (
+    <div className={`rounded-3xl border p-5 ${panel}`}>
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <p className="text-xs text-slate-400">{subtitle}</p>
+
+      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+          Mini Template
         </p>
+        <h3 className="mt-2 text-xl font-black leading-tight">
+          {template.pattern}
+        </h3>
+        <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+          {template.steps.map((step: string, index: number) => (
+            <div key={step} className="flex gap-2">
+              <span
+                className="mt-1 flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-black text-white"
+                style={{ backgroundColor: accent }}
+              >
+                {index + 1}
+              </span>
+              <span>{step}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {game.thumbnail_url && (
-        <img
-          src={game.thumbnail_url}
-          alt={game.title}
-          className="mt-4 h-24 w-full rounded-2xl object-cover"
-        />
-      )}
+      <p className="mt-3 text-xs text-slate-400">
+        Seen in {template.count} of the top 25 records.
+      </p>
+    </div>
+  );
+}
 
-      <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+function ColorBreakdownCard({ title, subtitle, games, panel, accent }: any) {
+  const [colors, setColors] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadColors() {
+      const extracted = await Promise.all(
+        games.map(async (game: any, index: number) => {
+          const color = await extractDominantColor(game.thumbnail_url);
+          return {
+            title: game.title,
+            color: color ?? fallbackTileColors[index % fallbackTileColors.length],
+          };
+        })
+      );
+
+      if (!cancelled) setColors(extracted);
+    }
+
+    loadColors();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [games]);
+
+  const visibleColors = colors.length
+    ? colors
+    : games.map((game: any, index: number) => ({
+        title: game.title,
+        color: fallbackTileColors[index % fallbackTileColors.length],
+      }));
+
+  return (
+    <div className={`rounded-3xl border p-5 ${panel}`}>
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <p className="text-xs text-slate-400">{subtitle}</p>
+
+      <div className="mt-5 space-y-3">
+        {visibleColors.map((item: any) => (
+          <div key={item.title} className="grid grid-cols-[2.25rem_1fr_auto] items-center gap-3">
+            <div
+              className="h-9 w-9 rounded-lg border border-black/10"
+              style={{ backgroundColor: item.color.hex }}
+            />
+            <p className="line-clamp-2 text-sm font-semibold leading-snug">
+              {item.title}
+            </p>
+            <p
+              className="rounded-full px-2 py-1 text-[10px] font-black"
+              style={{
+                backgroundColor: `${accent}1f`,
+                color: accent,
+              }}
+            >
+              {item.color.rgb}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BlockHeatMap({
+  items,
+  selectedGenre,
+  selectedSubgenre,
+  platform,
+  panel,
+}: any) {
+  const [monetizationFilter, setMonetizationFilter] =
+    useState<"monetized" | "unmonetized">("monetized");
+  const filteredItems = items.filter((item: any) =>
+    monetizationFilter === "monetized"
+      ? isMonetizedItem(item, platform)
+      : !isMonetizedItem(item, platform)
+  );
+  const maps = [
+    buildOpportunityMap(filteredItems, "demand-saturation", platform),
+    buildOpportunityMap(filteredItems, "velocity-saturation", platform),
+    buildOpportunityMap(filteredItems, "demand-complexity", platform),
+  ];
+  const selectedKey =
+    selectedGenre && selectedSubgenre
+      ? `${selectedGenre} / ${selectedSubgenre}`
+      : selectedGenre || "";
+
+  return (
+    <div className="mt-6 space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-500">
-          {metadataOnly ? "Signal" : "Player Gain"}
+          Showing {formatNumber(filteredItems.length)}{" "}
+          {monetizationFilter} records in the opportunity maps.
         </p>
-        <p className="text-3xl font-black" style={{ color: accent }}>
-          {metadataOnly
-            ? game.design_pattern ?? "Metadata"
-            : `${Math.round(game.playerGainPercent ?? 0)}% ▲`}
+        <ToggleGroup>
+          <ToggleButton
+            active={monetizationFilter === "monetized"}
+            onClick={() => setMonetizationFilter("monetized")}
+            activeColor="#2fb8bd"
+          >
+            Monetized
+          </ToggleButton>
+          <ToggleButton
+            active={monetizationFilter === "unmonetized"}
+            onClick={() => setMonetizationFilter("unmonetized")}
+            activeColor="#2fb8bd"
+          >
+            Unmonetized
+          </ToggleButton>
+        </ToggleGroup>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <OpportunityMapCard
+          map={maps[0]}
+          selectedKey={selectedKey}
+          selectedGenre={selectedGenre}
+          selectedSubgenre={selectedSubgenre}
+        />
+        <OpportunityMapCard
+          map={maps[1]}
+          selectedKey={selectedKey}
+          selectedGenre={selectedGenre}
+          selectedSubgenre={selectedSubgenre}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <OpportunityMapCard
+          map={maps[2]}
+          selectedKey={selectedKey}
+          selectedGenre={selectedGenre}
+          selectedSubgenre={selectedSubgenre}
+        />
+        <ReadOutCard
+          maps={maps}
+          panel={panel}
+        />
+      </div>
+    </div>
+  );
+}
+
+function OpportunityMapCard({
+  map,
+  selectedKey,
+  selectedGenre,
+  selectedSubgenre,
+}: any) {
+  return (
+    <div className="rounded-2xl border border-slate-200 p-4">
+      <div className="mb-3 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-black">{map.title}</h3>
+          <p className="text-xs text-slate-500">{map.subtitle}</p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+          {map.colorLabel}
+        </span>
+      </div>
+
+      <OpportunityGrid
+        map={map}
+        selectedKey={selectedKey}
+        selectedGenre={selectedGenre}
+        selectedSubgenre={selectedSubgenre}
+      />
+
+      <div className="mt-2 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+        <span>{map.xLow}</span>
+        <span>{map.xHigh}</span>
+      </div>
+      <p className="mt-1 text-center text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        X-axis: {map.xLabel}
+      </p>
+      <p className="mt-1 text-center text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        Y-axis: {map.yLabel}
+      </p>
+
+      <div className="mt-4 grid gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+        <p>
+          <strong>X calculation:</strong> {map.xFormula}
+        </p>
+        <p>
+          <strong>Y calculation:</strong> {map.yFormula}
+        </p>
+        <p>
+          <strong>Color:</strong> {map.colorFormula}
         </p>
       </div>
     </div>
   );
 }
 
-function BlockHeatMap({ items, selectedGenre, selectedSubgenre, accent }: any) {
-  const grouped = buildHeatMapItems(items);
-  const selectedKey =
-    selectedGenre && selectedSubgenre
-      ? `${selectedGenre} / ${selectedSubgenre}`
-      : selectedGenre || "";
+function OpportunityGrid({ map, selectedKey, selectedGenre, selectedSubgenre }: any) {
+  return (
+    <div className="relative mx-auto grid max-w-xl grid-cols-4 rounded-xl border-2 border-slate-900">
+      {Array.from({ length: 16 }).map((_, i) => (
+        <div
+          key={i}
+          className="min-h-32 border border-slate-900 p-1.5"
+          style={{ backgroundColor: opportunityCellColor(i) }}
+        >
+          {map.items
+            .filter((item: any) => item.cell === i)
+            .slice(0, 2)
+            .map((item: any) => {
+              const active =
+                item.label === selectedKey ||
+                item.genre === selectedGenre ||
+                item.subgenre === selectedSubgenre;
 
-  const cells = [
-    "#35d399", "#35d399", "#d8df24", "#ffcf22",
-    "#35d399", "#d8df24", "#ffcf22", "#ffad32",
-    "#d8df24", "#ffcf22", "#ffad32", "#f87171",
-    "#ffcf22", "#ffad32", "#f87171", "#f87171",
-  ];
+              return (
+                <div
+                  key={item.label}
+                  className="mb-1 rounded-lg px-2 py-1 text-[9px] font-bold leading-tight shadow"
+                  style={{
+                    backgroundColor: active
+                      ? "rgba(17, 24, 39, 0.74)"
+                      : "rgba(255, 255, 255, 0.5)",
+                    color: active ? "white" : "#1e293b",
+                    border: active
+                      ? "2px solid rgba(255, 255, 255, 0.9)"
+                      : "1px solid rgba(148, 163, 184, 0.55)",
+                  }}
+                  title={`${item.label} · score ${Math.round(item.score * 100)}`}
+                >
+                  <span className="block">{item.genre}</span>
+                  <span className="block font-semibold opacity-70">
+                    {item.subgenre}
+                  </span>
+                </div>
+              );
+            })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReadOutCard({ maps, panel }: any) {
+  const leaders = maps
+    .map((map: any) => map.items[0] ? { ...map.items[0], lens: map.title } : null)
+    .filter(Boolean);
+  const strongest = leaders.sort((a: any, b: any) => b.score - a.score)[0];
 
   return (
-    <div className="mt-6">
-      <div className="relative mx-auto grid max-w-xl grid-cols-4 overflow-hidden rounded-xl border-2 border-slate-900">
-        {cells.map((color, i) => (
-          <div
-            key={i}
-            className="relative h-28 border border-slate-900"
-            style={{ backgroundColor: color }}
-          >
-            {grouped
-              .filter((item: any) => item.cell === i)
-              .slice(0, 2)
-              .map((item: any) => {
-                const active =
-                  item.label === selectedKey ||
-                  item.genre === selectedGenre ||
-                  item.subgenre === selectedSubgenre;
+    <div className={`rounded-3xl border p-6 ${panel}`}>
+      <h2 className="text-2xl font-bold">Read Out</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Synthesis across demand, saturation, velocity, and build complexity.
+      </p>
 
-                return (
-                  <div
-                    key={item.label}
-                    className="absolute rounded-full px-2 py-1 text-[10px] font-bold shadow"
-                    style={{
-                      left: `${item.x}%`,
-                      top: `${item.y}%`,
-                      backgroundColor: active ? accent : "white",
-                      color: active ? "white" : "#1e293b",
-                      border: active ? "2px solid #111827" : "1px solid #cbd5e1",
-                    }}
-                    title={`${item.label} · ${item.count} records`}
-                  >
-                    {item.genre.slice(0, 10)}
-                  </div>
-                );
-              })}
+      {strongest ? (
+        <div className="mt-5 space-y-4">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+              Strongest signal
+            </p>
+            <h3 className="mt-2 text-xl font-black leading-tight">
+              {strongest.label}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              This segment scores highest in <strong>{strongest.lens}</strong>,
+              with {formatNumber(strongest.players)} players across{" "}
+              {strongest.count} records.
+            </p>
           </div>
-        ))}
-      </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-500">
-        <p>
-          <strong>Opportunity proxy:</strong> derived from record concentration,
-          current players where available, and repeatable design patterns.
-        </p>
-        <p>
-          <strong>Higher demand / visibility:</strong> based on player pools for
-          Roblox and imported metadata frequency for Fortnite.
-        </p>
-      </div>
+          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-slate-500">
+            {leaders.map((leader: any) => (
+              <li key={leader.lens}>
+                <strong>{leader.lens}:</strong> {leader.label}
+              </li>
+            ))}
+          </ul>
+
+          <div className="rounded-2xl border border-slate-200 p-4 text-sm leading-6 text-slate-600">
+            <strong>Creator interpretation:</strong>{" "}
+            prioritize ideas that appear green in more than one lens; treat
+            red/yellow areas as either crowded, slow-moving, or expensive to build.
+          </div>
+        </div>
+      ) : (
+        <Unavailable text="Not enough classified records to generate a read out." />
+      )}
     </div>
+  );
+}
+
+function opportunityCellColor(index: number) {
+  const col = index % 4;
+  const row = Math.floor(index / 4);
+  const score = (col + (3 - row)) / 6;
+
+  if (score >= 0.72) return "#2fb8bd";
+  if (score >= 0.48) return "#d9e75f";
+  if (score >= 0.28) return "#fedb7a";
+  return "#fee2e2";
+}
+
+function buildOpportunityMap(items: any[], lens: string, platform: Platform) {
+  const grouped = buildHeatMapItems(items);
+  const maxPlayers = Math.max(...grouped.map((item: any) => item.players), 1);
+  const maxCount = Math.max(...grouped.map((item: any) => item.count), 1);
+  const maxVelocity = Math.max(...grouped.map((item: any) => Math.abs(item.velocity)), 1);
+  const demandFormula =
+    platform === "roblox"
+      ? "Current player pool divided by the largest segment player pool."
+      : "Imported island count in the segment divided by the largest segment count.";
+  const velocityFormula =
+    platform === "roblox"
+      ? "Average player gain percentage for the segment, normalized against the fastest segment."
+      : "Imported metadata movement is not available yet, so this lens uses current segment activity as a temporary proxy.";
+
+  const config: Record<string, any> = {
+    "demand-saturation": {
+      id: "demand-saturation",
+      title: "Demand vs Saturation",
+      subtitle: "Find demand that is not already overcrowded.",
+      xLabel: "Audience Demand",
+      yLabel: "Market Saturation",
+      xLow: "Lower demand",
+      xHigh: "Higher demand",
+      colorLabel: "Opportunity",
+      xFormula: demandFormula,
+      yFormula: "Number of records in this genre/subgenre divided by the most represented segment.",
+      colorFormula: "Demand score discounted by saturation; greener means high demand without extreme crowding.",
+      x: (item: any) => item.players / maxPlayers || item.count / maxCount,
+      y: (item: any) => item.count / maxCount,
+      score: (x: number, y: number) => x * (1 - y * 0.65),
+    },
+    "velocity-saturation": {
+      id: "velocity-saturation",
+      title: "Velocity vs Saturation",
+      subtitle: "Find categories moving upward before they get crowded.",
+      xLabel: "Trend Velocity",
+      yLabel: "Market Saturation",
+      xLow: "Slower",
+      xHigh: "Faster",
+      colorLabel: "Momentum",
+      xFormula: velocityFormula,
+      yFormula: "Number of records in this genre/subgenre divided by the most represented segment.",
+      colorFormula: "Velocity score discounted by saturation; greener means faster movement with less crowding.",
+      x: (item: any) =>
+        platform === "roblox"
+          ? Math.max(0, item.velocity) / maxVelocity
+          : item.count / maxCount,
+      y: (item: any) => item.count / maxCount,
+      score: (x: number, y: number) => x * (1 - y * 0.55),
+    },
+    "demand-complexity": {
+      id: "demand-complexity",
+      title: "Demand vs Build Complexity",
+      subtitle: "Find strong demand with manageable production effort.",
+      xLabel: "Audience Demand",
+      yLabel: "Build Complexity",
+      xLow: "Lower demand",
+      xHigh: "Higher demand",
+      colorLabel: "Feasibility",
+      xFormula: demandFormula,
+      yFormula: "Average inferred build complexity: low is lower on the map, high is higher on the map.",
+      colorFormula: "Demand score discounted by build complexity; greener means strong demand with manageable effort.",
+      x: (item: any) => item.players / maxPlayers || item.count / maxCount,
+      y: (item: any) => item.complexity,
+      score: (x: number, y: number) => x * (1 - y * 0.5),
+    },
+  };
+
+  const activeConfig = config[lens];
+
+  return {
+    ...activeConfig,
+    items: grouped
+      .map((item: any, index: number) => {
+        const x = clamp01(activeConfig.x(item));
+        const y = clamp01(activeConfig.y(item));
+        const col = Math.min(3, Math.floor(x * 4));
+        const row = Math.min(3, Math.floor(y * 4));
+
+        return {
+          ...item,
+          score: clamp01(activeConfig.score(x, y)),
+          cell: row * 4 + col,
+          x: 14 + ((index * 31) % 58),
+          y: 18 + ((index * 47) % 54),
+        };
+      })
+      .sort((a: any, b: any) => b.score - a.score),
+  };
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+function complexityScore(value: string) {
+  if (/low/i.test(value)) return 0.2;
+  if (/high/i.test(value)) return 0.9;
+  return 0.55;
+}
+
+function isMonetizedItem(item: any, platform: Platform) {
+  if (platform === "roblox") {
+    return Boolean(
+      item.monetization_style &&
+        item.monetization_style !== "Unknown" &&
+        item.monetization_style !== "None"
+    );
+  }
+
+  const text = [
+    item.title,
+    item.description,
+    item.core_loop,
+    item.design_pattern,
+    item.player_intent,
+    ...(item.extracted_tags ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return /shop|store|coin|coins|currency|purchase|premium|pass|battle pass|skin|skins|cosmetic|reward/.test(
+    text
   );
 }
 
@@ -1357,6 +1941,51 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
               : item.competition_level ?? "Metadata"}
           </p>
         </div>
+      </div>
+    </a>
+  );
+}
+
+function MiniSimilarGameCard({ item, rank, platform }: any) {
+  const positive = (item.playerGainPercent ?? 0) >= 0;
+  const href = item.url ?? `https://fortnite.gg/island?code=${item.island_code}`;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="line-clamp-2 text-xs font-black leading-snug">
+          {item.title}
+        </h3>
+        <span className="text-[10px] font-bold text-slate-400">#{rank}</span>
+      </div>
+
+      {item.thumbnail_url && (
+        <img
+          src={item.thumbnail_url}
+          alt={item.title}
+          className="mt-2 aspect-square w-full rounded-xl object-cover"
+        />
+      )}
+
+      <div className="mt-3 text-[11px] leading-4">
+        <p className="text-slate-400">
+          {platform === "roblox" ? "Players" : "Genre"}
+        </p>
+        <p className="font-black">
+          {platform === "roblox"
+            ? formatNumber(item.latestPlayers)
+            : item.inferred_genre ?? "Other"}
+        </p>
+        {platform === "roblox" && (
+          <p className={positive ? "font-bold text-green-600" : "font-bold text-red-500"}>
+            {Math.round(item.playerGainPercent ?? 0)}% {positive ? "▲" : "▼"}
+          </p>
+        )}
       </div>
     </a>
   );
@@ -1505,34 +2134,105 @@ function buildHeatMapItems(items: any[]) {
         subgenre,
         count: 0,
         players: 0,
+        velocityTotal: 0,
+        complexityTotal: 0,
         patterns: new Set(),
       };
     }
 
     map[key].count += 1;
     map[key].players += item.latestPlayers ?? 0;
+    map[key].velocityTotal += item.playerGainPercent ?? 0;
+    map[key].complexityTotal += complexityScore(item.build_complexity ?? "Medium");
     if (item.design_pattern) map[key].patterns.add(item.design_pattern);
   });
 
   const values = Object.values(map);
-  const maxPlayers = Math.max(...values.map((v: any) => v.players), 1);
-  const maxCount = Math.max(...values.map((v: any) => v.count), 1);
 
-  return values.map((item: any, index: number) => {
-    const demand = item.players / maxPlayers || item.count / maxCount;
-    const opportunity = Math.min(1, (item.patterns.size + item.count / maxCount) / 2);
-
-    const col = Math.min(3, Math.floor(demand * 4));
-    const row = Math.min(3, Math.floor((1 - opportunity) * 4));
-    const cell = row * 4 + col;
-
+  return values.map((item: any) => {
     return {
       ...item,
-      cell,
-      x: 20 + ((index * 31) % 60),
-      y: 20 + ((index * 47) % 60),
+      velocity: item.count ? item.velocityTotal / item.count : 0,
+      complexity: item.count ? item.complexityTotal / item.count : 0.55,
     };
   });
+}
+
+const fallbackTileColors = [
+  { hex: "#5fbfd0", rgb: "RGB 95, 191, 208" },
+  { hex: "#7c3aed", rgb: "RGB 124, 58, 237" },
+  { hex: "#d6a06d", rgb: "RGB 214, 160, 109" },
+  { hex: "#16a34a", rgb: "RGB 22, 163, 74" },
+  { hex: "#5b5d78", rgb: "RGB 91, 93, 120" },
+];
+
+function extractDominantColor(src?: string) {
+  if (!src || typeof window === "undefined") {
+    return Promise.resolve(null);
+  }
+
+  return new Promise<{ hex: string; rgb: string } | null>((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.referrerPolicy = "no-referrer";
+
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+
+        if (!context) {
+          resolve(null);
+          return;
+        }
+
+        canvas.width = 24;
+        canvas.height = 24;
+        context.drawImage(image, 0, 0, 24, 24);
+
+        const data = context.getImageData(0, 0, 24, 24).data;
+        let red = 0;
+        let green = 0;
+        let blue = 0;
+        let count = 0;
+
+        for (let index = 0; index < data.length; index += 16) {
+          const alpha = data[index + 3];
+          if (alpha < 128) continue;
+
+          red += data[index];
+          green += data[index + 1];
+          blue += data[index + 2];
+          count += 1;
+        }
+
+        if (!count) {
+          resolve(null);
+          return;
+        }
+
+        const r = Math.round(red / count);
+        const g = Math.round(green / count);
+        const b = Math.round(blue / count);
+
+        resolve({
+          hex: rgbToHex(r, g, b),
+          rgb: `RGB ${r}, ${g}, ${b}`,
+        });
+      } catch {
+        resolve(null);
+      }
+    };
+
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
+
+function rgbToHex(r: number, g: number, b: number) {
+  return `#${[r, g, b]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
 function formatShortDate(date: string) {

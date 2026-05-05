@@ -21,3 +21,7 @@ jobs:
       - name: Run classification audit
         run: |
           curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/audit/classification
+
+      - name: Save dashboard snapshot
+        run: |
+          curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/snapshots/dashboard
