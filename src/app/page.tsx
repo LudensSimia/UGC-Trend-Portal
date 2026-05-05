@@ -25,12 +25,24 @@ const supabase = createClient(
 
 type Platform = "roblox" | "fortnite";
 
+type DataQualitySnapshot = {
+  platform: Platform;
+  total_records: number;
+  classified_records: number;
+  classification_coverage_percent: number;
+  confidence_percent: number;
+  created_at: string;
+};
+
 export default function Home() {
   const [activePlatform, setActivePlatform] = useState<Platform>("roblox");
   const [darkMode, setDarkMode] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [robloxGames, setRobloxGames] = useState<any[]>([]);
   const [fortniteIslands, setFortniteIslands] = useState<any[]>([]);
+  const [dataQualitySnapshots, setDataQualitySnapshots] = useState<
+    DataQualitySnapshot[]
+  >([]);
   const [selectedGenre, setSelectedGenre] = useState("");
   const [selectedSubgenre, setSelectedSubgenre] = useState("");
   const [loading, setLoading] = useState(true);
@@ -93,8 +105,28 @@ export default function Home() {
 
       if (fortniteError) console.error("Fortnite fetch error:", fortniteError);
 
+      const { data: auditData, error: auditError } = await supabase
+        .from("data_quality_snapshots")
+        .select(
+          `
+            platform,
+            total_records,
+            classified_records,
+            classification_coverage_percent,
+            confidence_percent,
+            created_at
+          `
+        )
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (auditError) {
+        console.warn("Data quality audit fetch warning:", auditError.message);
+      }
+
       setRobloxGames((robloxData ?? []).map(withLatestRobloxSnapshot));
       setFortniteIslands((fortniteData ?? []).map(withLatestFortniteSnapshot));
+      setDataQualitySnapshots((auditData ?? []) as DataQualitySnapshot[]);
       setLoading(false);
     }
 
@@ -165,6 +197,16 @@ export default function Home() {
 
   const topGenreScoreboard = buildTopGenreScoreboard(robloxGames);
   const topGameScoreboard = topRobloxGames.slice(0, 3);
+  const topPlayedYesterday = getTopGameByUtcDate(robloxGames, 1);
+  const topPlayedLastWeek = getTopGameByUtcDate(robloxGames, 7);
+  const activeAuditSnapshot = dataQualitySnapshots.find(
+    (snapshot) => snapshot.platform === activePlatform
+  );
+  const dataSourceHealth = buildDataSourceHealth(
+    activePlatform,
+    activeItems,
+    activeAuditSnapshot
+  );
 
   const shell = darkMode
     ? "bg-[#111318] text-slate-100"
@@ -183,9 +225,11 @@ export default function Home() {
               ◈
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight">UGC Intel</h1>
+              <h1 className="text-xl font-black tracking-tight">
+                Snout Intel Dashboard
+              </h1>
               <p className="text-xs text-slate-500">
-                Creator Market Intelligence
+                Creator Development intelligence portal by FDS LLC
               </p>
             </div>
           </div>
@@ -263,14 +307,16 @@ export default function Home() {
         ) : (
           <>
             <section className="mb-6 grid gap-4 lg:grid-cols-4">
-              <MiniBarKpi
-                title="Games Queried Today"
-                value={
-                  activePlatform === "roblox"
-                    ? robloxGames.length
-                    : fortniteIslands.length
-                }
-                bars={buildImportBars(activeItems)}
+              <DataSourceHealthCard
+                title="Data Source & health"
+                items={[
+                  `How many games are queried today: ${formatNumber(
+                    dataSourceHealth.queriedToday
+                  )}.`,
+                  `The data is pulled from: ${dataSourceHealth.source}.`,
+                  `Automated classification confidence is ${dataSourceHealth.confidence}%.`,
+                ]}
+                lastRunLabel={dataSourceHealth.lastRunLabel}
                 panel={panel}
                 accent={accent}
               />
@@ -287,17 +333,44 @@ export default function Home() {
                     ? topGameScoreboard.map((g) => ({
                         label: g.title,
                         value: formatNumber(g.latestPlayers),
+                        href: g.url,
                       }))
                     : topFortniteIslands.slice(0, 3).map((i) => ({
                         label: i.title,
                         value: i.inferred_genre ?? "Metadata",
+                        href: i.url,
                       }))
+                }
+                references={
+                  activePlatform === "roblox"
+                    ? [
+                        {
+                          label: "Top played yesterday",
+                          value: topPlayedYesterday?.title ?? "placeholder",
+                          href: topPlayedYesterday?.url,
+                        },
+                        {
+                          label: "Top played last week",
+                          value: topPlayedLastWeek?.title ?? "placeholder",
+                          href: topPlayedLastWeek?.url,
+                        },
+                      ]
+                    : [
+                        {
+                          label: "Top played yesterday",
+                          value: "placeholder",
+                        },
+                        {
+                          label: "Top played last week",
+                          value: "placeholder",
+                        },
+                      ]
                 }
                 panel={panel}
                 accent={accent}
               />
 
-              <ScoreboardCard
+              <GenreShareCard
                 title="Top 3 Genres / Subgenres"
                 subtitle={
                   activePlatform === "roblox"
@@ -633,13 +706,20 @@ function buildTopGenreScoreboard(games: any[]) {
     map[key].count += 1;
   });
 
-  return Object.entries(map)
-    .map(([label, value]) => ({
+  const rows = Object.entries(map).map(([label, value]) => ({
       label,
       value: formatNumber(value.players),
+      rawValue: value.players,
       rawGenre: label.split(" / ")[0],
+    }));
+  const total = rows.reduce((sum, row) => sum + row.rawValue, 0);
+
+  return rows
+    .map((row) => ({
+      ...row,
+      share: total ? Math.round((row.rawValue / total) * 100) : 0,
     }))
-    .sort((a, b) => parseNumber(b.value) - parseNumber(a.value))
+    .sort((a, b) => b.rawValue - a.rawValue)
     .slice(0, 3);
 }
 
@@ -652,10 +732,45 @@ function buildFortniteGenreScoreboard(islands: any[]) {
     map[key] = (map[key] ?? 0) + 1;
   });
 
+  const total = islands.length;
+
   return Object.entries(map)
-    .map(([label, count]) => ({ label, value: `${count}` }))
-    .sort((a, b) => Number(b.value) - Number(a.value))
+    .map(([label, count]) => ({
+      label,
+      value: `${count}`,
+      rawValue: count,
+      share: total ? Math.round((count / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.rawValue - a.rawValue)
     .slice(0, 3);
+}
+
+function getTopGameByUtcDate(games: any[], daysAgo: number) {
+  const targetDate = new Date();
+  targetDate.setUTCDate(targetDate.getUTCDate() - daysAgo);
+  const targetKey = targetDate.toISOString().slice(0, 10);
+
+  return games
+    .map((game) => {
+      const snapshot = (game.snapshots ?? [])
+        .filter((item: any) =>
+          String(item.created_at ?? "").startsWith(targetKey)
+        )
+        .sort(
+          (a: any, b: any) =>
+            (b.current_players ?? 0) - (a.current_players ?? 0)
+        )[0];
+
+      if (!snapshot) return null;
+
+      return {
+        title: game.title,
+        url: game.url,
+        players: snapshot.current_players ?? 0,
+      };
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => b.players - a.players)[0];
 }
 
 function topTags(items: any[]) {
@@ -670,6 +785,114 @@ function topTags(items: any[]) {
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
+}
+
+function buildDataSourceHealth(
+  platform: Platform,
+  items: any[],
+  auditSnapshot?: DataQualitySnapshot
+) {
+  const today = new Date().toISOString().slice(0, 10);
+  const source =
+    platform === "roblox"
+      ? "Roblox Explore API / discover charts"
+      : "Fortnite Data API / ecosystem islands";
+
+  const queriedToday =
+    platform === "roblox"
+      ? items.filter((item) =>
+          (item.snapshots ?? []).some((snapshot: any) =>
+            String(snapshot.created_at ?? "").startsWith(today)
+          )
+        ).length
+      : items.filter((item) =>
+          String(item.last_seen_at ?? item.created_at ?? "").startsWith(today)
+        ).length || items.length;
+
+  const classifiedRecords = items.filter((item) => {
+    const hasIdentity = Boolean(item.title);
+    const hasUsefulGenre =
+      Boolean(item.inferred_genre) && item.inferred_genre !== "Other";
+    const hasUsefulSubgenre =
+      Boolean(item.inferred_subgenre) && item.inferred_subgenre !== "General";
+    const hasSource =
+      platform === "roblox"
+        ? (item.snapshots ?? []).length > 0
+        : Boolean(item.raw_latest ?? item.raw);
+
+    return hasIdentity && hasUsefulGenre && hasUsefulSubgenre && hasSource;
+  }).length;
+
+  const fallbackConfidence = items.length
+    ? Math.round((classifiedRecords / items.length) * 100)
+    : 0;
+  const confidence = Math.round(
+    auditSnapshot?.confidence_percent ?? fallbackConfidence
+  );
+
+  return {
+    queriedToday,
+    source,
+    confidence,
+    lastRunLabel: formatUtcTimestamp(
+      auditSnapshot?.created_at ?? getLatestSourceTimestamp(platform, items)
+    ),
+  };
+}
+
+function getLatestSourceTimestamp(platform: Platform, items: any[]) {
+  const timestamps = items.flatMap((item) => {
+    if (platform === "roblox") {
+      return (item.snapshots ?? []).map((snapshot: any) => snapshot.created_at);
+    }
+
+    return [
+      item.last_seen_at,
+      item.created_at,
+      ...(item.fortnite_island_snapshots ?? []).map(
+        (snapshot: any) => snapshot.created_at
+      ),
+    ];
+  });
+
+  return timestamps
+    .filter(Boolean)
+    .sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    )[0];
+}
+
+function formatUtcTimestamp(value?: string) {
+  if (!value) return "Last query snapshot: not available yet";
+
+  return `Last query snapshot: ${new Date(value)
+    .toISOString()
+    .replace(".000Z", "Z")} UTC`;
+}
+
+function DataSourceHealthCard({
+  title,
+  items,
+  lastRunLabel,
+  panel,
+  accent,
+}: any) {
+  return (
+    <div className={`rounded-3xl border p-5 ${panel}`}>
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <ul className="mt-4 space-y-3 text-sm leading-6">
+        {items.map((item: string) => (
+          <li key={item} className="flex gap-2">
+            <span className="mt-2 h-1.5 w-1.5 flex-none rounded-full" style={{ backgroundColor: accent }} />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 border-t border-slate-200 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        {lastRunLabel}
+      </p>
+    </div>
+  );
 }
 
 function MiniBarKpi({ title, value, bars, panel, accent }: any) {
@@ -696,23 +919,120 @@ function MiniBarKpi({ title, value, bars, panel, accent }: any) {
   );
 }
 
-function ScoreboardCard({ title, subtitle, items, panel, accent }: any) {
+function ScoreboardCard({
+  title,
+  subtitle,
+  items,
+  references,
+  panel,
+  accent,
+}: any) {
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
       <p className="text-sm font-semibold text-slate-500">{title}</p>
       <p className="text-xs text-slate-400">{subtitle}</p>
       <div className="mt-4 space-y-2">
-        {items.map((item: any, index: number) => (
-          <div key={item.label} className="flex items-center gap-2">
-            <span className="w-5 text-xs font-bold text-slate-400">
-              {index + 1}
-            </span>
-            <div className="min-w-0 flex-1 truncate text-sm font-semibold">
-              {item.label}
+        {items.map((item: any, index: number) => {
+          const content = (
+            <>
+              <span className="w-5 flex-none text-xs font-bold text-slate-400">
+                {index + 1}
+              </span>
+              <span className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug">
+                {item.label}
+              </span>
+              <span
+                className="flex-none text-right text-sm font-black"
+                style={{ color: accent }}
+              >
+                {item.value}
+              </span>
+            </>
+          );
+
+          return item.href ? (
+            <a
+              key={item.label}
+              href={item.href}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-start gap-2 rounded-xl px-1 py-1 transition hover:bg-slate-100/70"
+            >
+              {content}
+            </a>
+          ) : (
+            <div key={item.label} className="flex items-start gap-2 px-1 py-1">
+              {content}
             </div>
-            <span className="text-sm font-black" style={{ color: accent }}>
+          );
+        })}
+      </div>
+      {references?.length ? (
+        <div className="mt-4 space-y-2 border-t border-slate-200 pt-3">
+          {references.map((reference: any) => {
+            const value = reference.href ? (
+              <a
+                href={reference.href}
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold hover:underline"
+                style={{ color: accent }}
+              >
+                {reference.value}
+              </a>
+            ) : (
+              <span className="font-bold text-slate-500">
+                {reference.value}
+              </span>
+            );
+
+            return (
+              <p
+                key={reference.label}
+                className="text-xs leading-5 text-slate-500"
+              >
+                <span className="font-semibold">{reference.label}:</span>{" "}
+                {value}
+              </p>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function GenreShareCard({ title, subtitle, items, panel, accent }: any) {
+  return (
+    <div className={`rounded-3xl border p-5 ${panel}`}>
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <p className="text-xs text-slate-400">{subtitle}</p>
+      <div className="mt-4 space-y-4">
+        {items.map((item: any) => (
+          <div key={item.label}>
+            <div className="mb-1 flex items-start justify-between gap-3">
+              <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug">
+                {item.label}
+              </p>
+              <span
+                className="flex-none text-sm font-black"
+                style={{ color: accent }}
+              >
+                {item.share}%
+              </span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.max(item.share, 4)}%`,
+                  backgroundColor: accent,
+                }}
+              />
+            </div>
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               {item.value}
-            </span>
+            </p>
           </div>
         ))}
       </div>
