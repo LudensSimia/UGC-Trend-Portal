@@ -11,10 +11,13 @@ jobs:
 
     steps:
       - name: Refresh Roblox chart snapshots
-        run: curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/roblox/import-all-charts
+        run: |
+          curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/roblox/import-all-charts
 
       - name: Refresh Fortnite island snapshots
-        run: curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/fortnite/import-islands
+        run: |
+          curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/fortnite/import-islands
 
       - name: Run classification audit
-        run: curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/audit/classification
+        run: |
+          curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/audit/classification
