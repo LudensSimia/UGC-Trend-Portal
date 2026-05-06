@@ -45,6 +45,13 @@ export default function Home() {
   >([]);
   const [selectedGenre, setSelectedGenre] = useState("");
   const [selectedSubgenre, setSelectedSubgenre] = useState("");
+  const [topGamesTrendLimit, setTopGamesTrendLimit] = useState<25 | 50>(25);
+  const [topGamesTrendPercentile, setTopGamesTrendPercentile] =
+    useState<25 | 50 | 75 | 100>(100);
+  const [genreTrendLimit, setGenreTrendLimit] = useState<25 | 50>(25);
+  const [genreTrendPercentile, setGenreTrendPercentile] =
+    useState<25 | 50 | 75 | 100>(100);
+  const [predictionSearch, setPredictionSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   const accent = activePlatform === "roblox" ? "#5fbfd0" : "#7c3aed";
@@ -69,6 +76,15 @@ export default function Home() {
           audience_signal,
           build_complexity,
           monetization_style,
+          game_metrics (
+            date,
+            current_players,
+            visits,
+            favorites,
+            up_votes,
+            down_votes,
+            like_ratio
+          ),
           roblox_chart_snapshots (
             created_at,
             current_players,
@@ -174,13 +190,10 @@ export default function Home() {
     );
   }, [fortniteIslands]);
 
-  const mostPlayedGame = topRobloxGames[0];
-  const mostPlayedGameTrend = mostPlayedGame
-    ? buildGameTrend(mostPlayedGame)
-    : [];
-
-  const genreCandles = buildGenreCandles(robloxGames);
-  const emergingGame = findEmergingGame(robloxGames);
+  const trendingHighlights = buildTrendingHighlights(
+    activePlatform === "roblox" ? robloxGames : fortniteIslands,
+    activePlatform
+  );
 
   const totalPlayersInIdea = filteredIdeaItems.reduce(
     (sum, item) => sum + (item.latestPlayers ?? 0),
@@ -207,6 +220,15 @@ export default function Home() {
     activePlatform,
     activeItems,
     activeAuditSnapshot
+  );
+  const predictionTarget = useMemo(
+    () => findPredictionTarget(activeItems, activePlatform, predictionSearch),
+    [activeItems, activePlatform, predictionSearch]
+  );
+  const predictionSignals = buildPredictionSignals(
+    predictionTarget,
+    activeItems,
+    activePlatform
   );
 
   const shell = darkMode
@@ -309,9 +331,9 @@ export default function Home() {
           <>
             <section className="mb-6 grid gap-4 lg:grid-cols-4">
               <DataSourceHealthCard
-                title="Data Source & health"
+                title="Data Source & Health"
                 items={[
-                  `How many games are queried today: ${formatNumber(
+                  `How many games are queried in the latest snapshot: ${formatNumber(
                     dataSourceHealth.queriedToday
                   )}.`,
                   `The data is pulled from: ${dataSourceHealth.source}.`,
@@ -330,17 +352,17 @@ export default function Home() {
                     : "Performance metrics unavailable"
                 }
                 items={
-                  activePlatform === "roblox"
-                    ? topGameScoreboard.map((g) => ({
-                        label: g.title,
-                        value: formatNumber(g.latestPlayers),
-                        href: g.url,
-                      }))
-                    : topFortniteIslands.slice(0, 3).map((i) => ({
-                        label: i.title,
-                        value: i.inferred_genre ?? "Metadata",
-                        href: i.url,
-                      }))
+	                  activePlatform === "roblox"
+	                    ? topGameScoreboard.map((g) => ({
+	                        label: g.title,
+	                        value: formatNumber(g.latestPlayers),
+	                        href: g.url,
+	                      }))
+	                    : topFortniteIslands.slice(0, 3).map((i) => ({
+	                        label: i.title,
+	                        value: i.inferred_genre ?? "Metadata",
+	                        href: i.url,
+	                      }))
                 }
                 references={
                   activePlatform === "roblox"
@@ -388,30 +410,40 @@ export default function Home() {
               />
 
               <TrendingCard
-                title="Most Trending Game"
-                item={
-                  activePlatform === "roblox"
-                    ? emergingGame
-                    : topFortniteIslands[0]
-                }
+                title="Trending Games"
+                items={trendingHighlights}
                 panel={panel}
                 accent={accent}
                 platform={activePlatform}
               />
             </section>
 
-            <section className="mb-6 grid gap-6 lg:grid-cols-3">
+            <section className="mb-6 grid gap-6 lg:grid-cols-2">
               <ChartCard
                 title="Most Played Games Over Time"
                 subtitle={
                   activePlatform === "roblox"
-                    ? "Top 25 experiences by current players, tracked across stored snapshot dates."
+                    ? `Top ${topGamesTrendLimit} experiences by current players, tracked across stored snapshot dates.`
                     : "Fortnite player-performance history is not available from the current endpoint."
                 }
                 panel={panel}
+                action={
+                  activePlatform === "roblox" ? (
+                    <TrendControls
+                      limit={topGamesTrendLimit}
+                      percentile={topGamesTrendPercentile}
+                      onLimitChange={setTopGamesTrendLimit}
+                      onPercentileChange={setTopGamesTrendPercentile}
+                      accent={accent}
+                    />
+                  ) : null
+                }
               >
                 {activePlatform === "roblox" ? (
-                  <TopGamesTrend games={topRobloxGames.slice(0, 25)} />
+                  <TopGamesTrend
+                    games={topRobloxGames.slice(0, topGamesTrendLimit)}
+                    percentile={topGamesTrendPercentile}
+                  />
                 ) : (
                   <Unavailable text="Fortnite island metadata is available, but player-performance history is not exposed by the current source." />
                 )}
@@ -421,47 +453,45 @@ export default function Home() {
                 title="Most Played Genres Over Time"
                 subtitle="Genre-level player curves using stored Roblox snapshot dates."
                 panel={panel}
+                action={
+                  activePlatform === "roblox" ? (
+                    <TrendControls
+                      limit={genreTrendLimit}
+                      percentile={genreTrendPercentile}
+                      onLimitChange={setGenreTrendLimit}
+                      onPercentileChange={setGenreTrendPercentile}
+                      accent={accent}
+                    />
+                  ) : null
+                }
               >
                 {activePlatform === "roblox" ? (
-                  <GenreLinesTrend games={robloxGames} />
+                  <GenreLinesTrend
+                    games={topRobloxGames.slice(0, genreTrendLimit)}
+                    percentile={genreTrendPercentile}
+                  />
                 ) : (
                   <Unavailable text="Fortnite genre counts are available, but not CCU curves." />
-                )}
-              </ChartCard>
-
-              <ChartCard
-                title="Emerging Game"
-                subtitle="Game with strongest stored player gain"
-                panel={panel}
-              >
-                {activePlatform === "roblox" ? (
-                  <EmergingGameVisual game={emergingGame} accent={accent} />
-                ) : (
-                  <EmergingGameVisual
-                    game={topFortniteIslands[0]}
-                    accent={accent}
-                    metadataOnly
-                  />
                 )}
               </ChartCard>
             </section>
 
             <section className="mb-6 grid gap-6 lg:grid-cols-3">
-              <KeywordCloudCard
-                title="Top 25 Keyword Cloud"
-                subtitle="Most common terms in leading game descriptions"
-                items={buildKeywordCloud(
-                  activePlatform === "roblox"
-                    ? topRobloxGames.slice(0, 25)
-                    : topFortniteIslands.slice(0, 25)
-                )}
-                panel={panel}
-                accent={accent}
-              />
+	              <KeywordCloudCard
+	                title="Top 25 Keyword Cloud"
+	                subtitle="Common title and description signals by genre"
+	                games={
+	                  activePlatform === "roblox"
+	                    ? topRobloxGames.slice(0, 25)
+	                    : topFortniteIslands.slice(0, 25)
+	                }
+	                panel={panel}
+	                accent={accent}
+	              />
 
-              <TemplatePatternCard
-                title="Common Structure"
-                subtitle="Most repeated design pattern in the top set"
+	              <TemplatePatternCard
+	                title="Common Description Structure"
+	                subtitle="Repeated description formula in the top set"
                 template={buildCommonTemplate(
                   activePlatform === "roblox"
                     ? topRobloxGames.slice(0, 25)
@@ -471,14 +501,14 @@ export default function Home() {
                 accent={accent}
               />
 
-              <ColorBreakdownCard
-                title="Top Tile Colors"
-                subtitle="RGB breakdown from the five most played tiles"
-                games={
-                  activePlatform === "roblox"
-                    ? topRobloxGames.slice(0, 5)
-                    : topFortniteIslands.slice(0, 5)
-                }
+	              <ColorBreakdownCard
+	                title="Top Tile Colors"
+	                subtitle="Primary and secondary RGB colors by genre"
+	                games={
+	                  activePlatform === "roblox"
+	                    ? topRobloxGames.slice(0, 50)
+	                    : topFortniteIslands.slice(0, 50)
+	                }
                 panel={panel}
                 accent={accent}
               />
@@ -616,6 +646,31 @@ export default function Home() {
               />
             </section>
 
+            <section className={`mb-6 rounded-3xl border p-6 ${panel}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-bold">Player Activity Landscape</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Rectangle size reflects current player activity. Color reflects stored player gain or loss.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-slate-400">
+                  <span className="h-3 w-3 rounded-sm bg-[#ef4444]" />
+                  Loss
+                  <span className="h-3 w-3 rounded-sm bg-[#334155]" />
+                  Flat
+                  <span className="h-3 w-3 rounded-sm bg-[#22c55e]" />
+                  Gain
+                </div>
+              </div>
+
+              {activePlatform === "roblox" ? (
+                <PlayerActivityLandscape games={topRobloxGames.slice(0, 80)} />
+              ) : (
+                <Unavailable text="Player activity landscape requires current-player data, which is not available from the current Fortnite source." />
+              )}
+            </section>
+
             <section className={`rounded-3xl border p-6 ${panel}`}>
               <h2 className="text-2xl font-bold">
                 Top 25{" "}
@@ -646,6 +701,16 @@ export default function Home() {
                   ))}
               </div>
             </section>
+
+            <PredictionMarketSignalsCard
+              panel={panel}
+              accent={accent}
+              search={predictionSearch}
+              onSearchChange={setPredictionSearch}
+              target={predictionTarget}
+              signals={predictionSignals}
+              platform={activePlatform}
+            />
           </>
         )}
 
@@ -661,8 +726,26 @@ function withLatestRobloxSnapshot(game: any) {
     (a, b) =>
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
+  const metrics = [...(game.game_metrics ?? [])].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
   const latest = sorted[sorted.length - 1];
   const earliest = sorted[0];
+  const earliestRanked = sorted.find((snapshot) => snapshot.chart_rank);
+  const latestMetric = metrics[metrics.length - 1];
+  const latestEngagementMetric =
+    [...metrics]
+      .reverse()
+      .find(
+        (metric) =>
+          typeof metric.visits === "number" ||
+          typeof metric.favorites === "number" ||
+          typeof metric.up_votes === "number" ||
+          typeof metric.like_ratio === "number"
+      ) ?? latestMetric;
+  const bestRankSnapshot = sorted
+    .filter((snapshot) => snapshot.chart_rank)
+    .sort((a, b) => (a.chart_rank ?? 9999) - (b.chart_rank ?? 9999))[0];
   const high = Math.max(...sorted.map((s) => s.current_players ?? 0), 0);
   const gain =
     earliest?.current_players && latest?.current_players
@@ -679,7 +762,48 @@ function withLatestRobloxSnapshot(game: any) {
     periodHigh: high,
     latestRank: latest?.chart_rank ?? null,
     latestSort: latest?.sort_name ?? null,
+    bestRank: bestRankSnapshot?.chart_rank ?? null,
+    bestRankSort: bestRankSnapshot?.sort_name ?? null,
+    averagePlayerGain7Days: getAveragePlayerGain(snapshots, 7),
+    visits: latestEngagementMetric?.visits ?? game.visits ?? null,
+    favorites: latestEngagementMetric?.favorites ?? game.favorites ?? null,
+    upVotes: latestEngagementMetric?.up_votes ?? null,
+    downVotes: latestEngagementMetric?.down_votes ?? null,
+    likeRatio: latest?.like_ratio ?? latestEngagementMetric?.like_ratio ?? null,
+    rankGain:
+      earliestRanked?.chart_rank && latest?.chart_rank
+        ? earliestRanked.chart_rank - latest.chart_rank
+        : 0,
   };
+}
+
+function getAveragePlayerGain(snapshots: any[], days: number) {
+  const sorted = [...(snapshots ?? [])]
+    .filter((snapshot) => snapshot.created_at)
+    .sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+  if (sorted.length < 2) return null;
+
+  const latest = sorted[sorted.length - 1];
+  const latestTime = new Date(latest.created_at).getTime();
+  const cutoff = latestTime - days * 24 * 60 * 60 * 1000;
+  const windowSnapshots = sorted.filter(
+    (snapshot) => new Date(snapshot.created_at).getTime() >= cutoff
+  );
+  const earliest = windowSnapshots[0] ?? sorted[0];
+  const earliestTime = new Date(earliest.created_at).getTime();
+  const elapsedDays = Math.max(
+    1,
+    (latestTime - earliestTime) / (24 * 60 * 60 * 1000)
+  );
+
+  return Math.round(
+    ((latest.current_players ?? 0) - (earliest.current_players ?? 0)) /
+      elapsedDays
+  );
 }
 
 function withLatestFortniteSnapshot(island: any) {
@@ -731,6 +855,153 @@ function findEmergingGame(games: any[]) {
   return [...games].sort(
     (a, b) => (b.playerGainPercent ?? 0) - (a.playerGainPercent ?? 0)
   )[0];
+}
+
+function buildTrendingHighlights(items: any[], platform: Platform) {
+  if (platform !== "roblox") {
+    return [
+      {
+        label: "Most player gain",
+        title: items[0]?.title ?? "placeholder",
+        metric: "Metadata",
+        direction: "up",
+        href: items[0]?.url,
+        subline: "Yesterday: placeholder",
+      },
+      {
+        label: "Most position gain",
+        title: "placeholder",
+        metric: "N/A",
+        direction: "up",
+        subline: "Yesterday: placeholder",
+      },
+      {
+        label: "Most player loss",
+        title: "placeholder",
+        metric: "N/A",
+        direction: "down",
+        subline: "Yesterday: placeholder",
+      },
+    ];
+  }
+
+  const yesterdayHighlights = buildYesterdayTrendingHighlights(items);
+  const playerGain = [...items].sort(
+    (a, b) => (b.playerGainPercent ?? 0) - (a.playerGainPercent ?? 0)
+  )[0];
+  const rankGain = [...items].sort(
+    (a, b) => (b.rankGain ?? 0) - (a.rankGain ?? 0)
+  )[0];
+  const playerLoss = [...items].sort(
+    (a, b) => (a.playerGainPercent ?? 0) - (b.playerGainPercent ?? 0)
+  )[0];
+
+  return [
+    {
+      label: "Most player gain",
+      title: playerGain?.title ?? "placeholder",
+      metric: `${Math.round(playerGain?.playerGainPercent ?? 0)}%`,
+      direction: "up",
+      href: playerGain?.url,
+      subline: `Yesterday: ${yesterdayHighlights.playerGain?.title ?? "placeholder"}`,
+    },
+    {
+      label: "Most position gain",
+      title: rankGain?.rankGain ? rankGain.title : "placeholder",
+      metric: rankGain?.rankGain ? `+${rankGain.rankGain} spots` : "N/A",
+      direction: "up",
+      href: rankGain?.url,
+      subline: `Yesterday: ${yesterdayHighlights.rankGain?.title ?? "placeholder"}`,
+    },
+    {
+      label: "Most player loss",
+      title:
+        playerLoss && (playerLoss.playerGainPercent ?? 0) < 0
+          ? playerLoss.title
+          : "placeholder",
+      metric:
+        playerLoss && (playerLoss.playerGainPercent ?? 0) < 0
+          ? `${Math.round(Math.abs(playerLoss.playerGainPercent ?? 0))}%`
+          : "N/A",
+      direction: "down",
+      href: playerLoss?.url,
+      subline: `Yesterday: ${yesterdayHighlights.playerLoss?.title ?? "placeholder"}`,
+    },
+  ];
+}
+
+function buildYesterdayTrendingHighlights(games: any[]) {
+  const targetDate = new Date();
+  targetDate.setUTCDate(targetDate.getUTCDate() - 1);
+  const targetKey = targetDate.toISOString().slice(0, 10);
+  const previousKey = getPreviousSnapshotDateKey(games, targetKey);
+
+  if (!previousKey) {
+    return { playerGain: null, rankGain: null, playerLoss: null };
+  }
+
+  const yesterdayRows = games
+    .map((game) => {
+      const yesterdaySnapshot = getLatestSnapshotForDate(game, targetKey);
+      const previousSnapshot = getLatestSnapshotForDate(game, previousKey);
+
+      if (!yesterdaySnapshot || !previousSnapshot) return null;
+
+      const playerDeltaPercent =
+        previousSnapshot.current_players && yesterdaySnapshot.current_players
+          ? ((yesterdaySnapshot.current_players - previousSnapshot.current_players) /
+              Math.max(previousSnapshot.current_players, 1)) *
+            100
+          : 0;
+
+      const rankGain =
+        previousSnapshot.chart_rank && yesterdaySnapshot.chart_rank
+          ? previousSnapshot.chart_rank - yesterdaySnapshot.chart_rank
+          : 0;
+
+      return {
+        title: game.title,
+        playerDeltaPercent,
+        rankGain,
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    playerGain: [...yesterdayRows].sort(
+      (a: any, b: any) => b.playerDeltaPercent - a.playerDeltaPercent
+    )[0],
+    rankGain: [...yesterdayRows].sort(
+      (a: any, b: any) => b.rankGain - a.rankGain
+    )[0],
+    playerLoss: [...yesterdayRows].sort(
+      (a: any, b: any) => a.playerDeltaPercent - b.playerDeltaPercent
+    )[0],
+  };
+}
+
+function getLatestSnapshotForDate(game: any, dateKey: string) {
+  return (game.snapshots ?? [])
+    .filter((item: any) => String(item.created_at ?? "").startsWith(dateKey))
+    .sort(
+      (a: any, b: any) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0];
+}
+
+function getPreviousSnapshotDateKey(games: any[], beforeDateKey: string) {
+  return Array.from(
+    new Set(
+      games.flatMap((game) =>
+        (game.snapshots ?? []).map((snapshot: any) =>
+          String(snapshot.created_at ?? "").slice(0, 10)
+        )
+      )
+    )
+  )
+    .filter((dateKey) => dateKey && dateKey < beforeDateKey)
+    .sort()
+    .at(-1);
 }
 
 function buildImportBars(items: any[]) {
@@ -798,7 +1069,7 @@ function buildFortniteGenreScoreboard(islands: any[]) {
     .slice(0, 3);
 }
 
-function buildKeywordCloud(items: any[]) {
+function buildKeywordCloud(items: any[], source: "title" | "description") {
   const stopWords = new Set([
     "the",
     "and",
@@ -833,22 +1104,22 @@ function buildKeywordCloud(items: any[]) {
   const counts: Record<string, number> = {};
 
   items.forEach((item) => {
-    const text = [
-      item.description,
-      item.core_loop,
-      item.design_pattern,
-      ...(item.extracted_tags ?? []),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+    const text = source === "title"
+      ? item.title
+      : item.description;
 
-    text
-      .replace(/[^a-z0-9\s-]/g, " ")
-      .split(/\s+/)
-      .filter((word) => word.length > 3 && !stopWords.has(word))
+    tokenizeCloudText(text)
+      .filter(Boolean)
+      .filter((word) => {
+        const normalized = word.toLowerCase();
+        return (
+          (word.length > 1 || isEmojiToken(word)) &&
+          !stopWords.has(normalized)
+        );
+      })
       .forEach((word) => {
-        counts[word] = (counts[word] ?? 0) + 1;
+        const key = isEmojiToken(word) ? word : word.toLowerCase();
+        counts[key] = (counts[key] ?? 0) + 1;
       });
   });
 
@@ -865,29 +1136,111 @@ function buildKeywordCloud(items: any[]) {
     .map((item, rank) => ({ ...item, rank }));
 }
 
+function tokenizeCloudText(value: string | undefined) {
+  const text = value ?? "";
+  const matches = text.match(
+    /\p{Extended_Pictographic}|[#@$%&+]\p{L}[\p{L}\p{N}_+-]*|\p{L}[\p{L}\p{N}'’&+-]*/gu
+  );
+
+  return matches ?? [];
+}
+
+function isEmojiToken(value: string) {
+  return /\p{Extended_Pictographic}/u.test(value);
+}
+
 function buildCommonTemplate(items: any[]) {
-  const map: Record<string, number> = {};
-
-  items.forEach((item) => {
-    const key = item.design_pattern ?? item.core_loop ?? "Explore -> Play -> Return";
-    map[key] = (map[key] ?? 0) + 1;
-  });
-
-  const [pattern = "Explore -> Play -> Return", count = 0] =
-    Object.entries(map).sort((a, b) => b[1] - a[1])[0] ?? [];
+  const signals = items.map(extractDescriptionSignals);
+  const topSignals = descriptionSignalDefinitions
+    .map((definition) => ({
+      ...definition,
+      count: signals.filter((signal) => signal[definition.id]).length,
+    }))
+    .filter((definition) => definition.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const selectedSignals = topSignals.slice(0, 4);
+  const count = selectedSignals[0]?.count ?? 0;
+  const pattern = selectedSignals.length
+    ? selectedSignals.map((signal) => signal.shortLabel).join(" -> ")
+    : "Hook -> Action -> Reward -> Return";
 
   return {
     pattern,
     count,
-    steps: pattern
-      .split(/→|->/)
-      .map((step) => step.trim())
-      .filter(Boolean)
-      .slice(0, 4),
+    steps: selectedSignals.length
+      ? selectedSignals.map((signal) => signal.template)
+      : [
+          "Open with the player fantasy in one sentence.",
+          "Name the core action the player repeats.",
+          "Promise a reward, upgrade, unlock, or status gain.",
+          "Give a reason to return, share, or compete.",
+        ],
   };
 }
 
+const descriptionSignalDefinitions = [
+  {
+    id: "hook",
+    shortLabel: "Hook",
+    template: "Lead with a concrete fantasy: become, survive, build, collect, or compete.",
+    patterns: /become|be the|can you|welcome|enter|survive|build|collect|fight|battle|race|escape/,
+  },
+  {
+    id: "action",
+    shortLabel: "Core Action",
+    template: "State the repeatable action clearly: fight, collect, upgrade, race, build, or roleplay.",
+    patterns: /fight|collect|upgrade|race|build|roleplay|explore|survive|escape|train|complete|unlock/,
+  },
+  {
+    id: "progression",
+    shortLabel: "Progression",
+    template: "Show progression pressure: earn currency, level up, unlock rare items, rebirth, or improve.",
+    patterns: /earn|coins|cash|money|gems|level|upgrade|rebirth|unlock|rare|legendary|mythic|boost/,
+  },
+  {
+    id: "social",
+    shortLabel: "Social Proof",
+    template: "Add a social or competitive reason: play with friends, leaderboard, PvP, teams, or ranks.",
+    patterns: /friends|team|teams|pvp|leaderboard|ranked|compete|players|party|group|social/,
+  },
+  {
+    id: "freshness",
+    shortLabel: "Freshness",
+    template: "Signal freshness with updates, events, seasons, limited items, or new content.",
+    patterns: /update|updates|new|event|season|limited|weekly|code|codes|reward|free/,
+  },
+  {
+    id: "cta",
+    shortLabel: "CTA",
+    template: "Close with a simple action: join, like, favorite, invite friends, or claim a reward.",
+    patterns: /join|like|favorite|invite|claim|follow|group|code|codes|free|reward/,
+  },
+];
+
+function extractDescriptionSignals(item: any) {
+  const text = [
+    item.description,
+    item.core_loop,
+    item.design_pattern,
+    ...(item.extracted_tags ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return Object.fromEntries(
+    descriptionSignalDefinitions.map((definition) => [
+      definition.id,
+      definition.patterns.test(text),
+    ])
+  );
+}
+
 function getTopGameByUtcDate(games: any[], daysAgo: number) {
+  return getTopGamesByUtcDate(games, daysAgo, 1)[0];
+}
+
+function getTopGamesByUtcDate(games: any[], daysAgo: number, limit: number) {
   const targetDate = new Date();
   targetDate.setUTCDate(targetDate.getUTCDate() - daysAgo);
   const targetKey = targetDate.toISOString().slice(0, 10);
@@ -912,7 +1265,8 @@ function getTopGameByUtcDate(games: any[], daysAgo: number) {
       };
     })
     .filter(Boolean)
-    .sort((a: any, b: any) => b.players - a.players)[0];
+    .sort((a: any, b: any) => b.players - a.players)
+    .slice(0, limit);
 }
 
 function topTags(items: any[]) {
@@ -934,22 +1288,25 @@ function buildDataSourceHealth(
   items: any[],
   auditSnapshot?: DataQualitySnapshot
 ) {
-  const today = new Date().toISOString().slice(0, 10);
   const source =
     platform === "roblox"
       ? "Roblox Explore API / discover charts"
       : "Fortnite Data API / ecosystem islands";
 
-  const queriedToday =
-    platform === "roblox"
+  const latestSnapshotDate = getLatestSourceDate(platform, items);
+  const queriedToday = latestSnapshotDate
+    ? platform === "roblox"
       ? items.filter((item) =>
           (item.snapshots ?? []).some((snapshot: any) =>
-            String(snapshot.created_at ?? "").startsWith(today)
+            String(snapshot.created_at ?? "").startsWith(latestSnapshotDate)
           )
         ).length
       : items.filter((item) =>
-          String(item.last_seen_at ?? item.created_at ?? "").startsWith(today)
-        ).length || items.length;
+          String(item.last_seen_at ?? item.created_at ?? "").startsWith(
+            latestSnapshotDate
+          )
+        ).length || items.length
+    : items.length;
 
   const classifiedRecords = items.filter((item) => {
     const hasIdentity = Boolean(item.title);
@@ -1002,6 +1359,11 @@ function getLatestSourceTimestamp(platform: Platform, items: any[]) {
     .sort(
       (a, b) => new Date(b).getTime() - new Date(a).getTime()
     )[0];
+}
+
+function getLatestSourceDate(platform: Platform, items: any[]) {
+  const timestamp = getLatestSourceTimestamp(platform, items);
+  return timestamp ? new Date(timestamp).toISOString().slice(0, 10) : "";
 }
 
 function formatUtcTimestamp(value?: string) {
@@ -1077,12 +1439,19 @@ function ScoreboardCard({
         {items.map((item: any, index: number) => {
           const content = (
             <>
-              <span className="w-5 flex-none text-xs font-bold text-slate-400">
-                {index + 1}
-              </span>
-              <span className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug">
-                {item.label}
-              </span>
+	              <span className="w-5 flex-none text-xs font-bold text-slate-400">
+	                {index + 1}
+	              </span>
+	              <span className="min-w-0 flex-1">
+                  <span className="block break-words text-sm font-semibold leading-snug">
+	                  {item.label}
+                  </span>
+                  {item.subline && (
+                    <span className="mt-1 block text-xs font-medium leading-snug text-slate-400">
+                      {item.subline}
+                    </span>
+                  )}
+	              </span>
               <span
                 className="flex-none text-right text-sm font-black"
                 style={{ color: accent }}
@@ -1182,33 +1551,107 @@ function GenreShareCard({ title, subtitle, items, panel, accent }: any) {
   );
 }
 
-function TrendingCard({ title, item, panel, accent, platform }: any) {
+function TrendingCard({ title, items, panel }: any) {
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
       <p className="text-sm font-semibold text-slate-500">{title}</p>
-      <h3 className="mt-2 line-clamp-2 text-xl font-black">
-        {item?.title ?? "N/A"}
-      </h3>
-      <p className="mt-2 text-sm font-bold text-green-600">
-        {platform === "roblox"
-          ? `${Math.round(item?.playerGainPercent ?? 0)}% ▲`
-          : "Metadata Signal"}
-      </p>
-      <p className="mt-1 text-xs text-slate-400">
-        {platform === "roblox"
-          ? "Compared against earliest stored snapshot"
-          : item?.inferred_genre ?? "Imported Island"}
-      </p>
+      <div className="mt-4 space-y-3">
+        {items.map((item: any) => {
+          const isDown = item.direction === "down";
+          const content = (
+            <>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                  {item.label}
+                </p>
+                <h3 className="mt-1 line-clamp-2 text-sm font-black leading-snug">
+                  {item.title}
+                </h3>
+                {item.subline && (
+                  <p className="mt-1 text-xs font-medium leading-snug text-slate-400">
+                    {item.subline}
+                  </p>
+                )}
+              </div>
+              <div
+                className={`flex-none rounded-full px-2 py-1 text-xs font-black ${
+                  isDown ? "bg-red-50 text-red-500" : "bg-green-50 text-green-600"
+                }`}
+              >
+                {item.metric} {isDown ? "▼" : "▲"}
+              </div>
+            </>
+          );
+
+          return item.href ? (
+            <a
+              key={item.label}
+              href={item.href}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-start gap-3 rounded-xl p-2 transition hover:bg-slate-100/70"
+            >
+              {content}
+            </a>
+          ) : (
+            <div key={item.label} className="flex items-start gap-3 rounded-xl p-2">
+              {content}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function ChartCard({ title, subtitle, panel, children }: any) {
+function ChartCard({ title, subtitle, panel, action, children }: any) {
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
-      <h3 className="text-lg font-bold">{title}</h3>
-      <p className="mb-4 text-sm text-slate-500">{subtitle}</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-bold">{title}</h3>
+          <p className="text-sm text-slate-500">{subtitle}</p>
+        </div>
+        {action}
+      </div>
       <div className="h-64">{children}</div>
+    </div>
+  );
+}
+
+function TrendControls({
+  limit,
+  percentile,
+  onLimitChange,
+  onPercentileChange,
+  accent,
+}: any) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      <ToggleGroup>
+        {[25, 50].map((value) => (
+          <ToggleButton
+            key={value}
+            active={limit === value}
+            onClick={() => onLimitChange(value)}
+            activeColor={accent}
+          >
+            Top {value}
+          </ToggleButton>
+        ))}
+      </ToggleGroup>
+      <ToggleGroup>
+        {[25, 50, 75, 100].map((value) => (
+          <ToggleButton
+            key={value}
+            active={percentile === value}
+            onClick={() => onPercentileChange(value)}
+            activeColor={accent}
+          >
+            {value === 100 ? "All" : `${value}%`}
+          </ToggleButton>
+        ))}
+      </ToggleGroup>
     </div>
   );
 }
@@ -1329,12 +1772,69 @@ function EmergingGameVisual({ game, accent, metadataOnly = false }: any) {
   );
 }
 
-function KeywordCloudCard({ title, subtitle, items, panel, accent }: any) {
+function KeywordCloudCard({ title, subtitle, games, panel, accent }: any) {
+  const genres = useMemo(
+    () =>
+      Array.from(
+        new Set(games.map((game: any) => game.inferred_genre ?? "Other"))
+      ).sort() as string[],
+    [games]
+  );
+  const [selectedGenre, setSelectedGenre] = useState("");
+  const activeGenre = selectedGenre || genres[0] || "";
+  const selectedGames = useMemo(
+    () =>
+      games.filter(
+        (game: any) => (game.inferred_genre ?? "Other") === activeGenre
+      ),
+    [games, activeGenre]
+  );
+  const titleCloud = buildKeywordCloud(selectedGames, "title");
+  const descriptionCloud = buildKeywordCloud(selectedGames, "description");
+
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
-      <p className="text-sm font-semibold text-slate-500">{title}</p>
-      <p className="text-xs text-slate-400">{subtitle}</p>
-      <div className="mt-5 flex min-h-48 flex-wrap content-center items-center gap-x-3 gap-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">{title}</p>
+          <p className="text-xs text-slate-400">{subtitle}</p>
+        </div>
+        <select
+          className="max-w-[10rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+          value={activeGenre}
+          onChange={(event) => setSelectedGenre(event.target.value)}
+        >
+          {genres.map((genre) => (
+            <option key={genre} value={genre}>
+              {genre}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <KeywordCloudPanel
+        title="Title cloud"
+        items={titleCloud}
+        emptyText="No title keywords available for this genre."
+        accent={accent}
+      />
+      <KeywordCloudPanel
+        title="Description cloud"
+        items={descriptionCloud}
+        emptyText="No description keywords available for this genre."
+        accent={accent}
+      />
+    </div>
+  );
+}
+
+function KeywordCloudPanel({ title, items, emptyText, accent }: any) {
+  return (
+    <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+        {title}
+      </p>
+      <div className="mt-3 flex min-h-24 flex-wrap content-center items-center gap-x-3 gap-y-2">
         {items.length ? (
           items.map((item: any) => (
             <span
@@ -1350,7 +1850,7 @@ function KeywordCloudCard({ title, subtitle, items, panel, accent }: any) {
             </span>
           ))
         ) : (
-          <Unavailable text="No description keywords available yet." />
+          <p className="text-sm text-slate-500">{emptyText}</p>
         )}
       </div>
     </div>
@@ -1394,17 +1894,33 @@ function TemplatePatternCard({ title, subtitle, template, panel, accent }: any) 
 
 function ColorBreakdownCard({ title, subtitle, games, panel, accent }: any) {
   const [colors, setColors] = useState<any[]>([]);
+  const genres = useMemo(
+    () =>
+      Array.from(
+        new Set(games.map((game: any) => game.inferred_genre ?? "Other"))
+      ).sort() as string[],
+    [games]
+  );
+  const [selectedGenre, setSelectedGenre] = useState("");
+  const activeGenre = selectedGenre || genres[0] || "";
+  const selectedGames = useMemo(
+    () =>
+      games
+        .filter((game: any) => (game.inferred_genre ?? "Other") === activeGenre)
+        .slice(0, 5),
+    [games, activeGenre]
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadColors() {
       const extracted = await Promise.all(
-        games.map(async (game: any, index: number) => {
-          const color = await extractDominantColor(game.thumbnail_url);
+        selectedGames.map(async (game: any, index: number) => {
+          const color = await extractTileColors(game.thumbnail_url);
           return {
             title: game.title,
-            color: color ?? fallbackTileColors[index % fallbackTileColors.length],
+            color: color ?? fallbackTileColorPairs[index % fallbackTileColorPairs.length],
           };
         })
       );
@@ -1417,39 +1933,67 @@ function ColorBreakdownCard({ title, subtitle, games, panel, accent }: any) {
     return () => {
       cancelled = true;
     };
-  }, [games]);
+  }, [activeGenre, selectedGames]);
 
   const visibleColors = colors.length
     ? colors
-    : games.map((game: any, index: number) => ({
+    : selectedGames.map((game: any, index: number) => ({
         title: game.title,
-        color: fallbackTileColors[index % fallbackTileColors.length],
+        color: fallbackTileColorPairs[index % fallbackTileColorPairs.length],
       }));
 
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
-      <p className="text-sm font-semibold text-slate-500">{title}</p>
-      <p className="text-xs text-slate-400">{subtitle}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">{title}</p>
+          <p className="text-xs text-slate-400">{subtitle}</p>
+        </div>
+        <select
+          className="max-w-[10rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+          value={activeGenre}
+          onChange={(event) => setSelectedGenre(event.target.value)}
+        >
+          {genres.map((genre) => (
+            <option key={genre} value={genre}>
+              {genre}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="mt-5 space-y-3">
         {visibleColors.map((item: any) => (
-          <div key={item.title} className="grid grid-cols-[2.25rem_1fr_auto] items-center gap-3">
+          <div key={item.title} className="grid grid-cols-[2.75rem_1fr_auto] items-center gap-3">
             <div
-              className="h-9 w-9 rounded-lg border border-black/10"
-              style={{ backgroundColor: item.color.hex }}
-            />
+              className="overflow-hidden rounded-lg border border-black/10"
+            >
+              <div
+                className="h-6 w-11"
+                style={{ backgroundColor: item.color.primary.hex }}
+              />
+              <div
+                className="h-3 w-11"
+                style={{ backgroundColor: item.color.secondary.hex }}
+              />
+            </div>
             <p className="line-clamp-2 text-sm font-semibold leading-snug">
               {item.title}
             </p>
-            <p
-              className="rounded-full px-2 py-1 text-[10px] font-black"
-              style={{
-                backgroundColor: `${accent}1f`,
-                color: accent,
-              }}
-            >
-              {item.color.rgb}
-            </p>
+            <div className="space-y-1 text-right">
+              <p
+                className="rounded-full px-2 py-1 text-[10px] font-black"
+                style={{
+                  backgroundColor: `${accent}1f`,
+                  color: accent,
+                }}
+              >
+                {item.color.primary.rgb}
+              </p>
+              <p className="text-[10px] font-bold text-slate-400">
+                Secondary: {item.color.secondary.rgb}
+              </p>
+            </div>
           </div>
         ))}
       </div>
@@ -1879,6 +2423,14 @@ function RecommendationBlock({ title, text, bullets, tags, panel, accent }: any)
 
 function GameMarketCard({ item, rank, platform, panel }: any) {
   const positive = (item.playerGainPercent ?? 0) >= 0;
+  const averageGain = item.averagePlayerGain7Days;
+  const averagePositive = (averageGain ?? 0) >= 0;
+  const likesLabel =
+    typeof item.upVotes === "number"
+      ? formatNumber(item.upVotes)
+      : typeof item.likeRatio === "number"
+        ? `${Math.round(item.likeRatio * 100)}% ratio`
+        : "N/A";
 
   return (
     <a
@@ -1903,7 +2455,7 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
         <div>
           <p className="text-slate-400">
-            {platform === "roblox" ? "Gain" : "Genre"}
+            {platform === "roblox" ? "Gain in players" : "Genre"}
           </p>
           <p
             className={`font-black ${
@@ -1924,7 +2476,7 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
 
         <div>
           <p className="text-slate-400">
-            {platform === "roblox" ? "Period H" : "Intent"}
+            {platform === "roblox" ? "Stored peak players" : "Intent"}
           </p>
           <p className="font-black">
             {platform === "roblox"
@@ -1934,13 +2486,62 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
         </div>
 
         <div className="col-span-2">
-          <p className="text-slate-400">Ranking</p>
+          <p className="text-slate-400">Top measured rank</p>
           <p className="font-black">
             {platform === "roblox"
-              ? `#${item.latestRank ?? "N/A"} in ${item.latestSort ?? "Chart"}`
+              ? `#${item.bestRank ?? item.latestRank ?? "N/A"} in ${
+                  item.bestRankSort ?? item.latestSort ?? "Chart"
+                }`
               : item.competition_level ?? "Metadata"}
           </p>
         </div>
+
+        <div>
+          <p className="text-slate-400">Genre</p>
+          <p className="line-clamp-1 font-black">
+            {item.inferred_genre ?? "Other"}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-slate-400">Subgenre</p>
+          <p className="line-clamp-1 font-black">
+            {item.inferred_subgenre ?? "General"}
+          </p>
+        </div>
+
+        {platform === "roblox" && (
+          <>
+            <div className="col-span-2">
+              <p className="text-slate-400">Avg player gain/loss, past 7 days</p>
+              <p
+                className={`font-black ${
+                  averagePositive ? "text-green-600" : "text-red-500"
+                }`}
+              >
+                {typeof averageGain === "number"
+                  ? `${averageGain > 0 ? "+" : ""}${formatNumber(
+                      averageGain
+                    )} players/day`
+                  : "N/A"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-400">Likes</p>
+              <p className="font-black">{likesLabel}</p>
+            </div>
+
+            <div>
+              <p className="text-slate-400">Visits</p>
+              <p className="font-black">
+                {typeof item.visits === "number"
+                  ? formatNumber(item.visits)
+                  : "N/A"}
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </a>
   );
@@ -1991,6 +2592,493 @@ function MiniSimilarGameCard({ item, rank, platform }: any) {
   );
 }
 
+function PlayerActivityLandscape({ games }: any) {
+  const groups = buildLandscapeGroups(games);
+
+  if (!groups.length) {
+    return <Unavailable text="No player activity data available yet." />;
+  }
+
+  return (
+    <div className="mt-6 overflow-hidden rounded-2xl bg-slate-950 p-1 shadow-inner">
+      <div
+        className="grid gap-1"
+        style={{
+          gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+          gridAutoRows: "76px",
+        }}
+      >
+        {groups.map((group: any) => (
+          <div
+            key={group.genre}
+            className="relative overflow-hidden rounded-xl border border-slate-950 bg-slate-900"
+            style={{
+              gridColumn: `span ${group.colSpan}`,
+              gridRow: `span ${group.rowSpan}`,
+              minHeight: 0,
+            }}
+          >
+            <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 bg-slate-950/70 px-2 py-1 text-white backdrop-blur">
+              <p className="truncate text-[11px] font-black uppercase tracking-wide">
+                {group.genre}
+              </p>
+              <p className="shrink-0 text-[10px] font-bold text-white/70">
+                {formatNumber(group.players)}
+              </p>
+            </div>
+
+            <div
+              className="grid h-full gap-px pt-6"
+              style={{
+                gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+                gridAutoRows: "minmax(34px, 1fr)",
+              }}
+            >
+              {group.games.map((game: any) => {
+                const positive = (game.playerGainPercent ?? 0) >= 0;
+                const href = game.url ?? `https://www.roblox.com/games/${game.id}`;
+
+                return (
+                  <a
+                    key={game.id}
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`${game.title} - ${formatNumber(
+                      game.latestPlayers
+                    )} players`}
+                    className="group relative flex min-h-0 flex-col justify-end overflow-hidden p-2 text-white transition hover:brightness-110"
+                    style={{
+                      gridColumn: `span ${game.colSpan}`,
+                      gridRow: `span ${game.rowSpan}`,
+                      backgroundColor: getLandscapeColor(game.playerGainPercent),
+                    }}
+                  >
+                    {game.thumbnail_url && game.isHero && (
+                      <img
+                        src={game.thumbnail_url}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover opacity-20 transition group-hover:opacity-30"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+                    <div className="relative">
+                      <p className="line-clamp-2 text-[11px] font-black leading-tight drop-shadow md:text-sm">
+                        {game.title}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-black leading-none drop-shadow md:text-xs">
+                        <span>{formatNumber(game.latestPlayers)}</span>
+                        <span>
+                          {Math.abs(Math.round(game.playerGainPercent ?? 0))}%
+                          {positive ? " ▲" : " ▼"}
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildLandscapeGroups(games: any[]) {
+  const groupLayouts = [
+    { colSpan: 7, rowSpan: 4 },
+    { colSpan: 5, rowSpan: 4 },
+    { colSpan: 6, rowSpan: 3 },
+    { colSpan: 6, rowSpan: 3 },
+    { colSpan: 4, rowSpan: 2 },
+    { colSpan: 4, rowSpan: 2 },
+    { colSpan: 4, rowSpan: 2 },
+    { colSpan: 3, rowSpan: 2 },
+    { colSpan: 3, rowSpan: 2 },
+    { colSpan: 3, rowSpan: 2 },
+    { colSpan: 3, rowSpan: 2 },
+  ];
+
+  const map: Record<string, any[]> = {};
+
+  games
+    .filter((game) => (game.latestPlayers ?? 0) > 0)
+    .forEach((game) => {
+      const genre = game.inferred_genre ?? "Other";
+      if (!map[genre]) map[genre] = [];
+      map[genre].push(game);
+    });
+
+  return Object.entries(map)
+    .map(([genre, entries]) => {
+      const sortedEntries = [...entries].sort(
+        (a, b) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0)
+      );
+
+      return {
+        genre,
+        players: sortedEntries.reduce(
+          (sum, item) => sum + (item.latestPlayers ?? 0),
+          0
+        ),
+        entries: sortedEntries,
+      };
+    })
+    .sort((a, b) => b.players - a.players)
+    .slice(0, groupLayouts.length)
+    .map((group, index) => {
+      const layout = groupLayouts[index];
+
+      return {
+        ...group,
+        ...layout,
+        games: group.entries
+          .slice(0, getLandscapeGameCount(layout.rowSpan))
+          .map((game, gameIndex) => ({
+            ...game,
+            ...getLandscapeTileLayout(gameIndex, layout),
+            isHero: gameIndex === 0 && layout.rowSpan >= 3,
+          })),
+      };
+    });
+}
+
+function getLandscapeGameCount(rowSpan: number) {
+  if (rowSpan >= 4) return 10;
+  if (rowSpan >= 3) return 8;
+  return 5;
+}
+
+function getLandscapeTileLayout(index: number, groupLayout: any) {
+  if (index === 0) {
+    return groupLayout.rowSpan >= 3
+      ? { colSpan: 4, rowSpan: 3 }
+      : { colSpan: 3, rowSpan: 2 };
+  }
+
+  if (index === 1 && groupLayout.rowSpan >= 4) {
+    return { colSpan: 2, rowSpan: 2 };
+  }
+
+  if (index === 2 && groupLayout.rowSpan >= 3) {
+    return { colSpan: 2, rowSpan: 2 };
+  }
+
+  return { colSpan: index < 5 ? 2 : 1, rowSpan: 1 };
+}
+
+function getLandscapeColor(value: number | undefined) {
+  const change = value ?? 0;
+
+  if (change >= 20) return "#22c55e";
+  if (change >= 8) return "#2f9e63";
+  if (change > 0) return "#376b50";
+  if (change <= -20) return "#ef4444";
+  if (change <= -8) return "#b84b57";
+  if (change < 0) return "#7f4b57";
+  return "#334155";
+}
+
+function PredictionMarketSignalsCard({
+  panel,
+  accent,
+  search,
+  onSearchChange,
+  target,
+  signals,
+  platform,
+}: any) {
+  return (
+    <section className={`mt-6 rounded-3xl border p-6 ${panel}`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-black uppercase tracking-wide text-slate-400">
+            Forecasting Layer
+          </p>
+          <h2 className="text-2xl font-bold">Prediction Market Signals</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+            Eight measurable signals that can support market-style questions
+            around attention, momentum, persistence, and genre rotation.
+          </p>
+        </div>
+
+        <div className="w-full max-w-sm">
+          <label className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+            Search game
+          </label>
+          <input
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder={
+              platform === "roblox"
+                ? "Search Roblox experience"
+                : "Search Fortnite island"
+            }
+            className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-transparent focus:ring-2"
+            style={{ "--tw-ring-color": accent } as any}
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl bg-slate-50 p-4">
+        {target?.thumbnail_url && (
+          <img
+            src={target.thumbnail_url}
+            alt={target.title}
+            className="h-14 w-14 rounded-xl object-cover"
+          />
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-lg font-black">
+            {target?.title ?? "No matching game found"}
+          </p>
+          <p className="text-sm text-slate-500">
+            {target
+              ? `${target.inferred_genre ?? "Other"} / ${
+                  target.inferred_subgenre ?? "General"
+                }`
+              : "Try a different title."}
+          </p>
+        </div>
+        {target?.url && (
+          <a
+            href={target.url}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto rounded-full px-4 py-2 text-sm font-black text-white transition hover:brightness-95"
+            style={{ backgroundColor: accent }}
+          >
+            Open source
+          </a>
+        )}
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {signals.map((signal: any) => (
+          <div
+            key={signal.label}
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+              {signal.label}
+            </p>
+            <p className="mt-2 text-xl font-black text-slate-900">
+              {signal.value}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              {signal.detail}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function findPredictionTarget(items: any[], platform: Platform, search: string) {
+  const sorted = [...items].sort((a, b) =>
+    platform === "roblox"
+      ? (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0)
+      : (a.title ?? "").localeCompare(b.title ?? "")
+  );
+  const query = search.trim().toLowerCase();
+
+  if (!query) return sorted[0];
+
+  return (
+    sorted.find((item) => (item.title ?? "").toLowerCase() === query) ??
+    sorted.find((item) => (item.title ?? "").toLowerCase().includes(query)) ??
+    sorted[0]
+  );
+}
+
+function buildPredictionSignals(
+  target: any,
+  items: any[],
+  platform: Platform
+) {
+  if (!target) {
+    return predictionSignalLabels.map((label) => ({
+      label,
+      value: "N/A",
+      detail: "No game selected.",
+    }));
+  }
+
+  if (platform !== "roblox") {
+    return [
+      {
+        label: "Daily rank history",
+        value: "Metadata only",
+        detail: "Current Fortnite source does not expose rank history.",
+      },
+      {
+        label: "Player velocity",
+        value: "Unavailable",
+        detail: "CCU snapshots are required for velocity.",
+      },
+      {
+        label: "Volatility",
+        value: "Unavailable",
+        detail: "Needs repeated player activity snapshots.",
+      },
+      {
+        label: "Peak retention",
+        value: "Unavailable",
+        detail: "Needs a measurable player peak and current player count.",
+      },
+      {
+        label: "Genre share over time",
+        value: target.inferred_genre ?? "Other",
+        detail: "Genre is available, but activity share is not yet available.",
+      },
+      {
+        label: "New entrant detection",
+        value: "Untracked",
+        detail: "First-seen history is not available in the current UI payload.",
+      },
+      {
+        label: "Breakout score",
+        value: "Pending",
+        detail: "Requires velocity, rank movement, and player scale.",
+      },
+      {
+        label: "Settlement snapshots",
+        value: "Pending",
+        detail: "A daily Fortnite activity snapshot would make this resolvable.",
+      },
+    ];
+  }
+
+  const snapshots = target.snapshots ?? [];
+  const latestSnapshot = snapshots[snapshots.length - 1];
+  const firstSnapshot = snapshots[0];
+  const rankedSnapshots = snapshots.filter((snapshot: any) => snapshot.chart_rank);
+  const totalPlayers = items.reduce(
+    (sum, item) => sum + (item.latestPlayers ?? 0),
+    0
+  );
+  const genrePlayers = items
+    .filter((item) => item.inferred_genre === target.inferred_genre)
+    .reduce((sum, item) => sum + (item.latestPlayers ?? 0), 0);
+  const genreShare = totalPlayers
+    ? Math.round((genrePlayers / totalPlayers) * 100)
+    : 0;
+  const rankGain = target.rankGain ?? 0;
+  const velocity = Math.round(target.playerGainPercent ?? 0);
+  const retention = target.periodHigh
+    ? Math.round(((target.latestPlayers ?? 0) / target.periodHigh) * 100)
+    : 0;
+  const volatility = getPlayerVolatility(snapshots);
+  const breakoutScore = getBreakoutScore(target, totalPlayers);
+
+  return [
+    {
+      label: "Daily rank history",
+      value: rankedSnapshots.length
+        ? `${rankedSnapshots.length} ranked snapshots`
+        : "No ranked snapshots",
+      detail: `Latest rank: #${target.latestRank ?? "N/A"} in ${
+        target.latestSort ?? "current chart"
+      }. Rank movement: ${rankGain > 0 ? "+" : ""}${rankGain} spots.`,
+    },
+    {
+      label: "Player velocity",
+      value: `${velocity > 0 ? "+" : ""}${velocity}%`,
+      detail: "Stored-period player change from earliest to latest snapshot.",
+    },
+    {
+      label: "Volatility",
+      value: volatility.label,
+      detail: `Observed range: ${formatNumber(volatility.low)} to ${formatNumber(
+        volatility.high
+      )} players.`,
+    },
+    {
+      label: "Peak retention",
+      value: `${retention}%`,
+      detail: `Current players vs stored peak of ${formatNumber(
+        target.periodHigh
+      )}.`,
+    },
+    {
+      label: "Genre share over time",
+      value: `${genreShare}%`,
+      detail: `${target.inferred_genre ?? "Other"} currently represents ${formatNumber(
+        genrePlayers
+      )} tracked players.`,
+    },
+    {
+      label: "New entrant detection",
+      value: firstSnapshot ? formatShortDate(firstSnapshot.created_at) : "N/A",
+      detail: "First stored appearance in the current Supabase snapshot history.",
+    },
+    {
+      label: "Breakout score",
+      value: `${breakoutScore}/100`,
+      detail: "Composite of player scale, velocity, rank gain, and peak retention.",
+    },
+    {
+      label: "Settlement snapshots",
+      value: `${snapshots.length} snapshots`,
+      detail: latestSnapshot
+        ? `Latest settlement reference: ${new Date(
+            latestSnapshot.created_at
+          ).toISOString()} UTC.`
+        : "No settlement snapshot available yet.",
+    },
+  ];
+}
+
+const predictionSignalLabels = [
+  "Daily rank history",
+  "Player velocity",
+  "Volatility",
+  "Peak retention",
+  "Genre share over time",
+  "New entrant detection",
+  "Breakout score",
+  "Settlement snapshots",
+];
+
+function getPlayerVolatility(snapshots: any[]) {
+  const values = snapshots
+    .map((snapshot) => snapshot.current_players)
+    .filter((value) => typeof value === "number");
+
+  if (!values.length) {
+    return { label: "N/A", low: 0, high: 0 };
+  }
+
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const midpoint = Math.max(1, (low + high) / 2);
+  const spread = (high - low) / midpoint;
+
+  return {
+    label: spread > 0.75 ? "High" : spread > 0.3 ? "Medium" : "Low",
+    low,
+    high,
+  };
+}
+
+function getBreakoutScore(target: any, totalPlayers: number) {
+  const scaleScore = totalPlayers
+    ? Math.min(35, ((target.latestPlayers ?? 0) / totalPlayers) * 350)
+    : 0;
+  const velocityScore = Math.min(
+    30,
+    Math.max(0, target.playerGainPercent ?? 0) * 0.6
+  );
+  const rankScore = Math.min(20, Math.max(0, target.rankGain ?? 0) * 2);
+  const retentionScore = target.periodHigh
+    ? Math.min(15, ((target.latestPlayers ?? 0) / target.periodHigh) * 15)
+    : 0;
+
+  return Math.round(scaleScore + velocityScore + rankScore + retentionScore);
+}
+
 function ToggleGroup({ children }: any) {
   return <div className="flex rounded-full bg-slate-100 p-1">{children}</div>;
 }
@@ -2018,8 +3106,10 @@ function Unavailable({ text }: any) {
   );
 }
 
-function TopGamesTrend({ games }: any) {
-  const data = mergeGameTrends(games);
+function TopGamesTrend({ games, percentile = 100 }: any) {
+  const visibleGames = applyPercentileBand(games, percentile);
+  const data = mergeGameTrends(visibleGames);
+  const domain = getLineChartDomain(data, visibleGames.map((game: any) => game.title));
   const colors = ["#5fbfd0", "#7c3aed", "#d6a06d", "#5b5d78", "#16a34a"];
 
   if (!data.length) return <Unavailable text="No game snapshots available." />;
@@ -2027,27 +3117,80 @@ function TopGamesTrend({ games }: any) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data}>
-        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
-        <XAxis dataKey="date" fontSize={11} />
-        <YAxis fontSize={11} />
-        <Tooltip />
-        {games.slice(0, 25).map((game: any, index: number) => (
-          <Line
-            key={game.id}
-            type="monotone"
-            dataKey={game.title}
-            stroke={colors[index % colors.length]}
-            strokeWidth={index < 5 ? 2 : 1}
-            dot={false}
-          />
+	        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+	        <XAxis dataKey="date" fontSize={11} />
+	        <YAxis fontSize={11} domain={domain} />
+	        <Tooltip content={<TopGamesTooltip />} />
+	        {visibleGames.map((game: any, index: number) => (
+	          <Line
+	            key={game.id}
+	            type="monotone"
+	            dataKey={game.title}
+	            stroke={colors[index % colors.length]}
+	            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+              strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
+	            dot={false}
+	          />
+	        ))}
+	      </LineChart>
+	    </ResponsiveContainer>
+	  );
+}
+
+function TopGamesTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+
+  const rows = payload
+    .filter((item: any) => item.value)
+    .sort((a: any, b: any) => (b.value ?? 0) - (a.value ?? 0))
+    .slice(0, 8);
+
+  return (
+    <div className="max-w-xs rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-lg">
+      <p className="mb-2 font-black text-slate-700">{label}</p>
+      <div className="space-y-1">
+        {rows.map((item: any) => (
+          <div key={item.dataKey} className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate text-slate-600">{item.dataKey}</span>
+            <span className="font-black text-slate-900">
+              {formatNumber(item.value)}
+            </span>
+          </div>
         ))}
-      </LineChart>
-    </ResponsiveContainer>
+      </div>
+    </div>
   );
 }
 
-function GenreLinesTrend({ games }: any) {
-  const { data, genres } = mergeGenreTrends(games);
+function applyPercentileBand(items: any[], percentile: number) {
+  if (percentile === 100) return items;
+
+  const bandSize = Math.max(1, Math.ceil(items.length * 0.25));
+  const start = percentile === 25 ? 0 : percentile === 50 ? bandSize : bandSize * 2;
+
+  return items.slice(start, start + bandSize);
+}
+
+function getLineChartDomain(data: any[], keys: string[]) {
+  const values = data.flatMap((row) =>
+    keys
+      .map((key) => row[key])
+      .filter((value) => typeof value === "number" && Number.isFinite(value))
+  );
+
+  if (!values.length) return ["auto", "auto"];
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const padding = Math.max(1, Math.round((max - min) * 0.08));
+
+  return [Math.max(0, min - padding), max + padding];
+}
+
+function GenreLinesTrend({ games, percentile = 100 }: any) {
+  const visibleGames = applyPercentileBand(games, percentile);
+  const { data, genres } = mergeGenreTrends(visibleGames);
+  const domain = getLineChartDomain(data, genres);
   const colors = ["#5fbfd0", "#7c3aed", "#d6a06d", "#5b5d78", "#16a34a", "#ef4444"];
 
   if (!data.length) return <Unavailable text="No genre snapshots available." />;
@@ -2057,18 +3200,18 @@ function GenreLinesTrend({ games }: any) {
       <LineChart data={data}>
         <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
         <XAxis dataKey="date" fontSize={11} />
-        <YAxis fontSize={11} />
-        <Tooltip />
-        <Legend />
-        {genres.map((genre: string, index: number) => (
-          <Line
+	        <YAxis fontSize={11} domain={domain} />
+	        <Tooltip content={<TopGamesTooltip />} />
+	        {genres.map((genre: string, index: number) => (
+	          <Line
             key={genre}
             type="monotone"
-            dataKey={genre}
-            stroke={colors[index % colors.length]}
-            strokeWidth={2}
-            dot={false}
-          />
+	            dataKey={genre}
+	            stroke={colors[index % colors.length]}
+	            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+              strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
+	            dot={false}
+	          />
         ))}
       </LineChart>
     </ResponsiveContainer>
@@ -2100,7 +3243,6 @@ function mergeGenreTrends(games: any[]) {
 
   const genres = Object.entries(byGenreTotals)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
     .map(([genre]) => genre);
 
   const byDate: Record<string, any> = {};
@@ -2158,20 +3300,38 @@ function buildHeatMapItems(items: any[]) {
   });
 }
 
-const fallbackTileColors = [
-  { hex: "#5fbfd0", rgb: "RGB 95, 191, 208" },
-  { hex: "#7c3aed", rgb: "RGB 124, 58, 237" },
-  { hex: "#d6a06d", rgb: "RGB 214, 160, 109" },
-  { hex: "#16a34a", rgb: "RGB 22, 163, 74" },
-  { hex: "#5b5d78", rgb: "RGB 91, 93, 120" },
+const fallbackTileColorPairs = [
+  {
+    primary: { hex: "#5fbfd0", rgb: "RGB 95, 191, 208" },
+    secondary: { hex: "#111827", rgb: "RGB 17, 24, 39" },
+  },
+  {
+    primary: { hex: "#7c3aed", rgb: "RGB 124, 58, 237" },
+    secondary: { hex: "#d6a06d", rgb: "RGB 214, 160, 109" },
+  },
+  {
+    primary: { hex: "#16a34a", rgb: "RGB 22, 163, 74" },
+    secondary: { hex: "#5b5d78", rgb: "RGB 91, 93, 120" },
+  },
+  {
+    primary: { hex: "#d6a06d", rgb: "RGB 214, 160, 109" },
+    secondary: { hex: "#7c3aed", rgb: "RGB 124, 58, 237" },
+  },
+  {
+    primary: { hex: "#5b5d78", rgb: "RGB 91, 93, 120" },
+    secondary: { hex: "#5fbfd0", rgb: "RGB 95, 191, 208" },
+  },
 ];
 
-function extractDominantColor(src?: string) {
+function extractTileColors(src?: string) {
   if (!src || typeof window === "undefined") {
     return Promise.resolve(null);
   }
 
-  return new Promise<{ hex: string; rgb: string } | null>((resolve) => {
+  return new Promise<{
+    primary: { hex: string; rgb: string };
+    secondary: { hex: string; rgb: string };
+  } | null>((resolve) => {
     const image = new Image();
     image.crossOrigin = "anonymous";
     image.referrerPolicy = "no-referrer";
@@ -2191,33 +3351,49 @@ function extractDominantColor(src?: string) {
         context.drawImage(image, 0, 0, 24, 24);
 
         const data = context.getImageData(0, 0, 24, 24).data;
-        let red = 0;
-        let green = 0;
-        let blue = 0;
-        let count = 0;
+        const buckets: Record<string, { red: number; green: number; blue: number; count: number }> = {};
 
         for (let index = 0; index < data.length; index += 16) {
           const alpha = data[index + 3];
           if (alpha < 128) continue;
 
-          red += data[index];
-          green += data[index + 1];
-          blue += data[index + 2];
-          count += 1;
+          const red = data[index];
+          const green = data[index + 1];
+          const blue = data[index + 2];
+          const key = `${Math.round(red / 32) * 32},${Math.round(green / 32) * 32},${Math.round(blue / 32) * 32}`;
+
+          if (!buckets[key]) {
+            buckets[key] = { red: 0, green: 0, blue: 0, count: 0 };
+          }
+
+          buckets[key].red += red;
+          buckets[key].green += green;
+          buckets[key].blue += blue;
+          buckets[key].count += 1;
         }
 
-        if (!count) {
+        const swatches = Object.values(buckets)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 2)
+          .map((bucket) => {
+            const r = Math.round(bucket.red / bucket.count);
+            const g = Math.round(bucket.green / bucket.count);
+            const b = Math.round(bucket.blue / bucket.count);
+
+            return {
+              hex: rgbToHex(r, g, b),
+              rgb: `RGB ${r}, ${g}, ${b}`,
+            };
+          });
+
+        if (!swatches.length) {
           resolve(null);
           return;
         }
 
-        const r = Math.round(red / count);
-        const g = Math.round(green / count);
-        const b = Math.round(blue / count);
-
         resolve({
-          hex: rgbToHex(r, g, b),
-          rgb: `RGB ${r}, ${g}, ${b}`,
+          primary: swatches[0],
+          secondary: swatches[1] ?? swatches[0],
         });
       } catch {
         resolve(null);
@@ -2244,8 +3420,11 @@ function formatShortDate(date: string) {
 
 function formatNumber(value: number | undefined) {
   const number = value ?? 0;
-  if (number >= 1000000) return `${(number / 1000000).toFixed(1)}M`;
-  if (number >= 1000) return `${(number / 1000).toFixed(1)}K`;
+  const sign = number < 0 ? "-" : "";
+  const absolute = Math.abs(number);
+
+  if (absolute >= 1000000) return `${sign}${(absolute / 1000000).toFixed(1)}M`;
+  if (absolute >= 1000) return `${sign}${(absolute / 1000).toFixed(1)}K`;
   return `${number}`;
 }
 

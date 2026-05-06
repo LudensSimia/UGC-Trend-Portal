@@ -640,6 +640,14 @@ export async function GET(req: Request) {
           (t: any) => String(t.targetId) === String(chartGame.universeId)
         )
 
+        const upVotes = chartGame.totalUpVotes ?? detailedGame?.upVotes ?? null
+        const downVotes =
+          chartGame.totalDownVotes ?? detailedGame?.downVotes ?? null
+        const likeRatio =
+          upVotes !== null && downVotes !== null && upVotes + downVotes > 0
+            ? upVotes / (upVotes + downVotes)
+            : null
+
         const safeDescription =
           detailedGame?.description ??
           chartGame?.description ??
@@ -719,16 +727,38 @@ export async function GET(req: Request) {
             chart_rank: i + 1,
             game_id: savedGame.id,
             current_players: chartGame.playerCount ?? 0,
-            like_ratio:
-              chartGame.totalUpVotes && chartGame.totalDownVotes
-                ? chartGame.totalUpVotes /
-                  (chartGame.totalUpVotes + chartGame.totalDownVotes)
-                : null
+            like_ratio: likeRatio
           })
 
         if (snapshotError) {
           console.error('Snapshot insert error:', snapshotError)
           continue
+        }
+
+        const { error: metricError } = await supabase
+          .from('game_metrics')
+          .insert({
+            game_id: savedGame.id,
+            date: new Date().toISOString().split('T')[0],
+            chart_rank: i + 1,
+            source: `roblox_${sortId}`,
+            current_players: chartGame.playerCount ?? 0,
+            visits: detailedGame?.visits ?? null,
+            favorites: detailedGame?.favoritedCount ?? null,
+            up_votes: upVotes,
+            down_votes: downVotes,
+            like_ratio: likeRatio,
+            raw_metric_snapshot: {
+              sort_id: sortId,
+              sort_name: sortName,
+              chartGame,
+              detailedGame: detailedGame ?? null,
+              thumbnail: thumbnail ?? null
+            }
+          })
+
+        if (metricError) {
+          console.error('Metric insert error:', metricError)
         }
 
         totalImported++
