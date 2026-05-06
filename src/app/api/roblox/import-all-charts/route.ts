@@ -627,6 +627,13 @@ export async function GET(req: Request) {
       const thumbnailsData = await thumbnailsRes.json()
       const thumbnails = thumbnailsData.data || []
 
+      const votesRes = await fetch(
+        `https://games.roblox.com/v1/games/votes?universeIds=${universeIds.join(',')}`
+      )
+
+      const votesData = await votesRes.json()
+      const votes = votesData.data || []
+
       for (let i = 0; i < games.length; i++) {
         const chartGame = games[i]
 
@@ -640,9 +647,16 @@ export async function GET(req: Request) {
           (t: any) => String(t.targetId) === String(chartGame.universeId)
         )
 
-        const upVotes = chartGame.totalUpVotes ?? detailedGame?.upVotes ?? null
+        const vote = votes.find(
+          (item: any) => String(item.id) === String(chartGame.universeId)
+        )
+        const upVotes =
+          chartGame.totalUpVotes ?? vote?.upVotes ?? detailedGame?.upVotes ?? null
         const downVotes =
-          chartGame.totalDownVotes ?? detailedGame?.downVotes ?? null
+          chartGame.totalDownVotes ??
+          vote?.downVotes ??
+          detailedGame?.downVotes ??
+          null
         const likeRatio =
           upVotes !== null && downVotes !== null && upVotes + downVotes > 0
             ? upVotes / (upVotes + downVotes)
