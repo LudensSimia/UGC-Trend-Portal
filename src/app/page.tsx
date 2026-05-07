@@ -116,6 +116,16 @@ export default function Home() {
           raw_latest,
           fortnite_island_snapshots (
             created_at,
+            rank,
+            minutes_played,
+            minutes_per_player,
+            plays,
+            favorites,
+            recommends,
+            peak_ccu,
+            unique_players,
+            retention_d1,
+            retention_d7,
             raw_payload
           )
         `);
@@ -185,9 +195,7 @@ export default function Home() {
   }, [robloxGames]);
 
   const topFortniteIslands = useMemo(() => {
-    return [...fortniteIslands].sort((a, b) =>
-      (a.inferred_genre ?? "").localeCompare(b.inferred_genre ?? "")
-    );
+    return [...fortniteIslands].sort(compareFortniteIslands);
   }, [fortniteIslands]);
 
   const trendingHighlights = buildTrendingHighlights(
@@ -349,7 +357,7 @@ export default function Home() {
                 subtitle={
                   activePlatform === "roblox"
                     ? "By current players"
-                    : "Performance metrics unavailable"
+                    : "By available activity signals"
                 }
                 items={
 	                  activePlatform === "roblox"
@@ -360,7 +368,10 @@ export default function Home() {
 	                      }))
 	                    : topFortniteIslands.slice(0, 3).map((i) => ({
 	                        label: i.title,
-	                        value: i.inferred_genre ?? "Metadata",
+                          subline: `${i.inferred_genre ?? "Other"} / ${
+                            i.inferred_subgenre ?? "General"
+                          }`,
+	                        value: getFortniteActivityLabel(i),
 	                        href: i.url,
 	                      }))
                 }
@@ -424,7 +435,7 @@ export default function Home() {
                 subtitle={
                   activePlatform === "roblox"
                     ? `Top ${topGamesTrendLimit} experiences by current players, tracked across stored snapshot dates.`
-                    : "Fortnite player-performance history is not available from the current endpoint."
+                    : `Top ${topGamesTrendLimit} islands by available Fortnite activity metric, tracked across stored snapshots.`
                 }
                 panel={panel}
                 action={
@@ -445,13 +456,20 @@ export default function Home() {
                     percentile={topGamesTrendPercentile}
                   />
                 ) : (
-                  <Unavailable text="Fortnite island metadata is available, but player-performance history is not exposed by the current source." />
+                  <FortniteIslandsTrend
+                    islands={topFortniteIslands.slice(0, topGamesTrendLimit)}
+                    percentile={topGamesTrendPercentile}
+                  />
                 )}
               </ChartCard>
 
               <ChartCard
                 title="Most Played Genres Over Time"
-                subtitle="Genre-level player curves using stored Roblox snapshot dates."
+                subtitle={
+                  activePlatform === "roblox"
+                    ? "Genre-level player curves using stored Roblox snapshot dates."
+                    : "Genre-level Fortnite activity curves using peak CCU, plays, or unique-player snapshots when available."
+                }
                 panel={panel}
                 action={
                   activePlatform === "roblox" ? (
@@ -471,7 +489,10 @@ export default function Home() {
                     percentile={genreTrendPercentile}
                   />
                 ) : (
-                  <Unavailable text="Fortnite genre counts are available, but not CCU curves." />
+                  <FortniteGenreTrend
+                    islands={topFortniteIslands.slice(0, genreTrendLimit)}
+                    percentile={genreTrendPercentile}
+                  />
                 )}
               </ChartCard>
             </section>
@@ -639,7 +660,7 @@ export default function Home() {
                     ? "This combination has low representation in the imported dataset."
                     : "This combination has visible competition in the imported dataset.",
                   activePlatform === "fortnite"
-                    ? "Fortnite signals are metadata-based and do not currently include CCU or retention."
+                    ? "Fortnite signals use official activity fields when the source returns them; missing fields should be treated as coverage gaps."
                     : "Roblox signals are based on current player snapshots and inferred classifications.",
                   "Use this as a directional signal, not a prediction of creator outcome.",
                 ]}
@@ -808,16 +829,96 @@ function getAveragePlayerGain(snapshots: any[], days: number) {
 
 function withLatestFortniteSnapshot(island: any) {
   const snapshots = island.fortnite_island_snapshots ?? [];
-  const latest = [...snapshots].sort(
+  const sorted = [...snapshots].sort(
     (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  )[0];
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  const latest = sorted[sorted.length - 1];
 
   return {
     ...island,
     raw: island.raw_latest ?? latest?.raw_payload ?? {},
+    snapshots: sorted,
+    latestRank: latest?.rank ?? null,
+    latestPlays: latest?.plays ?? null,
+    latestFavorites: latest?.favorites ?? null,
+    latestRecommends: latest?.recommends ?? null,
+    latestPeakCcu: latest?.peak_ccu ?? null,
+    latestUniquePlayers: latest?.unique_players ?? null,
+    latestMinutesPlayed: latest?.minutes_played ?? null,
+    latestRetentionD1: latest?.retention_d1 ?? null,
+    latestRetentionD7: latest?.retention_d7 ?? null,
+    latestActivityValue: getFortniteSnapshotValue(latest),
+    latestActivityLabel: getFortniteSnapshotMetricLabel(latest),
     latestPlayers: 0,
   };
+}
+
+function compareFortniteIslands(a: any, b: any) {
+  const aScore = getFortniteActivityScore(a);
+  const bScore = getFortniteActivityScore(b);
+
+  if (aScore !== bScore) return bScore - aScore;
+
+  const aRank = a.latestRank ?? 999999;
+  const bRank = b.latestRank ?? 999999;
+  if (aRank !== bRank) return aRank - bRank;
+
+  return (a.title ?? "").localeCompare(b.title ?? "");
+}
+
+function getFortniteActivityScore(item: any) {
+  return (
+    item.latestActivityValue ??
+    item.latestFavorites ??
+    item.latestRecommends ??
+    (item.latestRank ? 100000 - item.latestRank : 0)
+  );
+}
+
+function getFortniteActivityLabel(item: any) {
+  if (typeof item.latestPeakCcu === "number") {
+    return `${formatNumber(item.latestPeakCcu)} peak CCU`;
+  }
+
+  if (typeof item.latestPlays === "number") {
+    return `${formatNumber(item.latestPlays)} plays`;
+  }
+
+  if (typeof item.latestUniquePlayers === "number") {
+    return `${formatNumber(item.latestUniquePlayers)} players`;
+  }
+
+  if (typeof item.latestRank === "number") {
+    return `#${item.latestRank}`;
+  }
+
+  return "Imported";
+}
+
+function getFortniteSnapshotValue(snapshot: any) {
+  if (!snapshot) return null;
+
+  return (
+    snapshot.peak_ccu ??
+    snapshot.plays ??
+    snapshot.unique_players ??
+    snapshot.minutes_played ??
+    snapshot.favorites ??
+    snapshot.recommends ??
+    null
+  );
+}
+
+function getFortniteSnapshotMetricLabel(snapshot: any) {
+  if (!snapshot) return "No activity metric";
+  if (typeof snapshot.peak_ccu === "number") return "Peak CCU";
+  if (typeof snapshot.plays === "number") return "Plays";
+  if (typeof snapshot.unique_players === "number") return "Unique Players";
+  if (typeof snapshot.minutes_played === "number") return "Minutes Played";
+  if (typeof snapshot.favorites === "number") return "Favorites";
+  if (typeof snapshot.recommends === "number") return "Recommends";
+  return "No activity metric";
 }
 
 function buildGameTrend(game: any) {
@@ -859,30 +960,7 @@ function findEmergingGame(games: any[]) {
 
 function buildTrendingHighlights(items: any[], platform: Platform) {
   if (platform !== "roblox") {
-    return [
-      {
-        label: "Most player gain",
-        title: items[0]?.title ?? "placeholder",
-        metric: "Metadata",
-        direction: "up",
-        href: items[0]?.url,
-        subline: "Yesterday: placeholder",
-      },
-      {
-        label: "Most position gain",
-        title: "placeholder",
-        metric: "N/A",
-        direction: "up",
-        subline: "Yesterday: placeholder",
-      },
-      {
-        label: "Most player loss",
-        title: "placeholder",
-        metric: "N/A",
-        direction: "down",
-        subline: "Yesterday: placeholder",
-      },
-    ];
+    return buildFortniteTrendingHighlights(items);
   }
 
   const yesterdayHighlights = buildYesterdayTrendingHighlights(items);
@@ -926,6 +1004,70 @@ function buildTrendingHighlights(items: any[], platform: Platform) {
       direction: "down",
       href: playerLoss?.url,
       subline: `Yesterday: ${yesterdayHighlights.playerLoss?.title ?? "placeholder"}`,
+    },
+  ];
+}
+
+function buildFortniteTrendingHighlights(items: any[]) {
+  const topActivity = [...items].sort(compareFortniteIslands)[0];
+  const topRanked = [...items]
+    .filter((item) => typeof item.latestRank === "number")
+    .sort((a, b) => a.latestRank - b.latestRank)[0];
+  const topAffinity = [...items]
+    .filter(
+      (item) =>
+        typeof item.latestFavorites === "number" ||
+        typeof item.latestRecommends === "number"
+    )
+    .sort(
+      (a, b) =>
+        (b.latestFavorites ?? b.latestRecommends ?? 0) -
+        (a.latestFavorites ?? a.latestRecommends ?? 0)
+    )[0];
+
+  return [
+    {
+      label: "Strongest activity signal",
+      title: topActivity?.title ?? "placeholder",
+      metric: topActivity ? getFortniteActivityLabel(topActivity) : "Pending",
+      direction: "up",
+      href: topActivity?.url,
+      subline: topActivity
+        ? `${topActivity.inferred_genre ?? "Other"} / ${
+            topActivity.inferred_subgenre ?? "General"
+          }`
+        : "Waiting for island activity data",
+    },
+    {
+      label: "Best source rank",
+      title: topRanked?.title ?? "placeholder",
+      metric:
+        typeof topRanked?.latestRank === "number"
+          ? `#${topRanked.latestRank}`
+          : "Pending",
+      direction: "up",
+      href: topRanked?.url,
+      subline: topRanked
+        ? `${topRanked.inferred_genre ?? "Other"} / ${
+            topRanked.inferred_subgenre ?? "General"
+          }`
+        : "Rank unavailable from current source",
+    },
+    {
+      label: "Highest affinity signal",
+      title: topAffinity?.title ?? "placeholder",
+      metric: topAffinity
+        ? typeof topAffinity.latestFavorites === "number"
+          ? `${formatNumber(topAffinity.latestFavorites)} fav`
+          : `${formatNumber(topAffinity.latestRecommends)} rec`
+        : "Pending",
+      direction: "up",
+      href: topAffinity?.url,
+      subline: topAffinity
+        ? `${topAffinity.inferred_genre ?? "Other"} / ${
+            topAffinity.inferred_subgenre ?? "General"
+          }`
+        : "Favorites/recommendations unavailable from current source",
     },
   ];
 }
@@ -1048,22 +1190,28 @@ function buildTopGenreScoreboard(games: any[]) {
 }
 
 function buildFortniteGenreScoreboard(islands: any[]) {
-  const map: Record<string, number> = {};
+  const map: Record<string, { genre: string; subgenre: string; count: number }> = {};
   islands.forEach((island) => {
-    const key = `${island.inferred_genre ?? "Other"} / ${
-      island.inferred_subgenre ?? "General"
-    }`;
-    map[key] = (map[key] ?? 0) + 1;
+    const genre = island.inferred_genre ?? "Other";
+    const subgenre = island.inferred_subgenre ?? "General";
+    const key = `${genre}|||${subgenre}`;
+
+    if (!map[key]) {
+      map[key] = { genre, subgenre, count: 0 };
+    }
+
+    map[key].count += 1;
   });
 
   const total = islands.length;
 
-  return Object.entries(map)
-    .map(([label, count]) => ({
-      label,
-      value: `${count}`,
-      rawValue: count,
-      share: total ? Math.round((count / total) * 100) : 0,
+  return Object.values(map)
+    .map((item) => ({
+      label: item.genre,
+      subline: item.subgenre,
+      value: `${item.count}`,
+      rawValue: item.count,
+      share: total ? Math.round((item.count / total) * 100) : 0,
     }))
     .sort((a, b) => b.rawValue - a.rawValue)
     .slice(0, 3);
@@ -1443,11 +1591,11 @@ function ScoreboardCard({
 	                {index + 1}
 	              </span>
 	              <span className="min-w-0 flex-1">
-                  <span className="block break-words text-sm font-semibold leading-snug">
+                  <span className="block truncate text-sm font-semibold leading-snug">
 	                  {item.label}
                   </span>
                   {item.subline && (
-                    <span className="mt-1 block text-xs font-medium leading-snug text-slate-400">
+                    <span className="mt-1 block truncate text-xs font-medium leading-snug text-slate-400">
                       {item.subline}
                     </span>
                   )}
@@ -1522,9 +1670,16 @@ function GenreShareCard({ title, subtitle, items, panel, accent }: any) {
         {items.map((item: any) => (
           <div key={item.label}>
             <div className="mb-1 flex items-start justify-between gap-3">
-              <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug">
-                {item.label}
-              </p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold leading-snug">
+                  {item.label}
+                </p>
+                {item.subline && (
+                  <p className="mt-0.5 truncate text-xs font-medium leading-snug text-slate-400">
+                    {item.subline}
+                  </p>
+                )}
+              </div>
               <span
                 className="flex-none text-sm font-black"
                 style={{ color: accent }}
@@ -2542,6 +2697,44 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
             </div>
           </>
         )}
+
+        {platform === "fortnite" && (
+          <>
+            <div>
+              <p className="text-slate-400">Activity metric</p>
+              <p className="font-black">
+                {item.latestActivityLabel ?? "Pending"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-400">Activity value</p>
+              <p className="font-black">
+                {typeof item.latestActivityValue === "number"
+                  ? formatNumber(item.latestActivityValue)
+                  : "N/A"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-400">Recommends</p>
+              <p className="font-black">
+                {typeof item.latestRecommends === "number"
+                  ? formatNumber(item.latestRecommends)
+                  : "N/A"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-400">D7 retention</p>
+              <p className="font-black">
+                {typeof item.latestRetentionD7 === "number"
+                  ? `${Math.round(item.latestRetentionD7 * 100) / 100}%`
+                  : "N/A"}
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </a>
   );
@@ -2910,43 +3103,55 @@ function buildPredictionSignals(
     return [
       {
         label: "Daily rank history",
-        value: "Metadata only",
-        detail: "Current Fortnite source does not expose rank history.",
+        value:
+          typeof target.latestRank === "number"
+            ? `#${target.latestRank}`
+            : "Pending",
+        detail: "Latest source rank from the Fortnite island snapshot when provided.",
       },
       {
         label: "Player velocity",
-        value: "Unavailable",
-        detail: "CCU snapshots are required for velocity.",
+        value: getFortniteVelocityLabel(target),
+        detail: `Change in ${target.latestActivityLabel ?? "activity metric"} across stored Fortnite snapshots.`,
       },
       {
         label: "Volatility",
-        value: "Unavailable",
-        detail: "Needs repeated player activity snapshots.",
+        value: getFortniteVolatility(target).label,
+        detail: getFortniteVolatility(target).detail,
       },
       {
         label: "Peak retention",
-        value: "Unavailable",
-        detail: "Needs a measurable player peak and current player count.",
+        value:
+          typeof target.latestRetentionD7 === "number"
+            ? `${Math.round(target.latestRetentionD7 * 100) / 100}%`
+            : "Pending",
+        detail: "Uses D7 retention when returned by the Fortnite Data API.",
       },
       {
         label: "Genre share over time",
-        value: target.inferred_genre ?? "Other",
-        detail: "Genre is available, but activity share is not yet available.",
+        value: getFortniteGenreActivityShare(target, items),
+        detail: `${target.inferred_genre ?? "Other"} share of available Fortnite activity metrics.`,
       },
       {
         label: "New entrant detection",
-        value: "Untracked",
-        detail: "First-seen history is not available in the current UI payload.",
+        value: target.snapshots?.[0]?.created_at
+          ? formatShortDate(target.snapshots[0].created_at)
+          : "Pending",
+        detail: "First stored appearance in the current Fortnite snapshot history.",
       },
       {
         label: "Breakout score",
-        value: "Pending",
-        detail: "Requires velocity, rank movement, and player scale.",
+        value: `${getFortniteBreakoutScore(target, items)}/100`,
+        detail: "Composite of available activity, retention, recommendations, and rank.",
       },
       {
         label: "Settlement snapshots",
-        value: "Pending",
-        detail: "A daily Fortnite activity snapshot would make this resolvable.",
+        value: `${target.snapshots?.length ?? 0} snapshots`,
+        detail: target.snapshots?.at(-1)?.created_at
+          ? `Latest settlement reference: ${new Date(
+              target.snapshots.at(-1).created_at
+            ).toISOString()} UTC.`
+          : "No Fortnite settlement snapshot available yet.",
       },
     ];
   }
@@ -3041,6 +3246,92 @@ const predictionSignalLabels = [
   "Breakout score",
   "Settlement snapshots",
 ];
+
+function getFortniteVelocityLabel(target: any) {
+  const values = (target.snapshots ?? [])
+    .map(getFortniteSnapshotValue)
+    .filter((value: any) => typeof value === "number");
+
+  if (values.length < 2) return "Pending";
+
+  const first = values[0];
+  const latest = values[values.length - 1];
+  const change = latest - first;
+  const percent = first ? Math.round((change / first) * 100) : 0;
+
+  return `${change >= 0 ? "+" : ""}${formatNumber(change)} (${percent >= 0 ? "+" : ""}${percent}%)`;
+}
+
+function getFortniteVolatility(target: any) {
+  const values = (target.snapshots ?? [])
+    .map(getFortniteSnapshotValue)
+    .filter((value: any) => typeof value === "number");
+
+  if (values.length < 2) {
+    return {
+      label: "Pending",
+      detail: "Needs at least two Fortnite activity snapshots.",
+    };
+  }
+
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const midpoint = Math.max(1, (low + high) / 2);
+  const spread = (high - low) / midpoint;
+
+  return {
+    label: spread > 0.75 ? "High" : spread > 0.3 ? "Medium" : "Low",
+    detail: `Observed ${target.latestActivityLabel ?? "activity"} range: ${formatNumber(
+      low
+    )} to ${formatNumber(high)}.`,
+  };
+}
+
+function getFortniteGenreActivityShare(target: any, items: any[]) {
+  const total = items.reduce(
+    (sum, item) => sum + (item.latestActivityValue ?? 0),
+    0
+  );
+  const genreTotal = items
+    .filter((item) => item.inferred_genre === target.inferred_genre)
+    .reduce((sum, item) => sum + (item.latestActivityValue ?? 0), 0);
+
+  if (!total) return "Pending";
+
+  return `${Math.round((genreTotal / total) * 100)}%`;
+}
+
+function getFortniteBreakoutScore(target: any, items: any[]) {
+  const maxActivity = Math.max(
+    ...items.map((item) => item.latestActivityValue ?? 0),
+    1
+  );
+  const activityScore = Math.min(
+    40,
+    ((target.latestActivityValue ?? 0) / maxActivity) * 40
+  );
+  const rankScore =
+    typeof target.latestRank === "number"
+      ? Math.max(0, Math.min(20, 20 - target.latestRank / 10))
+      : 0;
+  const retentionScore =
+    typeof target.latestRetentionD7 === "number"
+      ? Math.min(20, target.latestRetentionD7 * 2)
+      : 0;
+  const affinityScore = Math.min(
+    20,
+    ((target.latestRecommends ?? target.latestFavorites ?? 0) /
+      Math.max(
+        ...items.map(
+          (item) => item.latestRecommends ?? item.latestFavorites ?? 0
+        ),
+        1
+      )) *
+      20
+  );
+
+  return Math.round(activityScore + rankScore + retentionScore + affinityScore);
+}
 
 function getPlayerVolatility(snapshots: any[]) {
   const values = snapshots
@@ -3137,6 +3428,79 @@ function TopGamesTrend({ games, percentile = 100 }: any) {
 	  );
 }
 
+function FortniteIslandsTrend({ islands, percentile = 100 }: any) {
+  const visibleIslands = applyPercentileBand(islands, percentile);
+  const data = mergeFortniteIslandTrends(visibleIslands);
+  const domain = getLineChartDomain(
+    data,
+    visibleIslands.map((island: any) => island.title)
+  );
+  const colors = ["#7c3aed", "#5fbfd0", "#d6a06d", "#16a34a", "#ef4444"];
+
+  if (!data.length) {
+    return (
+      <Unavailable text="No Fortnite activity snapshots available yet. Run the Fortnite refresh after deploying the updated importer." />
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+        <XAxis dataKey="date" fontSize={11} />
+        <YAxis fontSize={11} domain={domain} />
+        <Tooltip content={<TopGamesTooltip />} />
+        {visibleIslands.map((island: any, index: number) => (
+          <Line
+            key={island.id}
+            type="monotone"
+            dataKey={island.title}
+            stroke={colors[index % colors.length]}
+            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+            strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
+            dot={false}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+function FortniteGenreTrend({ islands, percentile = 100 }: any) {
+  const visibleIslands = applyPercentileBand(islands, percentile);
+  const { data, genres } = mergeFortniteGenreTrends(visibleIslands);
+  const domain = getLineChartDomain(data, genres);
+  const colors = ["#7c3aed", "#5fbfd0", "#d6a06d", "#16a34a", "#ef4444"];
+
+  if (!data.length) {
+    return (
+      <Unavailable text="No Fortnite genre activity snapshots available yet. Run the Fortnite refresh after deploying the updated importer." />
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+        <XAxis dataKey="date" fontSize={11} />
+        <YAxis fontSize={11} domain={domain} />
+        <Tooltip content={<TopGamesTooltip />} />
+        {genres.map((genre: string, index: number) => (
+          <Line
+            key={genre}
+            type="monotone"
+            dataKey={genre}
+            stroke={colors[index % colors.length]}
+            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+            strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
+            dot={false}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 function TopGamesTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
 
@@ -3230,6 +3594,55 @@ function mergeGameTrends(games: any[]) {
   });
 
   return Object.values(byDate);
+}
+
+function mergeFortniteIslandTrends(islands: any[]) {
+  const byDate: Record<string, any> = {};
+
+  islands.forEach((island) => {
+    (island.snapshots ?? []).forEach((snapshot: any) => {
+      const value = getFortniteSnapshotValue(snapshot);
+      if (typeof value !== "number") return;
+
+      const date = formatShortDate(snapshot.created_at);
+      if (!byDate[date]) byDate[date] = { date };
+      byDate[date][island.title] = value;
+    });
+  });
+
+  return Object.values(byDate);
+}
+
+function mergeFortniteGenreTrends(islands: any[]) {
+  const byGenreTotals: Record<string, number> = {};
+
+  islands.forEach((island) => {
+    const genre = island.inferred_genre ?? "Other";
+    byGenreTotals[genre] =
+      (byGenreTotals[genre] ?? 0) + (island.latestActivityValue ?? 0);
+  });
+
+  const genres = Object.entries(byGenreTotals)
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([genre]) => genre);
+  const byDate: Record<string, any> = {};
+
+  islands
+    .filter((island) => genres.includes(island.inferred_genre ?? "Other"))
+    .forEach((island) => {
+      (island.snapshots ?? []).forEach((snapshot: any) => {
+        const value = getFortniteSnapshotValue(snapshot);
+        if (typeof value !== "number") return;
+
+        const date = formatShortDate(snapshot.created_at);
+        const genre = island.inferred_genre ?? "Other";
+        if (!byDate[date]) byDate[date] = { date };
+        byDate[date][genre] = (byDate[date][genre] ?? 0) + value;
+      });
+    });
+
+  return { data: Object.values(byDate), genres };
 }
 
 function mergeGenreTrends(games: any[]) {

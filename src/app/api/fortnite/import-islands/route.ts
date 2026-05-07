@@ -251,10 +251,25 @@ function analyzeFortniteIsland(island: any) {
    5. Insert snapshot into fortnite_island_snapshots
 
    Important:
-   The current Fortnite source gives metadata and tags.
-   It does not currently provide reliable CCU, retention,
-   plays, or revenue metrics.
+   The official Fortnite Data API may include activity
+   metrics such as minutes played, plays, recommends,
+   peak CCU, unique players, and retention. We keep the
+   mapping defensive because field names can vary across
+   payload versions.
    ========================================================= */
+
+function pickMetric(source: any, keys: string[]) {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (typeof value === "number") return value;
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value.replace(/,/g, ""));
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+
+  return null;
+}
 
 export async function GET(req: Request) {
   try {
@@ -349,22 +364,39 @@ export async function GET(req: Request) {
         .insert({
           island_id: islandRow.id,
           source_name: "fortnite_data_api",
-          rank: island.rank ?? null,
+          rank: pickMetric(island, ["rank", "position", "order"]),
 
-          /*
-             These fields are kept for forward compatibility.
-             If a future endpoint provides performance data,
-             the database is already ready to store it.
-          */
-          minutes_played: island.minutesPlayed ?? null,
-          minutes_per_player: island.minutesPerPlayer ?? null,
-          plays: island.plays ?? null,
-          favorites: island.favorites ?? null,
-          recommends: island.recommends ?? null,
-          peak_ccu: island.peakCCU ?? island.peakCcu ?? null,
-          unique_players: island.uniquePlayers ?? null,
-          retention_d1: island.retentionD1 ?? null,
-          retention_d7: island.retentionD7 ?? null,
+          minutes_played: pickMetric(island, [
+            "minutesPlayed",
+            "minutes_played",
+            "totalMinutesPlayed",
+          ]),
+          minutes_per_player: pickMetric(island, [
+            "minutesPerPlayer",
+            "minutes_per_player",
+            "avgMinutesPerPlayer",
+            "averageMinutesPerPlayer",
+          ]),
+          plays: pickMetric(island, ["plays", "sessions", "gameSessions"]),
+          favorites: pickMetric(island, ["favorites", "favoriteCount"]),
+          recommends: pickMetric(island, [
+            "recommends",
+            "recommendations",
+            "likes",
+          ]),
+          peak_ccu: pickMetric(island, [
+            "peakCCU",
+            "peakCcu",
+            "peak_ccu",
+            "peakConcurrentUsers",
+          ]),
+          unique_players: pickMetric(island, [
+            "uniquePlayers",
+            "unique_players",
+            "players",
+          ]),
+          retention_d1: pickMetric(island, ["retentionD1", "retention_d1"]),
+          retention_d7: pickMetric(island, ["retentionD7", "retention_d7"]),
 
           raw_payload: island,
         });
