@@ -38,6 +38,7 @@ export default function Home() {
   const [activePlatform, setActivePlatform] = useState<Platform>("roblox");
   const [darkMode, setDarkMode] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const [showTerms, setShowTerms] = useState(false);
   const [robloxGames, setRobloxGames] = useState<any[]>([]);
   const [fortniteIslands, setFortniteIslands] = useState<any[]>([]);
   const [dataQualitySnapshots, setDataQualitySnapshots] = useState<
@@ -51,10 +52,22 @@ export default function Home() {
   const [genreTrendLimit, setGenreTrendLimit] = useState<25 | 50>(25);
   const [genreTrendPercentile, setGenreTrendPercentile] =
     useState<25 | 50 | 75 | 100>(100);
+  const [fortniteLabelTrendLimit, setFortniteLabelTrendLimit] =
+    useState<10 | 25>(10);
   const [predictionSearch, setPredictionSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   const accent = activePlatform === "roblox" ? "#5fbfd0" : "#7c3aed";
+  const currentDateLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+    []
+  );
 
   useEffect(() => {
     async function fetchData() {
@@ -247,6 +260,40 @@ export default function Home() {
     ? "bg-[#191c22] border-[#303540]"
     : "bg-white border-[#d9dde5]";
 
+  const dashboardContext = {
+    activePlatform,
+    activeItems,
+    dataSourceHealth,
+    panel,
+    accent,
+    topFortniteIslands,
+    fortniteIslands,
+    trendingHighlights,
+    topGamesTrendLimit,
+    topGamesTrendPercentile,
+    setTopGamesTrendLimit,
+    setTopGamesTrendPercentile,
+    genreTrendLimit,
+    genreTrendPercentile,
+    setGenreTrendLimit,
+    setGenreTrendPercentile,
+    fortniteLabelTrendLimit,
+    setFortniteLabelTrendLimit,
+    selectedGenre,
+    selectedSubgenre,
+    setSelectedGenre,
+    setSelectedSubgenre,
+    genres,
+    subgenres,
+    filteredIdeaItems,
+    ideaPercent,
+    topSimilar,
+    predictionSearch,
+    setPredictionSearch,
+    predictionTarget,
+    predictionSignals,
+  };
+
   return (
     <main className={`min-h-screen p-6 ${shell}`}>
       <div className={`mx-auto max-w-7xl rounded-[32px] p-8 ${panel} border`}>
@@ -256,9 +303,14 @@ export default function Home() {
               ◈
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight">
-                Snout Intel Dashboard
-              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-black tracking-tight">
+                  Snout - UGC Intel Dashboard
+                </h1>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                  Beta
+                </span>
+              </div>
               <p className="text-xs text-slate-500">
                 Creator Development intelligence portal by FDS LLC
               </p>
@@ -291,6 +343,8 @@ export default function Home() {
               </ToggleButton>
             </ToggleGroup>
 
+            <DatePill date={currentDateLabel} accent={accent} />
+
             <ToggleGroup>
               <ToggleButton
                 active={!darkMode}
@@ -313,9 +367,18 @@ export default function Home() {
         {showDisclaimer && (
           <div className="mb-8 flex items-start justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             <p>
-              <strong>Informational use only.</strong> UGC Intel provides
-              directional market signals and does not guarantee creator,
-              business, revenue, discovery, or engagement outcomes.
+              <span>
+                <strong>Informational use only.</strong> Snout provides
+                directional market intelligence, data summaries, and automated
+                classifications for research and creative exploration. It does
+                not provide legal, financial, investment, business, or
+                professional advice and does not guarantee revenue, player
+                growth, discoverability, platform placement, or creator success.
+              </span>
+              <span className="mt-2 block">
+                Video games are a form of art, please use the displayed
+                information to fuel your creativity and ultimately provide fun.
+              </span>
             </p>
             <button
               onClick={() => setShowDisclaimer(false)}
@@ -329,13 +392,14 @@ export default function Home() {
         <section className="mb-6">
           <h2 className="text-3xl font-bold">Creator Trend Intelligence</h2>
           <p className="mt-2 text-sm text-slate-500">
-            Platform-specific market signals for deciding what to build next.
+            Platform-specific market signals for creative research and market exploration.
           </p>
         </section>
 
         {loading ? (
           <p>Loading platform data...</p>
-        ) : (
+        ) : activePlatform === "roblox" ? (
+          /* Roblox dashboard branch. Keep Fortnite-specific UI changes in FortniteDashboardView. */
           <>
             <section className="mb-6 grid gap-4 lg:grid-cols-4">
               <DataSourceHealthCard
@@ -537,9 +601,9 @@ export default function Home() {
 
             <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
-                <h2 className="text-2xl font-bold">Opportunity Map</h2>
+                <h2 className="text-2xl font-bold">Directional Research Map</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Green indicates stronger opportunity; red indicates weaker opportunity or higher risk.
+                  Green indicates a stronger directional research signal; red indicates weaker signal strength or higher uncertainty.
                 </p>
                 <BlockHeatMap
                   items={activeItems}
@@ -628,7 +692,7 @@ export default function Home() {
 
             <section className="mb-6 grid gap-4 lg:grid-cols-3">
               <RecommendationBlock
-                title="Opportunity"
+                title="Research Signal"
                 panel={panel}
                 accent={accent}
                 bullets={[
@@ -639,8 +703,8 @@ export default function Home() {
                     : `This segment maps to ${filteredIdeaItems.length} imported islands.`,
                   `${ideaPercent}% of the active platform dataset matches this idea profile.`,
                   filteredIdeaItems.length > 5
-                    ? "There are enough examples to study repeatable patterns."
-                    : "This is a lower-signal area and should be treated as exploratory.",
+	                    ? "There are enough examples to investigate repeatable patterns."
+	                    : "This is a lower-signal area and should be treated as exploratory.",
                 ]}
               />
 
@@ -656,15 +720,13 @@ export default function Home() {
                 panel={panel}
                 accent={accent}
                 bullets={[
-                  filteredIdeaItems.length < 5
-                    ? "This combination has low representation in the imported dataset."
-                    : "This combination has visible competition in the imported dataset.",
-                  activePlatform === "fortnite"
-                    ? "Fortnite signals use official activity fields when the source returns them; missing fields should be treated as coverage gaps."
-                    : "Roblox signals are based on current player snapshots and inferred classifications.",
-                  "Use this as a directional signal, not a prediction of creator outcome.",
-                ]}
-              />
+	                  filteredIdeaItems.length < 5
+	                    ? "This combination has low representation in the imported dataset."
+	                    : "This combination has visible competition in the imported dataset.",
+	                  "Roblox signals are based on current player snapshots and inferred classifications.",
+		                  "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
+	                ]}
+	              />
             </section>
 
             <section className={`mb-6 rounded-3xl border p-6 ${panel}`}>
@@ -723,21 +785,316 @@ export default function Home() {
               </div>
             </section>
 
-            <PredictionMarketSignalsCard
-              panel={panel}
-              accent={accent}
-              search={predictionSearch}
-              onSearchChange={setPredictionSearch}
-              target={predictionTarget}
-              signals={predictionSignals}
-              platform={activePlatform}
-            />
-          </>
+	            <PredictionMarketSignalsCard
+	              panel={panel}
+	              accent={accent}
+	              search={predictionSearch}
+	              onSearchChange={setPredictionSearch}
+	              target={predictionTarget}
+	              signals={predictionSignals}
+	              platform={activePlatform}
+	            />
+	          </>
+        ) : (
+          <FortniteDashboardView context={dashboardContext} />
         )}
 
-        <footer className="mt-12 h-20" />
+        <footer className="mt-12 flex h-20 items-start justify-center border-t border-slate-200 pt-6">
+          <button
+            type="button"
+            onClick={() => setShowTerms(true)}
+            className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
+          >
+            Terms of service
+          </button>
+        </footer>
+        {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
       </div>
     </main>
+  );
+}
+
+function FortniteDashboardView({ context }: any) {
+  const {
+    activePlatform,
+    activeItems,
+    dataSourceHealth,
+    panel,
+    accent,
+    topFortniteIslands,
+    fortniteIslands,
+    trendingHighlights,
+    topGamesTrendLimit,
+    topGamesTrendPercentile,
+    setTopGamesTrendLimit,
+    setTopGamesTrendPercentile,
+    genreTrendLimit,
+    genreTrendPercentile,
+    setGenreTrendLimit,
+    setGenreTrendPercentile,
+    fortniteLabelTrendLimit,
+    setFortniteLabelTrendLimit,
+    selectedGenre,
+    selectedSubgenre,
+    setSelectedGenre,
+    setSelectedSubgenre,
+    genres,
+    subgenres,
+    filteredIdeaItems,
+    ideaPercent,
+    topSimilar,
+    predictionSearch,
+    setPredictionSearch,
+    predictionTarget,
+    predictionSignals,
+  } = context;
+  const currentTopFortniteIslands = getFortniteIslandsBySnapshotRank(
+    fortniteIslands,
+    0
+  );
+
+  return (
+    <>
+      <section className="mb-6 grid gap-4 lg:grid-cols-4">
+        <DataSourceHealthCard
+          title="Data Source & Health"
+          items={[
+            `How many islands are queried in the latest snapshot: ${formatNumber(
+              dataSourceHealth.queriedToday
+            )}.`,
+            `The data is pulled from: ${dataSourceHealth.source}.`,
+            `Automated classification confidence is ${dataSourceHealth.confidence}%.`,
+          ]}
+          lastRunLabel={dataSourceHealth.lastRunLabel}
+          panel={panel}
+          accent={accent}
+        />
+
+        <ScoreboardCard
+          title="Top 5 Fortnite Islands"
+          subtitle="Ranked by the latest imported source snapshot"
+          items={currentTopFortniteIslands.slice(0, 5).map((island: any, index: number) => {
+            const yesterdayIsland = getFortniteIslandBySnapshotRank(
+              fortniteIslands,
+              index + 1,
+              1
+            );
+
+            return {
+              label: island.title,
+              subline: `Yesterday: ${yesterdayIsland?.title ?? "placeholder"}`,
+              wrap: true,
+              href: island.url,
+            };
+          })}
+          panel={panel}
+          accent={accent}
+        />
+
+        <GenreShareCard
+          title="Top 3 Genres / Subgenres"
+          subtitle="By imported island count"
+          items={buildFortniteGenreScoreboard(fortniteIslands)}
+          panel={panel}
+          accent={accent}
+        />
+
+        <FortniteLabelRankingsCard
+          title="Top 10 Gameplay Labels"
+          subtitle="Most frequent labels across imported islands"
+          items={buildFortniteLabelRankings(fortniteIslands)}
+          panel={panel}
+          accent={accent}
+        />
+      </section>
+
+      <section className="mb-6">
+        <ChartCard
+          title="Gameplay Label Usage Over Time"
+          subtitle={`Top ${fortniteLabelTrendLimit} labels by island usage across stored Fortnite snapshots.`}
+          panel={panel}
+          action={
+            <FortniteLabelTrendControls
+              limit={fortniteLabelTrendLimit}
+              onLimitChange={setFortniteLabelTrendLimit}
+              accent={accent}
+            />
+          }
+        >
+          <FortniteLabelUsageTrend
+            islands={fortniteIslands}
+            limit={fortniteLabelTrendLimit}
+          />
+        </ChartCard>
+      </section>
+
+      <section className="mb-6 grid gap-6 lg:grid-cols-2">
+        <KeywordCloudCard
+          title="Top 25 Keyword Cloud"
+          subtitle="Common title and description signals across the top 25 islands"
+          games={topFortniteIslands.slice(0, 25)}
+          panel={panel}
+          accent={accent}
+          filterByGenre={false}
+          combinedCloud={true}
+        />
+
+        <ColorBreakdownCard
+          title="Top Tile Colors"
+          subtitle="Primary and secondary RGB colors from the top 25 islands"
+          games={currentTopFortniteIslands.slice(0, 25)}
+          panel={panel}
+          accent={accent}
+          filterByGenre={false}
+        />
+      </section>
+
+      <section className="mb-6">
+        <div className={`rounded-3xl border p-6 ${panel}`}>
+          <h2 className="text-2xl font-bold">Directional Research Map</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Green indicates a stronger directional research signal; red indicates weaker signal strength or higher uncertainty.
+          </p>
+          <BlockHeatMap
+            items={activeItems}
+            selectedGenre={selectedGenre}
+            selectedSubgenre={selectedSubgenre}
+            platform={activePlatform}
+            panel={panel}
+          />
+        </div>
+      </section>
+
+      <section className="mb-6">
+        <div className={`rounded-3xl border p-6 ${panel}`}>
+          <h2 className="text-2xl font-bold">My Fortnite Island Idea Is</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Use this as a reflection tool to position your island concept.
+          </p>
+
+          <div className="mt-5 space-y-3">
+            <select
+              className="w-full rounded-xl border p-3 text-sm text-slate-800"
+              value={selectedGenre}
+              onChange={(event) => {
+                setSelectedGenre(event.target.value);
+                setSelectedSubgenre("");
+              }}
+            >
+              <option value="">Select Genre</option>
+              {genres.map((genre: string) => (
+                <option key={genre} value={genre}>
+                  {genre}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="w-full rounded-xl border p-3 text-sm text-slate-800"
+              value={selectedSubgenre}
+              onChange={(event) => setSelectedSubgenre(event.target.value)}
+            >
+              <option value="">Select Subgenre</option>
+              {subgenres.map((subgenre: string) => (
+                <option key={subgenre} value={subgenre}>
+                  {subgenre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                This combination of genre and subgenre makes{" "}
+                <strong>{ideaPercent}%</strong> of the imported Fortnite islands.
+              </li>
+            </ul>
+            {topSimilar.length ? (
+              <div className="mt-5 border-t border-slate-200 pt-4">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                  Similar top islands
+                </p>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  {topSimilar.map((item: any, index: number) => (
+                    <MiniSimilarGameCard
+                      key={item.id}
+                      item={item}
+                      rank={index + 1}
+                      platform={activePlatform}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-6 grid gap-4 lg:grid-cols-3">
+        <RecommendationBlock
+          title="Research Signal"
+          panel={panel}
+          accent={accent}
+          bullets={[
+            `This segment maps to ${filteredIdeaItems.length} imported Fortnite islands.`,
+            `${ideaPercent}% of the Fortnite dataset matches this idea profile.`,
+            filteredIdeaItems.length > 5
+              ? "There are enough examples to investigate repeatable island patterns."
+              : "This is a lower-signal area and should be treated as exploratory.",
+          ]}
+        />
+
+        <RecommendationBlock
+          title="Design Cues"
+          panel={panel}
+          accent={accent}
+          tags={topTags(filteredIdeaItems)}
+        />
+
+        <RecommendationBlock
+          title="Warnings"
+          panel={panel}
+          accent={accent}
+          bullets={[
+            filteredIdeaItems.length < 5
+              ? "This combination has low representation in the imported Fortnite dataset."
+              : "This combination has visible competition in the imported Fortnite dataset.",
+            "Fortnite signals use official activity fields when the source returns them; missing fields should be treated as coverage gaps.",
+            "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
+          ]}
+        />
+      </section>
+
+      <section className={`rounded-3xl border p-6 ${panel}`}>
+        <h2 className="text-2xl font-bold">Top 25 Fortnite Islands</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Ranked by the latest imported source snapshot.
+        </p>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {currentTopFortniteIslands.slice(0, 25).map((item: any, index: number) => (
+            <GameMarketCard
+              key={item.id}
+              item={item}
+              rank={index + 1}
+              platform={activePlatform}
+              panel={panel}
+            />
+          ))}
+        </div>
+      </section>
+
+      <PredictionMarketSignalsCard
+        panel={panel}
+        accent={accent}
+        search={predictionSearch}
+        onSearchChange={setPredictionSearch}
+        target={predictionTarget}
+        signals={predictionSignals}
+        platform={activePlatform}
+      />
+    </>
   );
 }
 
@@ -893,7 +1250,7 @@ function getFortniteActivityLabel(item: any) {
     return `#${item.latestRank}`;
   }
 
-  return "Imported";
+  return "Official metrics pending";
 }
 
 function getFortniteSnapshotValue(snapshot: any) {
@@ -1217,7 +1574,109 @@ function buildFortniteGenreScoreboard(islands: any[]) {
     .slice(0, 3);
 }
 
-function buildKeywordCloud(items: any[], source: "title" | "description") {
+function buildFortniteMetricCoverage(islands: any[]) {
+  const total = islands.length || 1;
+  const definitions = [
+    { label: "Peak CCU", key: "latestPeakCcu" },
+    { label: "Plays", key: "latestPlays" },
+    { label: "Minutes Played", key: "latestMinutesPlayed" },
+    { label: "Recommends", key: "latestRecommends" },
+    { label: "Unique Players", key: "latestUniquePlayers" },
+    { label: "D7 Retention", key: "latestRetentionD7" },
+  ];
+
+  return definitions.map((definition) => {
+    const count = islands.filter(
+      (island) => typeof island[definition.key] === "number"
+    ).length;
+
+    return {
+      ...definition,
+      count,
+      total: islands.length,
+      percent: Math.round((count / total) * 100),
+    };
+  });
+}
+
+function buildFortniteLabelRankings(islands: any[]) {
+  const dateKeys = Array.from(
+    new Set(
+      islands.flatMap((island) =>
+        (island.snapshots ?? []).map((snapshot: any) =>
+          String(snapshot.created_at ?? "").slice(0, 10)
+        )
+      )
+    )
+  )
+    .filter(Boolean)
+    .sort();
+  const latestDate = dateKeys.at(-1) ?? "";
+  const previousDate = dateKeys.length > 1 ? dateKeys.at(-2) ?? "" : "";
+  const currentRows = rankFortniteLabels(
+    latestDate
+      ? islands.filter((island) =>
+          (island.snapshots ?? []).some((snapshot: any) =>
+            String(snapshot.created_at ?? "").startsWith(latestDate)
+          )
+        )
+      : islands
+  );
+  const previousRows = previousDate
+    ? rankFortniteLabels(
+        islands.filter((island) =>
+          (island.snapshots ?? []).some((snapshot: any) =>
+            String(snapshot.created_at ?? "").startsWith(previousDate)
+          )
+        )
+      )
+    : [];
+  const previousRankByLabel = new Map(
+    previousRows.map((row: any) => [row.label, row.rank])
+  );
+
+  return currentRows.slice(0, 10).map((row: any) => {
+    const previousRank = previousRankByLabel.get(row.label) ?? null;
+
+    return {
+      ...row,
+      previousRank,
+      movement: previousRank ? previousRank - row.rank : 0,
+    };
+  });
+}
+
+function rankFortniteLabels(islands: any[]) {
+  const counts: Record<string, number> = {};
+
+  islands.forEach((island) => {
+    getFortniteGameplayLabels(island).forEach((label) => {
+      counts[label] = (counts[label] ?? 0) + 1;
+    });
+  });
+
+  return Object.entries(counts)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
+function getFortniteGameplayLabels(island: any) {
+  const labels = [
+    ...(island.extracted_tags ?? []),
+    island.inferred_genre,
+    island.inferred_subgenre,
+    island.player_intent,
+    island.core_loop,
+  ]
+    .filter(Boolean)
+    .map((label) => String(label).trim())
+    .filter((label) => label && !/^unknown|general$/i.test(label));
+
+  return Array.from(new Set(labels));
+}
+
+function buildKeywordCloud(items: any[], source: "title" | "description" | "all") {
   const stopWords = new Set([
     "the",
     "and",
@@ -1252,9 +1711,12 @@ function buildKeywordCloud(items: any[], source: "title" | "description") {
   const counts: Record<string, number> = {};
 
   items.forEach((item) => {
-    const text = source === "title"
-      ? item.title
-      : item.description;
+    const text =
+      source === "title"
+        ? item.title
+        : source === "description"
+          ? item.description
+          : `${item.title ?? ""} ${item.description ?? ""}`;
 
     tokenizeCloudText(text)
       .filter(Boolean)
@@ -1415,6 +1877,52 @@ function getTopGamesByUtcDate(games: any[], daysAgo: number, limit: number) {
     .filter(Boolean)
     .sort((a: any, b: any) => b.players - a.players)
     .slice(0, limit);
+}
+
+function getFortniteIslandBySnapshotRank(
+  islands: any[],
+  rank: number,
+  daysFromLatest: number
+) {
+  return getFortniteIslandsBySnapshotRank(islands, daysFromLatest)[rank - 1] ?? null;
+}
+
+function getFortniteIslandsBySnapshotRank(islands: any[], daysFromLatest: number) {
+  const dateKeys = getAvailableFortniteSnapshotDateKeys(islands);
+  const targetKey = dateKeys[dateKeys.length - 1 - daysFromLatest];
+
+  if (!targetKey) return [];
+
+  return islands
+    .map((island) => {
+      const snapshot = (island.snapshots ?? [])
+        .filter((item: any) =>
+          String(item.created_at ?? "").startsWith(targetKey)
+        )
+        .sort((a: any, b: any) => (a.rank ?? 999999) - (b.rank ?? 999999))[0];
+
+      if (!snapshot) return null;
+
+      return {
+        ...island,
+        rank: snapshot.rank ?? null,
+        latestRank: snapshot.rank ?? island.latestRank ?? null,
+      };
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => (a.rank ?? 999999) - (b.rank ?? 999999));
+}
+
+function getAvailableFortniteSnapshotDateKeys(islands: any[]) {
+  return Array.from(
+    new Set(
+      islands.flatMap((island) =>
+        (island.snapshots ?? [])
+          .map((snapshot: any) => getSnapshotDateKey(snapshot.created_at))
+          .filter(Boolean)
+      )
+    )
+  ).sort();
 }
 
 function topTags(items: any[]) {
@@ -1585,13 +2093,18 @@ function ScoreboardCard({
       <p className="text-xs text-slate-400">{subtitle}</p>
       <div className="mt-4 space-y-2">
         {items.map((item: any, index: number) => {
+          const itemKey = `${item.href ?? item.label}-${index}`;
           const content = (
             <>
 	              <span className="w-5 flex-none text-xs font-bold text-slate-400">
 	                {index + 1}
 	              </span>
 	              <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold leading-snug">
+                  <span
+                    className={`block text-sm font-semibold leading-snug ${
+                      item.wrap ? "break-words" : "truncate"
+                    }`}
+                  >
 	                  {item.label}
                   </span>
                   {item.subline && (
@@ -1600,18 +2113,20 @@ function ScoreboardCard({
                     </span>
                   )}
 	              </span>
-              <span
-                className="flex-none text-right text-sm font-black"
-                style={{ color: accent }}
-              >
-                {item.value}
-              </span>
+              {item.value ? (
+                <span
+                  className="flex-none text-right text-sm font-black"
+                  style={{ color: accent }}
+                >
+                  {item.value}
+                </span>
+              ) : null}
             </>
           );
 
           return item.href ? (
             <a
-              key={item.label}
+              key={itemKey}
               href={item.href}
               target="_blank"
               rel="noreferrer"
@@ -1620,7 +2135,7 @@ function ScoreboardCard({
               {content}
             </a>
           ) : (
-            <div key={item.label} className="flex items-start gap-2 px-1 py-1">
+            <div key={itemKey} className="flex items-start gap-2 px-1 py-1">
               {content}
             </div>
           );
@@ -1667,8 +2182,8 @@ function GenreShareCard({ title, subtitle, items, panel, accent }: any) {
       <p className="text-sm font-semibold text-slate-500">{title}</p>
       <p className="text-xs text-slate-400">{subtitle}</p>
       <div className="mt-4 space-y-4">
-        {items.map((item: any) => (
-          <div key={item.label}>
+        {items.map((item: any, index: number) => (
+          <div key={`${item.label}-${index}`}>
             <div className="mb-1 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold leading-snug">
@@ -1706,13 +2221,65 @@ function GenreShareCard({ title, subtitle, items, panel, accent }: any) {
   );
 }
 
+function FortniteLabelRankingsCard({ title, subtitle, items, panel, accent }: any) {
+  return (
+    <div className={`rounded-3xl border p-5 ${panel}`}>
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <p className="text-xs text-slate-400">{subtitle}</p>
+
+      <div className="mt-4 space-y-2">
+        {items.map((item: any, index: number) => {
+          const isUp = item.movement > 0;
+          const isDown = item.movement < 0;
+          const movementLabel =
+            item.previousRank === null
+              ? "NEW"
+              : `${isUp ? "+" : ""}${item.movement}`;
+
+          return (
+            <div
+              key={`${item.label}-${index}`}
+              className="grid grid-cols-[1.5rem_1fr_auto_auto] items-center gap-2 rounded-xl px-1 py-1"
+            >
+              <span className="text-xs font-bold text-slate-400">
+                {index + 1}
+              </span>
+              <span className="min-w-0 truncate text-sm font-black">
+                {item.label}
+              </span>
+              <span className="text-sm font-black" style={{ color: accent }}>
+                {item.count}
+              </span>
+              <span
+                className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                  item.previousRank === null
+                    ? "bg-slate-100 text-slate-500"
+                    : isUp
+                      ? "bg-green-50 text-green-600"
+                      : isDown
+                        ? "bg-red-50 text-red-500"
+                        : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {movementLabel}
+                {isUp ? " ▲" : isDown ? " ▼" : ""}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TrendingCard({ title, items, panel }: any) {
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
       <p className="text-sm font-semibold text-slate-500">{title}</p>
       <div className="mt-4 space-y-3">
-        {items.map((item: any) => {
+        {items.map((item: any, index: number) => {
           const isDown = item.direction === "down";
+          const itemKey = `${item.href ?? item.label ?? item.title}-${index}`;
           const content = (
             <>
               <div className="min-w-0 flex-1">
@@ -1740,7 +2307,7 @@ function TrendingCard({ title, items, panel }: any) {
 
           return item.href ? (
             <a
-              key={item.label}
+              key={itemKey}
               href={item.href}
               target="_blank"
               rel="noreferrer"
@@ -1749,7 +2316,7 @@ function TrendingCard({ title, items, panel }: any) {
               {content}
             </a>
           ) : (
-            <div key={item.label} className="flex items-start gap-3 rounded-xl p-2">
+            <div key={itemKey} className="flex items-start gap-3 rounded-xl p-2">
               {content}
             </div>
           );
@@ -1808,6 +2375,23 @@ function TrendControls({
         ))}
       </ToggleGroup>
     </div>
+  );
+}
+
+function FortniteLabelTrendControls({ limit, onLimitChange, accent }: any) {
+  return (
+    <ToggleGroup>
+      {[10, 25].map((value) => (
+        <ToggleButton
+          key={value}
+          active={limit === value}
+          onClick={() => onLimitChange(value)}
+          activeColor={accent}
+        >
+          Top {value}
+        </ToggleButton>
+      ))}
+    </ToggleGroup>
   );
 }
 
@@ -1927,7 +2511,15 @@ function EmergingGameVisual({ game, accent, metadataOnly = false }: any) {
   );
 }
 
-function KeywordCloudCard({ title, subtitle, games, panel, accent }: any) {
+function KeywordCloudCard({
+  title,
+  subtitle,
+  games,
+  panel,
+  accent,
+  filterByGenre = true,
+  combinedCloud = false,
+}: any) {
   const genres = useMemo(
     () =>
       Array.from(
@@ -1939,11 +2531,14 @@ function KeywordCloudCard({ title, subtitle, games, panel, accent }: any) {
   const activeGenre = selectedGenre || genres[0] || "";
   const selectedGames = useMemo(
     () =>
-      games.filter(
-        (game: any) => (game.inferred_genre ?? "Other") === activeGenre
-      ),
-    [games, activeGenre]
+      filterByGenre
+        ? games.filter(
+            (game: any) => (game.inferred_genre ?? "Other") === activeGenre
+          )
+        : games,
+    [games, activeGenre, filterByGenre]
   );
+  const combinedItems = buildKeywordCloud(selectedGames, "all");
   const titleCloud = buildKeywordCloud(selectedGames, "title");
   const descriptionCloud = buildKeywordCloud(selectedGames, "description");
 
@@ -1954,31 +2549,43 @@ function KeywordCloudCard({ title, subtitle, games, panel, accent }: any) {
           <p className="text-sm font-semibold text-slate-500">{title}</p>
           <p className="text-xs text-slate-400">{subtitle}</p>
         </div>
-        <select
-          className="max-w-[10rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
-          value={activeGenre}
-          onChange={(event) => setSelectedGenre(event.target.value)}
-        >
-          {genres.map((genre) => (
-            <option key={genre} value={genre}>
-              {genre}
-            </option>
-          ))}
-        </select>
+        {filterByGenre && (
+          <select
+            className="max-w-[10rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+            value={activeGenre}
+            onChange={(event) => setSelectedGenre(event.target.value)}
+          >
+            {genres.map((genre) => (
+              <option key={genre} value={genre}>
+                {genre}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
-      <KeywordCloudPanel
-        title="Title cloud"
-        items={titleCloud}
-        emptyText="No title keywords available for this genre."
-        accent={accent}
-      />
-      <KeywordCloudPanel
-        title="Description cloud"
-        items={descriptionCloud}
-        emptyText="No description keywords available for this genre."
-        accent={accent}
-      />
+      {combinedCloud ? (
+        <KeywordCloudPanel
+          items={combinedItems}
+          emptyText="No title or description keywords available."
+          accent={accent}
+        />
+      ) : (
+        <>
+          <KeywordCloudPanel
+            title="Title cloud"
+            items={titleCloud}
+            emptyText="No title keywords available for this genre."
+            accent={accent}
+          />
+          <KeywordCloudPanel
+            title="Description cloud"
+            items={descriptionCloud}
+            emptyText="No description keywords available for this genre."
+            accent={accent}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -1986,9 +2593,11 @@ function KeywordCloudCard({ title, subtitle, games, panel, accent }: any) {
 function KeywordCloudPanel({ title, items, emptyText, accent }: any) {
   return (
     <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
-        {title}
-      </p>
+      {title ? (
+        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+          {title}
+        </p>
+      ) : null}
       <div className="mt-3 flex min-h-24 flex-wrap content-center items-center gap-x-3 gap-y-2">
         {items.length ? (
           items.map((item: any) => (
@@ -2047,8 +2656,16 @@ function TemplatePatternCard({ title, subtitle, template, panel, accent }: any) 
   );
 }
 
-function ColorBreakdownCard({ title, subtitle, games, panel, accent }: any) {
+function ColorBreakdownCard({
+  title,
+  subtitle,
+  games,
+  panel,
+  accent,
+  filterByGenre = true,
+}: any) {
   const [colors, setColors] = useState<any[]>([]);
+  const [colorPage, setColorPage] = useState(0);
   const genres = useMemo(
     () =>
       Array.from(
@@ -2060,21 +2677,40 @@ function ColorBreakdownCard({ title, subtitle, games, panel, accent }: any) {
   const activeGenre = selectedGenre || genres[0] || "";
   const selectedGames = useMemo(
     () =>
-      games
-        .filter((game: any) => (game.inferred_genre ?? "Other") === activeGenre)
-        .slice(0, 5),
-    [games, activeGenre]
+      filterByGenre
+        ? games.filter(
+            (game: any) => (game.inferred_genre ?? "Other") === activeGenre
+          )
+        : games,
+    [games, activeGenre, filterByGenre]
+  );
+  const colorPageSize = 5;
+  const colorPageCount = Math.max(1, Math.ceil(selectedGames.length / colorPageSize));
+  const safeColorPage = Math.min(colorPage, colorPageCount - 1);
+  const colorPageStart = safeColorPage * colorPageSize;
+  const colorPageEnd = Math.min(colorPageStart + colorPageSize, selectedGames.length);
+  const colorPageGames = useMemo(
+    () => selectedGames.slice(colorPageStart, colorPageEnd),
+    [selectedGames, colorPageStart, colorPageEnd]
   );
 
   useEffect(() => {
+    setColorPage(0);
+  }, [activeGenre, filterByGenre, games]);
+
+  useEffect(() => {
     let cancelled = false;
+    setColors([]);
 
     async function loadColors() {
       const extracted = await Promise.all(
-        selectedGames.map(async (game: any, index: number) => {
+        colorPageGames.map(async (game: any, index: number) => {
           const color = await extractTileColors(game.thumbnail_url);
           return {
-            title: game.title,
+            title:
+              String(game.title ?? "").trim() ||
+              game.island_code ||
+              `Island ${colorPageStart + index + 1}`,
             color: color ?? fallbackTileColorPairs[index % fallbackTileColorPairs.length],
           };
         })
@@ -2088,12 +2724,15 @@ function ColorBreakdownCard({ title, subtitle, games, panel, accent }: any) {
     return () => {
       cancelled = true;
     };
-  }, [activeGenre, selectedGames]);
+  }, [colorPageGames, colorPageStart]);
 
   const visibleColors = colors.length
     ? colors
-    : selectedGames.map((game: any, index: number) => ({
-        title: game.title,
+    : colorPageGames.map((game: any, index: number) => ({
+        title:
+          String(game.title ?? "").trim() ||
+          game.island_code ||
+          `Island ${colorPageStart + index + 1}`,
         color: fallbackTileColorPairs[index % fallbackTileColorPairs.length],
       }));
 
@@ -2104,22 +2743,57 @@ function ColorBreakdownCard({ title, subtitle, games, panel, accent }: any) {
           <p className="text-sm font-semibold text-slate-500">{title}</p>
           <p className="text-xs text-slate-400">{subtitle}</p>
         </div>
-        <select
-          className="max-w-[10rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
-          value={activeGenre}
-          onChange={(event) => setSelectedGenre(event.target.value)}
-        >
-          {genres.map((genre) => (
-            <option key={genre} value={genre}>
-              {genre}
-            </option>
-          ))}
-        </select>
+        {filterByGenre && (
+          <select
+            className="max-w-[10rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+            value={activeGenre}
+            onChange={(event) => setSelectedGenre(event.target.value)}
+          >
+            {genres.map((genre) => (
+              <option key={genre} value={genre}>
+                {genre}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
+      {selectedGames.length > colorPageSize ? (
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+            {colorPageStart + 1}-{colorPageEnd} of {selectedGames.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Previous color set"
+              disabled={safeColorPage === 0}
+              onClick={() => setColorPage((page) => Math.max(0, page - 1))}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              {"<"}
+            </button>
+            <button
+              type="button"
+              aria-label="Next color set"
+              disabled={safeColorPage >= colorPageCount - 1}
+              onClick={() =>
+                setColorPage((page) => Math.min(colorPageCount - 1, page + 1))
+              }
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              {">"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-5 space-y-3">
-        {visibleColors.map((item: any) => (
-          <div key={item.title} className="grid grid-cols-[2.75rem_1fr_auto] items-center gap-3">
+        {visibleColors.map((item: any, index: number) => (
+          <div
+            key={`${item.title}-${index}`}
+            className="grid grid-cols-[2.75rem_1fr_auto] items-center gap-3"
+          >
             <div
               className="overflow-hidden rounded-lg border border-black/10"
             >
@@ -2132,9 +2806,17 @@ function ColorBreakdownCard({ title, subtitle, games, panel, accent }: any) {
                 style={{ backgroundColor: item.color.secondary.hex }}
               />
             </div>
-            <p className="line-clamp-2 text-sm font-semibold leading-snug">
-              {item.title}
-            </p>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                Island
+              </p>
+              <p
+                className="line-clamp-3 break-words text-sm font-semibold leading-snug"
+                title={item.title}
+              >
+                {item.title}
+              </p>
+            </div>
             <div className="space-y-1 text-right">
               <p
                 className="rounded-full px-2 py-1 text-[10px] font-black"
@@ -2165,11 +2847,14 @@ function BlockHeatMap({
 }: any) {
   const [monetizationFilter, setMonetizationFilter] =
     useState<"monetized" | "unmonetized">("monetized");
-  const filteredItems = items.filter((item: any) =>
-    monetizationFilter === "monetized"
-      ? isMonetizedItem(item, platform)
-      : !isMonetizedItem(item, platform)
-  );
+  const supportsMonetizationFilter = platform === "roblox";
+  const filteredItems = supportsMonetizationFilter
+    ? items.filter((item: any) =>
+        monetizationFilter === "monetized"
+          ? isMonetizedItem(item, platform)
+          : !isMonetizedItem(item, platform)
+      )
+    : items;
   const maps = [
     buildOpportunityMap(filteredItems, "demand-saturation", platform),
     buildOpportunityMap(filteredItems, "velocity-saturation", platform),
@@ -2184,25 +2869,32 @@ function BlockHeatMap({
     <div className="mt-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-500">
-          Showing {formatNumber(filteredItems.length)}{" "}
-          {monetizationFilter} records in the opportunity maps.
+          {supportsMonetizationFilter
+            ? `Showing ${formatNumber(
+                filteredItems.length
+              )} ${monetizationFilter} records in the opportunity maps.`
+            : `Showing ${formatNumber(
+                filteredItems.length
+              )} imported Fortnite islands in the opportunity maps.`}
         </p>
-        <ToggleGroup>
-          <ToggleButton
-            active={monetizationFilter === "monetized"}
-            onClick={() => setMonetizationFilter("monetized")}
-            activeColor="#2fb8bd"
-          >
-            Monetized
-          </ToggleButton>
-          <ToggleButton
-            active={monetizationFilter === "unmonetized"}
-            onClick={() => setMonetizationFilter("unmonetized")}
-            activeColor="#2fb8bd"
-          >
-            Unmonetized
-          </ToggleButton>
-        </ToggleGroup>
+        {supportsMonetizationFilter && (
+          <ToggleGroup>
+            <ToggleButton
+              active={monetizationFilter === "monetized"}
+              onClick={() => setMonetizationFilter("monetized")}
+              activeColor="#2fb8bd"
+            >
+              Monetized
+            </ToggleButton>
+            <ToggleButton
+              active={monetizationFilter === "unmonetized"}
+              onClick={() => setMonetizationFilter("unmonetized")}
+              activeColor="#2fb8bd"
+            >
+              Unmonetized
+            </ToggleButton>
+          </ToggleGroup>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -2299,7 +2991,7 @@ function OpportunityGrid({ map, selectedKey, selectedGenre, selectedSubgenre }: 
           {map.items
             .filter((item: any) => item.cell === i)
             .slice(0, 2)
-            .map((item: any) => {
+            .map((item: any, itemIndex: number) => {
               const active =
                 item.label === selectedKey ||
                 item.genre === selectedGenre ||
@@ -2307,7 +2999,7 @@ function OpportunityGrid({ map, selectedKey, selectedGenre, selectedSubgenre }: 
 
               return (
                 <div
-                  key={item.label}
+                  key={`${item.label}-${itemIndex}`}
                   className="mb-1 rounded-lg px-2 py-1 text-[9px] font-bold leading-tight shadow"
                   style={{
                     backgroundColor: active
@@ -2341,7 +3033,7 @@ function ReadOutCard({ maps, panel }: any) {
 
   return (
     <div className={`rounded-3xl border p-6 ${panel}`}>
-      <h2 className="text-2xl font-bold">Read Out</h2>
+      <h2 className="text-2xl font-bold">Research Readout</h2>
       <p className="mt-1 text-sm text-slate-500">
         Synthesis across demand, saturation, velocity, and build complexity.
       </p>
@@ -2371,9 +3063,10 @@ function ReadOutCard({ maps, panel }: any) {
           </ul>
 
           <div className="rounded-2xl border border-slate-200 p-4 text-sm leading-6 text-slate-600">
-            <strong>Creator interpretation:</strong>{" "}
-            prioritize ideas that appear green in more than one lens; treat
-            red/yellow areas as either crowded, slow-moving, or expensive to build.
+            <strong>Research interpretation:</strong>{" "}
+            consider investigating segments that appear green in more than one
+            lens; treat red/yellow areas as potentially crowded, slow-moving,
+            uncertain, or expensive to build.
           </div>
         </div>
       ) : (
@@ -2417,10 +3110,10 @@ function buildOpportunityMap(items: any[], lens: string, platform: Platform) {
       yLabel: "Market Saturation",
       xLow: "Lower demand",
       xHigh: "Higher demand",
-      colorLabel: "Opportunity",
+      colorLabel: "Research signal",
       xFormula: demandFormula,
       yFormula: "Number of records in this genre/subgenre divided by the most represented segment.",
-      colorFormula: "Demand score discounted by saturation; greener means high demand without extreme crowding.",
+      colorFormula: "Demand score discounted by saturation; greener means a stronger directional research signal, not a guaranteed outcome.",
       x: (item: any) => item.players / maxPlayers || item.count / maxCount,
       y: (item: any) => item.count / maxCount,
       score: (x: number, y: number) => x * (1 - y * 0.65),
@@ -2577,6 +3270,16 @@ function RecommendationBlock({ title, text, bullets, tags, panel, accent }: any)
 }
 
 function GameMarketCard({ item, rank, platform, panel }: any) {
+  if (platform === "fortnite") {
+    return (
+      <FortniteMarketCard
+        item={item}
+        rank={rank}
+        panel={panel}
+      />
+    );
+  }
+
   const positive = (item.playerGainPercent ?? 0) >= 0;
   const averageGain = item.averagePlayerGain7Days;
   const averagePositive = (averageGain ?? 0) >= 0;
@@ -2698,43 +3401,78 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
           </>
         )}
 
-        {platform === "fortnite" && (
-          <>
-            <div>
-              <p className="text-slate-400">Activity metric</p>
-              <p className="font-black">
-                {item.latestActivityLabel ?? "Pending"}
-              </p>
-            </div>
+      </div>
+    </a>
+  );
+}
 
-            <div>
-              <p className="text-slate-400">Activity value</p>
-              <p className="font-black">
-                {typeof item.latestActivityValue === "number"
-                  ? formatNumber(item.latestActivityValue)
-                  : "N/A"}
-              </p>
-            </div>
+function FortniteMarketCard({ item, rank, panel }: any) {
+  const href = item.url ?? `https://fortnite.gg/island?code=${item.island_code}`;
+  const genre = item.inferred_genre ?? "Unclassified";
+  const subgenre = item.inferred_subgenre ?? "General";
+  const intent = item.player_intent ?? item.audience_signal ?? "Not classified yet";
+  const loop = item.core_loop ?? item.design_pattern ?? "Not classified yet";
+  const labels = getFortniteGameplayLabels(item)
+    .filter((label) => label !== genre && label !== subgenre && label !== intent && label !== loop)
+    .slice(0, 3);
 
-            <div>
-              <p className="text-slate-400">Recommends</p>
-              <p className="font-black">
-                {typeof item.latestRecommends === "number"
-                  ? formatNumber(item.latestRecommends)
-                  : "N/A"}
-              </p>
-            </div>
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={`rounded-3xl border p-4 shadow-sm transition hover:-translate-y-0.5 ${panel}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="line-clamp-2 text-sm font-black">{item.title}</h3>
+        <span className="text-xs font-bold text-slate-400">#{rank}</span>
+      </div>
 
-            <div>
-              <p className="text-slate-400">D7 retention</p>
-              <p className="font-black">
-                {typeof item.latestRetentionD7 === "number"
-                  ? `${Math.round(item.latestRetentionD7 * 100) / 100}%`
-                  : "N/A"}
-              </p>
-            </div>
-          </>
-        )}
+      {item.thumbnail_url && (
+        <img
+          src={item.thumbnail_url}
+          alt={item.title}
+          className="mt-3 h-24 w-full rounded-2xl object-cover"
+        />
+      )}
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-slate-400">Genre</p>
+          <p className="line-clamp-1 font-black">
+            {genre}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-slate-400">Subgenre</p>
+          <p className="line-clamp-1 font-black">
+            {subgenre}
+          </p>
+        </div>
+
+        <div className="col-span-2">
+          <p className="text-slate-400">Player intent</p>
+          <p className="line-clamp-2 font-black">
+            {intent}
+          </p>
+        </div>
+
+        <div className="col-span-2">
+          <p className="text-slate-400">Core loop</p>
+          <p className="line-clamp-2 font-black">
+            {loop}
+          </p>
+        </div>
+
+        {labels.length ? (
+          <div className="col-span-2">
+            <p className="text-slate-400">Labels</p>
+            <p className="line-clamp-2 font-black">
+              {labels.join(" / ")}
+            </p>
+          </div>
+        ) : null}
       </div>
     </a>
   );
@@ -2987,12 +3725,13 @@ function PredictionMarketSignalsCard({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-black uppercase tracking-wide text-slate-400">
-            Forecasting Layer
+            Research Layer
           </p>
-          <h2 className="text-2xl font-bold">Prediction Market Signals</h2>
+          <h2 className="text-2xl font-bold">Forecasting Signal Inputs</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-            Eight measurable signals that can support market-style questions
-            around attention, momentum, persistence, and genre rotation.
+            Eight measurable inputs for research questions around attention,
+            momentum, persistence, and genre rotation. These inputs are not
+            predictions, recommendations, or guarantees.
           </p>
         </div>
 
@@ -3100,58 +3839,76 @@ function buildPredictionSignals(
   }
 
   if (platform !== "roblox") {
+    const rankMovement = getFortniteRankMovement(target);
+    const genreShare = getFortniteCategoryShare(
+      target,
+      items,
+      "inferred_genre"
+    );
+    const subgenreShare = getFortniteCategoryShare(
+      target,
+      items,
+      "inferred_subgenre"
+    );
+    const labelSignal = getFortniteLabelClusterSignal(target, items);
+    const snapshotDates = getFortniteSnapshotDates(target);
+
     return [
       {
-        label: "Daily rank history",
+        label: "Current source rank",
         value:
           typeof target.latestRank === "number"
             ? `#${target.latestRank}`
-            : "Pending",
-        detail: "Latest source rank from the Fortnite island snapshot when provided.",
+            : "Unranked",
+        detail: "Latest imported rank from the Fortnite island source order.",
       },
       {
-        label: "Player velocity",
-        value: getFortniteVelocityLabel(target),
-        detail: `Change in ${target.latestActivityLabel ?? "activity metric"} across stored Fortnite snapshots.`,
-      },
-      {
-        label: "Volatility",
-        value: getFortniteVolatility(target).label,
-        detail: getFortniteVolatility(target).detail,
-      },
-      {
-        label: "Peak retention",
+        label: "Rank movement",
         value:
-          typeof target.latestRetentionD7 === "number"
-            ? `${Math.round(target.latestRetentionD7 * 100) / 100}%`
-            : "Pending",
-        detail: "Uses D7 retention when returned by the Fortnite Data API.",
+          rankMovement.change === null
+            ? "Not enough history"
+            : `${rankMovement.change > 0 ? "+" : ""}${rankMovement.change} spots`,
+        detail: rankMovement.detail,
       },
       {
-        label: "Genre share over time",
-        value: getFortniteGenreActivityShare(target, items),
-        detail: `${target.inferred_genre ?? "Other"} share of available Fortnite activity metrics.`,
+        label: "Genre field share",
+        value: `${genreShare.percent}%`,
+        detail: `${genreShare.count} of ${genreShare.total} imported islands are classified as ${
+          target.inferred_genre ?? "Other"
+        }.`,
       },
       {
-        label: "New entrant detection",
-        value: target.snapshots?.[0]?.created_at
-          ? formatShortDate(target.snapshots[0].created_at)
-          : "Pending",
+        label: "Subgenre field share",
+        value: `${subgenreShare.percent}%`,
+        detail: `${subgenreShare.count} of ${subgenreShare.total} imported islands are classified as ${
+          target.inferred_subgenre ?? "General"
+        }.`,
+      },
+      {
+        label: "Gameplay label cluster",
+        value: `${labelSignal.percent}%`,
+        detail: labelSignal.detail,
+      },
+      {
+        label: "Competition tier",
+        value: target.competition_level ?? "Unclassified",
+        detail: "Derived from the imported genre, subgenre, intent, and label mix.",
+      },
+      {
+        label: "First tracked",
+        value: snapshotDates.first
+          ? formatShortDate(snapshotDates.first)
+          : "Not tracked",
         detail: "First stored appearance in the current Fortnite snapshot history.",
-      },
-      {
-        label: "Breakout score",
-        value: `${getFortniteBreakoutScore(target, items)}/100`,
-        detail: "Composite of available activity, retention, recommendations, and rank.",
       },
       {
         label: "Settlement snapshots",
         value: `${target.snapshots?.length ?? 0} snapshots`,
-        detail: target.snapshots?.at(-1)?.created_at
+        detail: snapshotDates.latest
           ? `Latest settlement reference: ${new Date(
-              target.snapshots.at(-1).created_at
+              snapshotDates.latest
             ).toISOString()} UTC.`
-          : "No Fortnite settlement snapshot available yet.",
+          : "No dated snapshot available for this island yet.",
       },
     ];
   }
@@ -3220,9 +3977,9 @@ function buildPredictionSignals(
       detail: "First stored appearance in the current Supabase snapshot history.",
     },
     {
-      label: "Breakout score",
+      label: "Momentum Signal Score",
       value: `${breakoutScore}/100`,
-      detail: "Composite of player scale, velocity, rank gain, and peak retention.",
+      detail: "Composite of player scale, velocity, rank gain, and peak retention for research context only.",
     },
     {
       label: "Settlement snapshots",
@@ -3243,9 +4000,87 @@ const predictionSignalLabels = [
   "Peak retention",
   "Genre share over time",
   "New entrant detection",
-  "Breakout score",
+  "Momentum Signal Score",
   "Settlement snapshots",
 ];
+
+function getFortniteRankMovement(target: any) {
+  const rankedSnapshots = (target.snapshots ?? [])
+    .filter((snapshot: any) => typeof snapshot.rank === "number")
+    .sort(
+      (a: any, b: any) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+  if (rankedSnapshots.length < 2) {
+    return {
+      change: null,
+      detail: "Needs at least two ranked snapshots to compare position movement.",
+    };
+  }
+
+  const first = rankedSnapshots[0].rank;
+  const latest = rankedSnapshots[rankedSnapshots.length - 1].rank;
+  const change = first - latest;
+
+  return {
+    change,
+    detail:
+      change === 0
+        ? `Rank stayed at #${latest} across stored ranked snapshots.`
+        : `Moved from #${first} to #${latest}; positive means the island climbed.`,
+  };
+}
+
+function getFortniteCategoryShare(target: any, items: any[], field: string) {
+  const value = target[field] ?? (field === "inferred_subgenre" ? "General" : "Other");
+  const total = Math.max(1, items.length);
+  const count = items.filter(
+    (item) => (item[field] ?? (field === "inferred_subgenre" ? "General" : "Other")) === value
+  ).length;
+
+  return {
+    count,
+    total,
+    percent: Math.round((count / total) * 100),
+  };
+}
+
+function getFortniteLabelClusterSignal(target: any, items: any[]) {
+  const labels = getFortniteGameplayLabels(target);
+
+  if (!labels.length) {
+    return {
+      percent: 0,
+      detail: "No gameplay labels are available for this island yet.",
+    };
+  }
+
+  const total = Math.max(1, items.length);
+  const matching = items.filter((item) => {
+    const itemLabels = getFortniteGameplayLabels(item);
+    return labels.some((label) => itemLabels.includes(label));
+  }).length;
+
+  return {
+    percent: Math.round((matching / total) * 100),
+    detail: `${matching} of ${total} imported islands share at least one gameplay label: ${labels
+      .slice(0, 3)
+      .join(", ")}.`,
+  };
+}
+
+function getFortniteSnapshotDates(target: any) {
+  const dates = (target.snapshots ?? [])
+    .map((snapshot: any) => snapshot.created_at)
+    .filter(Boolean)
+    .sort();
+
+  return {
+    first: dates[0],
+    latest: dates[dates.length - 1],
+  };
+}
 
 function getFortniteVelocityLabel(target: any) {
   const values = (target.snapshots ?? [])
@@ -3372,6 +4207,107 @@ function getBreakoutScore(target: any, totalPlayers: number) {
 
 function ToggleGroup({ children }: any) {
   return <div className="flex rounded-full bg-slate-100 p-1">{children}</div>;
+}
+
+function DatePill({ date, accent }: any) {
+  return (
+    <div className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">
+      <span
+        className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-black text-white"
+        style={{ backgroundColor: accent }}
+        aria-hidden="true"
+      >
+        ◷
+      </span>
+      <span>{date}</span>
+    </div>
+  );
+}
+
+function TermsModal({ onClose }: any) {
+  const sections = [
+    {
+      title: "Informational market intelligence only",
+      body:
+        "Snout - UGC Intel Dashboard provides directional market intelligence, data summaries, automated classifications, and research tools. It does not provide legal, financial, investment, business, or professional advice.",
+    },
+    {
+      title: "No guaranteed outcomes",
+      body:
+        "The dashboard does not guarantee revenue, profit, player growth, audience retention, discoverability, platform placement, publishing success, or any specific creative or business result. Users are solely responsible for their own creative, production, publishing, investment, and business decisions.",
+    },
+    {
+      title: "Interpreted and incomplete data",
+      body:
+        "Displayed information may be incomplete, delayed, inferred, automatically classified, experimental, or inaccurate. Scores, maps, labels, rankings, and forecasts are research signals only and should be independently reviewed before use.",
+    },
+    {
+      title: "All access tiers",
+      body:
+        "These terms apply to all users and access types, including newsletter subscribers, trial users, paid users, pro users, and admin/internal users. Newsletter content is also informational and does not provide business advice or guaranteed outcomes.",
+    },
+    {
+      title: "Beta product",
+      body:
+        "Snout is currently in beta. Features, data sources, calculations, labels, and tier access may change as the product develops.",
+    },
+    {
+      title: "No platform affiliation",
+      body:
+        "Unless expressly stated otherwise, Snout is not affiliated with, endorsed by, or sponsored by Roblox, Epic Games, Fortnite, Microsoft, Mojang, or any related platform owner.",
+    },
+    {
+      title: "Use of the service",
+      body:
+        "Users may not misuse, resell, scrape, redistribute, or present Snout outputs as guaranteed business advice. Continued use of the dashboard means you understand these limitations.",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="max-h-[86vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wide text-emerald-700">
+              Beta terms
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-slate-900">
+              Terms of Service
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              This summary is designed to make the product boundaries clear. A
+              lawyer should review the final Terms before paid access launches.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {sections.map((section) => (
+            <div key={section.title} className="rounded-2xl bg-slate-50 p-4">
+              <h3 className="text-sm font-black text-slate-800">
+                {section.title}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {section.body}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-5 text-xs leading-5 text-slate-400">
+          Last updated: May 8, 2026. This beta summary does not replace a
+          lawyer-reviewed agreement, privacy policy, or subscription terms.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function ToggleButton({ active, onClick, children, activeColor }: any) {
@@ -3501,6 +4437,47 @@ function FortniteGenreTrend({ islands, percentile = 100 }: any) {
   );
 }
 
+function FortniteLabelUsageTrend({ islands, limit }: any) {
+  const { data, labels } = mergeFortniteLabelUsageTrends(islands, limit);
+  const domain = getLineChartDomain(data, labels);
+  const colors = [
+    "#7c3aed",
+    "#5fbfd0",
+    "#d6a06d",
+    "#16a34a",
+    "#ef4444",
+    "#0f766e",
+    "#f59e0b",
+    "#2563eb",
+  ];
+
+  if (!data.length) {
+    return <Unavailable text="No Fortnite label snapshots available yet." />;
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+        <XAxis dataKey="date" fontSize={11} />
+        <YAxis fontSize={11} domain={domain} />
+        <Tooltip content={<TopGamesTooltip />} />
+        {labels.map((label: string, index: number) => (
+          <Line
+            key={label}
+            type="monotone"
+            dataKey={label}
+            stroke={colors[index % colors.length]}
+            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+            strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.25}
+            dot={false}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 function TopGamesTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
 
@@ -3587,13 +4564,16 @@ function mergeGameTrends(games: any[]) {
 
   games.forEach((game) => {
     (game.snapshots ?? []).forEach((s: any) => {
-      const date = formatShortDate(s.created_at);
-      if (!byDate[date]) byDate[date] = { date };
-      byDate[date][game.title] = s.current_players ?? 0;
+      const dateKey = getSnapshotDateKey(s.created_at);
+      if (!dateKey) return;
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = { date: formatShortDate(s.created_at), dateKey };
+      }
+      byDate[dateKey][game.title] = s.current_players ?? 0;
     });
   });
 
-  return Object.values(byDate);
+  return sortChartRowsByDate(Object.values(byDate));
 }
 
 function mergeFortniteIslandTrends(islands: any[]) {
@@ -3604,13 +4584,16 @@ function mergeFortniteIslandTrends(islands: any[]) {
       const value = getFortniteSnapshotValue(snapshot);
       if (typeof value !== "number") return;
 
-      const date = formatShortDate(snapshot.created_at);
-      if (!byDate[date]) byDate[date] = { date };
-      byDate[date][island.title] = value;
+      const dateKey = getSnapshotDateKey(snapshot.created_at);
+      if (!dateKey) return;
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = { date: formatShortDate(snapshot.created_at), dateKey };
+      }
+      byDate[dateKey][island.title] = value;
     });
   });
 
-  return Object.values(byDate);
+  return sortChartRowsByDate(Object.values(byDate));
 }
 
 function mergeFortniteGenreTrends(islands: any[]) {
@@ -3635,14 +4618,20 @@ function mergeFortniteGenreTrends(islands: any[]) {
         const value = getFortniteSnapshotValue(snapshot);
         if (typeof value !== "number") return;
 
-        const date = formatShortDate(snapshot.created_at);
+        const dateKey = getSnapshotDateKey(snapshot.created_at);
+        if (!dateKey) return;
         const genre = island.inferred_genre ?? "Other";
-        if (!byDate[date]) byDate[date] = { date };
-        byDate[date][genre] = (byDate[date][genre] ?? 0) + value;
+        if (!byDate[dateKey]) {
+          byDate[dateKey] = {
+            date: formatShortDate(snapshot.created_at),
+            dateKey,
+          };
+        }
+        byDate[dateKey][genre] = (byDate[dateKey][genre] ?? 0) + value;
       });
     });
 
-  return { data: Object.values(byDate), genres };
+  return { data: sortChartRowsByDate(Object.values(byDate)), genres };
 }
 
 function mergeGenreTrends(games: any[]) {
@@ -3664,14 +4653,62 @@ function mergeGenreTrends(games: any[]) {
     .filter((game) => genres.includes(game.inferred_genre ?? "Other"))
     .forEach((game) => {
       (game.snapshots ?? []).forEach((s: any) => {
-        const date = formatShortDate(s.created_at);
+        const dateKey = getSnapshotDateKey(s.created_at);
+        if (!dateKey) return;
         const genre = game.inferred_genre ?? "Other";
-        if (!byDate[date]) byDate[date] = { date };
-        byDate[date][genre] = (byDate[date][genre] ?? 0) + (s.current_players ?? 0);
+        if (!byDate[dateKey]) {
+          byDate[dateKey] = { date: formatShortDate(s.created_at), dateKey };
+        }
+        byDate[dateKey][genre] =
+          (byDate[dateKey][genre] ?? 0) + (s.current_players ?? 0);
       });
     });
 
-  return { data: Object.values(byDate), genres };
+  return { data: sortChartRowsByDate(Object.values(byDate)), genres };
+}
+
+function mergeFortniteLabelUsageTrends(islands: any[], limit: number) {
+  const latestRankings = buildFortniteLabelRankings(islands);
+  const labels = latestRankings.slice(0, limit).map((row: any) => row.label);
+  const byDate: Record<string, any> = {};
+
+  islands.forEach((island) => {
+    const islandLabels = getFortniteGameplayLabels(island).filter((label) =>
+      labels.includes(label)
+    );
+
+    if (!islandLabels.length) return;
+
+    (island.snapshots ?? []).forEach((snapshot: any) => {
+      const dateKey = getSnapshotDateKey(snapshot.created_at);
+      if (!dateKey) return;
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = {
+          date: formatShortDate(snapshot.created_at),
+          dateKey,
+        };
+      }
+
+      islandLabels.forEach((label) => {
+        byDate[dateKey][label] = (byDate[dateKey][label] ?? 0) + 1;
+      });
+    });
+  });
+
+  return {
+    data: sortChartRowsByDate(Object.values(byDate)),
+    labels,
+  };
+}
+
+function getSnapshotDateKey(value: string | undefined) {
+  return String(value ?? "").slice(0, 10);
+}
+
+function sortChartRowsByDate(rows: any[]) {
+  return rows.sort((a: any, b: any) =>
+    String(a.dateKey ?? "").localeCompare(String(b.dateKey ?? ""))
+  );
 }
 
 function buildHeatMapItems(items: any[]) {

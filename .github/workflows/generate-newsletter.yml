@@ -1,0 +1,22 @@
+name: Generate Newsletter Issues
+
+on:
+  schedule:
+    - cron: "30 14 * * *"
+    - cron: "45 14 * * 1"
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate daily creator digest
+        if: github.event.schedule != '45 14 * * 1'
+        run: |
+          curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/newsletter/generate?edition=daily_creator_digest"
+
+      - name: Generate weekly market brief
+        if: github.event.schedule == '45 14 * * 1' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/newsletter/generate?edition=weekly_market_brief"
