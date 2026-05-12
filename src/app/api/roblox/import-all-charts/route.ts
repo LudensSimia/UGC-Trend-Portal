@@ -44,6 +44,48 @@ function has(text: string, pattern: RegExp) {
   return pattern.test(text)
 }
 
+function pickText(...values: any[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+
+  return null
+}
+
+function pickRobloxSourceGenre(chartGame: any, detailedGame: any) {
+  return pickText(
+    detailedGame?.genre,
+    detailedGame?.genreName,
+    detailedGame?.genre_l1,
+    detailedGame?.genreL1,
+    detailedGame?.rootGenre,
+    chartGame?.genre,
+    chartGame?.genreName,
+    chartGame?.genre_l1,
+    chartGame?.genreL1,
+    chartGame?.category,
+    chartGame?.topic
+  )
+}
+
+function pickRobloxSourceSubgenre(chartGame: any, detailedGame: any) {
+  return pickText(
+    detailedGame?.subgenre,
+    detailedGame?.subGenre,
+    detailedGame?.subgenreName,
+    detailedGame?.genre_l2,
+    detailedGame?.genreL2,
+    detailedGame?.subCategory,
+    detailedGame?.topic,
+    chartGame?.subgenre,
+    chartGame?.subGenre,
+    chartGame?.subgenreName,
+    chartGame?.genre_l2,
+    chartGame?.genreL2,
+    chartGame?.subCategory
+  )
+}
+
 /* =========================================================
    CLASSIFICATION LAYER
    ---------------------------------------------------------
@@ -675,6 +717,8 @@ export async function GET(req: Request) {
           },
           sortName
         )
+        const robloxSourceGenre = pickRobloxSourceGenre(chartGame, detailedGame)
+        const robloxSourceSubgenre = pickRobloxSourceSubgenre(chartGame, detailedGame)
 
         const fallbackDescription = [
           classification.inferred_genre,
@@ -705,10 +749,15 @@ export async function GET(req: Request) {
                 : null,
               creator: detailedGame?.creator?.name ?? null,
               description: finalDescription,
+              genre: robloxSourceGenre,
               thumbnail_url: thumbnail?.imageUrl ?? null,
 
-              inferred_genre: classification.inferred_genre ?? 'Other',
-              inferred_subgenre: classification.inferred_subgenre ?? 'General',
+              inferred_genre:
+                robloxSourceGenre ?? classification.inferred_genre ?? 'Other',
+              inferred_subgenre:
+                robloxSourceSubgenre ??
+                classification.inferred_subgenre ??
+                'General',
               core_loop: classification.core_loop ?? 'Unknown',
               session_type: classification.session_type ?? 'Unknown',
               monetization_style: classification.monetization_style ?? 'Unknown',
@@ -719,7 +768,9 @@ export async function GET(req: Request) {
               description_keywords: intelligence.description_keywords,
               design_pattern: intelligence.design_pattern,
               audience_signal: intelligence.audience_signal,
-              update_signal: intelligence.update_signal
+              update_signal: intelligence.update_signal,
+              raw_top_trending: chartGame,
+              raw_game_details: detailedGame ?? null
             },
             { onConflict: 'roblox_universe_id' }
           )

@@ -39,7 +39,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-[#111318] px-6 text-slate-100">
       <section className="w-full max-w-sm rounded-2xl border border-[#303540] bg-[#191c22] p-6 shadow-2xl">
         <div className="mb-6">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#5fbfd0]">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#0d69ac]">
             Private Preview
           </p>
           <h1 className="mt-3 text-2xl font-black tracking-tight">UGC Intel</h1>
@@ -52,7 +52,7 @@ export default function LoginPage() {
           <label className="block text-sm font-semibold text-slate-300">
             Password
             <input
-              className="mt-2 w-full rounded-xl border border-[#303540] bg-[#111318] px-4 py-3 text-slate-100 outline-none ring-[#5fbfd0] transition focus:ring-2"
+              className="mt-2 w-full rounded-xl border border-[#303540] bg-[#111318] px-4 py-3 text-slate-100 outline-none ring-[#0d69ac] transition focus:ring-2"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -68,7 +68,7 @@ export default function LoginPage() {
           )}
 
           <button
-            className="w-full rounded-xl bg-[#5fbfd0] px-4 py-3 text-sm font-black text-[#111318] transition hover:bg-[#7bd2df] disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-[#0d69ac] px-4 py-3 text-sm font-black text-white transition hover:bg-[#2f83bd] disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
             disabled={loading || !password}
           >

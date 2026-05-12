@@ -56,17 +56,17 @@ Text that can appear regardless of selected platform.
 | Opportunity maps | Velocity formula - Roblox | Average player gain percentage for the segment, normalized against the fastest segment. |
 | Opportunity maps | Velocity formula - Fortnite | Imported metadata movement is not available yet, so this lens uses current segment activity as a temporary proxy. |
 | Opportunity maps | Color formula | Velocity score discounted by saturation; greener means faster movement with less crowding. |
-| Opportunity maps | Map title | Demand vs Build Complexity |
-| Opportunity maps | Map subtitle | Find strong demand with manageable production effort. |
-| Opportunity maps | Y-axis label | Build Complexity |
+| Opportunity maps | Map title | Demand vs Game Format Complexity |
+| Opportunity maps | Map subtitle | Find strong demand in formats with a lighter estimated scope. |
+| Opportunity maps | Y-axis label | Game Format Complexity |
 | Opportunity maps | Color label | Feasibility |
-| Opportunity maps | Complexity formula | Average inferred build complexity: low is lower on the map, high is higher on the map. |
-| Opportunity maps | Color formula | Demand score discounted by build complexity; greener means strong demand with manageable effort. |
+| Opportunity maps | Complexity formula | Estimated average game format complexity: simpler genre formats are lower on the map, broader or more system-heavy formats are higher on the map. |
+| Opportunity maps | Color formula | Demand score discounted by estimated game format complexity; deeper blue means strong demand with a lighter inferred format scope. |
 | Opportunity maps | Calculation label | X calculation: |
 | Opportunity maps | Calculation label | Y calculation: |
 | Opportunity maps | Calculation label | Color: |
 | Read Out | Card title | Read Out |
-| Read Out | Supporting copy | Synthesis across demand, saturation, velocity, and build complexity. |
+| Read Out | Supporting copy | Synthesis across demand, saturation, velocity, and estimated game format complexity. |
 | Read Out | Signal label | Strongest signal |
 | Read Out | Template sentence | This segment scores highest in [lens], with [players] players across [count] records. |
 | Read Out | Interpretation | Creator interpretation: prioritize ideas that appear green in more than one lens; treat red/yellow areas as either crowded, slow-moving, or expensive to build. |

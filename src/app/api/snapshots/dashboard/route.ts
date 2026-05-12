@@ -327,7 +327,7 @@ function buildOpportunityMap(
       score: (x: number, y: number) => x * (1 - y * 0.55),
     },
     "demand-complexity": {
-      title: "Demand vs Build Complexity",
+      title: "Demand vs Game Format Complexity",
       x: (item: any) => item.players / maxPlayers || item.count / maxCount,
       y: (item: any) => item.complexity,
       score: (x: number, y: number) => x * (1 - y * 0.5),

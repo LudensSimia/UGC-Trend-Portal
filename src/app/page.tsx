@@ -24,6 +24,7 @@ const supabase = createClient(
 );
 
 type Platform = "roblox" | "fortnite";
+type TrendTimeWindow = "7d" | "30d" | "3m";
 
 type DataQualitySnapshot = {
   platform: Platform;
@@ -49,15 +50,21 @@ export default function Home() {
   const [topGamesTrendLimit, setTopGamesTrendLimit] = useState<25 | 50>(25);
   const [topGamesTrendPercentile, setTopGamesTrendPercentile] =
     useState<25 | 50 | 75 | 100>(100);
+  const [topGamesTrendWindow, setTopGamesTrendWindow] =
+    useState<TrendTimeWindow>("7d");
   const [genreTrendLimit, setGenreTrendLimit] = useState<25 | 50>(25);
   const [genreTrendPercentile, setGenreTrendPercentile] =
     useState<25 | 50 | 75 | 100>(100);
+  const [genreTrendWindow, setGenreTrendWindow] =
+    useState<TrendTimeWindow>("7d");
   const [fortniteLabelTrendLimit, setFortniteLabelTrendLimit] =
     useState<10 | 25>(10);
+  const [fortniteLabelTrendWindow, setFortniteLabelTrendWindow] =
+    useState<TrendTimeWindow>("7d");
   const [predictionSearch, setPredictionSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const accent = activePlatform === "roblox" ? "#5fbfd0" : "#7c3aed";
+  const accent = activePlatform === "roblox" ? "#0d69ac" : "#7c3aed";
   const currentDateLabel = useMemo(
     () =>
       new Date().toLocaleDateString("en-US", {
@@ -271,14 +278,20 @@ export default function Home() {
     trendingHighlights,
     topGamesTrendLimit,
     topGamesTrendPercentile,
+    topGamesTrendWindow,
     setTopGamesTrendLimit,
     setTopGamesTrendPercentile,
+    setTopGamesTrendWindow,
     genreTrendLimit,
     genreTrendPercentile,
+    genreTrendWindow,
     setGenreTrendLimit,
     setGenreTrendPercentile,
+    setGenreTrendWindow,
     fortniteLabelTrendLimit,
+    fortniteLabelTrendWindow,
     setFortniteLabelTrendLimit,
+    setFortniteLabelTrendWindow,
     selectedGenre,
     selectedSubgenre,
     setSelectedGenre,
@@ -326,7 +339,7 @@ export default function Home() {
                   setSelectedGenre("");
                   setSelectedSubgenre("");
                 }}
-                activeColor="#5fbfd0"
+                activeColor="#0d69ac"
               >
                 Roblox
               </ToggleButton>
@@ -513,16 +526,27 @@ export default function Home() {
                     />
                   ) : null
                 }
+                footerAction={
+                  activePlatform === "roblox" ? (
+                    <TimeWindowControls
+                      timeWindow={topGamesTrendWindow}
+                      onTimeWindowChange={setTopGamesTrendWindow}
+                      accent={accent}
+                    />
+                  ) : null
+                }
               >
                 {activePlatform === "roblox" ? (
                   <TopGamesTrend
                     games={topRobloxGames.slice(0, topGamesTrendLimit)}
                     percentile={topGamesTrendPercentile}
+                    timeWindow={topGamesTrendWindow}
                   />
                 ) : (
                   <FortniteIslandsTrend
                     islands={topFortniteIslands.slice(0, topGamesTrendLimit)}
                     percentile={topGamesTrendPercentile}
+                    timeWindow={topGamesTrendWindow}
                   />
                 )}
               </ChartCard>
@@ -546,16 +570,27 @@ export default function Home() {
                     />
                   ) : null
                 }
+                footerAction={
+                  activePlatform === "roblox" ? (
+                    <TimeWindowControls
+                      timeWindow={genreTrendWindow}
+                      onTimeWindowChange={setGenreTrendWindow}
+                      accent={accent}
+                    />
+                  ) : null
+                }
               >
                 {activePlatform === "roblox" ? (
                   <GenreLinesTrend
                     games={topRobloxGames.slice(0, genreTrendLimit)}
                     percentile={genreTrendPercentile}
+                    timeWindow={genreTrendWindow}
                   />
                 ) : (
                   <FortniteGenreTrend
                     islands={topFortniteIslands.slice(0, genreTrendLimit)}
                     percentile={genreTrendPercentile}
+                    timeWindow={genreTrendWindow}
                   />
                 )}
               </ChartCard>
@@ -603,7 +638,7 @@ export default function Home() {
               <div className={`rounded-3xl border p-6 ${panel}`}>
                 <h2 className="text-2xl font-bold">Directional Research Map</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Green indicates a stronger directional research signal; red indicates weaker signal strength or higher uncertainty.
+                  Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
                 </p>
                 <BlockHeatMap
                   items={activeItems}
@@ -826,14 +861,20 @@ function FortniteDashboardView({ context }: any) {
     trendingHighlights,
     topGamesTrendLimit,
     topGamesTrendPercentile,
+    topGamesTrendWindow,
     setTopGamesTrendLimit,
     setTopGamesTrendPercentile,
+    setTopGamesTrendWindow,
     genreTrendLimit,
     genreTrendPercentile,
+    genreTrendWindow,
     setGenreTrendLimit,
     setGenreTrendPercentile,
+    setGenreTrendWindow,
     fortniteLabelTrendLimit,
+    fortniteLabelTrendWindow,
     setFortniteLabelTrendLimit,
+    setFortniteLabelTrendWindow,
     selectedGenre,
     selectedSubgenre,
     setSelectedGenre,
@@ -908,6 +949,64 @@ function FortniteDashboardView({ context }: any) {
         />
       </section>
 
+      <section className="mb-6 grid gap-6 lg:grid-cols-2">
+        <ChartCard
+          title="Most Played Fortnite Islands Over Time"
+          subtitle={`Top ${topGamesTrendLimit} islands by available activity metric, tracked across stored snapshots.`}
+          panel={panel}
+          action={
+            <TrendControls
+              limit={topGamesTrendLimit}
+              percentile={topGamesTrendPercentile}
+              onLimitChange={setTopGamesTrendLimit}
+              onPercentileChange={setTopGamesTrendPercentile}
+              accent={accent}
+            />
+          }
+          footerAction={
+            <TimeWindowControls
+              timeWindow={topGamesTrendWindow}
+              onTimeWindowChange={setTopGamesTrendWindow}
+              accent={accent}
+            />
+          }
+        >
+          <FortniteIslandsTrend
+            islands={topFortniteIslands.slice(0, topGamesTrendLimit)}
+            percentile={topGamesTrendPercentile}
+            timeWindow={topGamesTrendWindow}
+          />
+        </ChartCard>
+
+        <ChartCard
+          title="Most Played Genres Over Time"
+          subtitle="Genre-level Fortnite activity curves using peak CCU, plays, or unique-player snapshots when available."
+          panel={panel}
+          action={
+            <TrendControls
+              limit={genreTrendLimit}
+              percentile={genreTrendPercentile}
+              onLimitChange={setGenreTrendLimit}
+              onPercentileChange={setGenreTrendPercentile}
+              accent={accent}
+            />
+          }
+          footerAction={
+            <TimeWindowControls
+              timeWindow={genreTrendWindow}
+              onTimeWindowChange={setGenreTrendWindow}
+              accent={accent}
+            />
+          }
+        >
+          <FortniteGenreTrend
+            islands={topFortniteIslands.slice(0, genreTrendLimit)}
+            percentile={genreTrendPercentile}
+            timeWindow={genreTrendWindow}
+          />
+        </ChartCard>
+      </section>
+
       <section className="mb-6">
         <ChartCard
           title="Gameplay Label Usage Over Time"
@@ -920,10 +1019,18 @@ function FortniteDashboardView({ context }: any) {
               accent={accent}
             />
           }
+          footerAction={
+            <TimeWindowControls
+              timeWindow={fortniteLabelTrendWindow}
+              onTimeWindowChange={setFortniteLabelTrendWindow}
+              accent={accent}
+            />
+          }
         >
           <FortniteLabelUsageTrend
             islands={fortniteIslands}
             limit={fortniteLabelTrendLimit}
+            timeWindow={fortniteLabelTrendWindow}
           />
         </ChartCard>
       </section>
@@ -935,7 +1042,6 @@ function FortniteDashboardView({ context }: any) {
           games={topFortniteIslands.slice(0, 25)}
           panel={panel}
           accent={accent}
-          filterByGenre={false}
           combinedCloud={true}
         />
 
@@ -945,7 +1051,6 @@ function FortniteDashboardView({ context }: any) {
           games={currentTopFortniteIslands.slice(0, 25)}
           panel={panel}
           accent={accent}
-          filterByGenre={false}
         />
       </section>
 
@@ -953,7 +1058,7 @@ function FortniteDashboardView({ context }: any) {
         <div className={`rounded-3xl border p-6 ${panel}`}>
           <h2 className="text-2xl font-bold">Directional Research Map</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Green indicates a stronger directional research signal; red indicates weaker signal strength or higher uncertainty.
+            Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
           </p>
           <BlockHeatMap
             items={activeItems}
@@ -2326,7 +2431,7 @@ function TrendingCard({ title, items, panel }: any) {
   );
 }
 
-function ChartCard({ title, subtitle, panel, action, children }: any) {
+function ChartCard({ title, subtitle, panel, action, footerAction, children }: any) {
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -2337,6 +2442,7 @@ function ChartCard({ title, subtitle, panel, action, children }: any) {
         {action}
       </div>
       <div className="h-64">{children}</div>
+      {footerAction && <div className="mt-3 flex justify-end">{footerAction}</div>}
     </div>
   );
 }
@@ -2378,20 +2484,43 @@ function TrendControls({
   );
 }
 
-function FortniteLabelTrendControls({ limit, onLimitChange, accent }: any) {
+function TimeWindowControls({ timeWindow, onTimeWindowChange, accent }: any) {
   return (
     <ToggleGroup>
-      {[10, 25].map((value) => (
+      {[
+        ["7d", "7D"],
+        ["30d", "Month"],
+        ["3m", "3M"],
+      ].map(([value, label]) => (
         <ToggleButton
           key={value}
-          active={limit === value}
-          onClick={() => onLimitChange(value)}
+          active={timeWindow === value}
+          onClick={() => onTimeWindowChange(value)}
           activeColor={accent}
         >
-          Top {value}
+          {label}
         </ToggleButton>
       ))}
     </ToggleGroup>
+  );
+}
+
+function FortniteLabelTrendControls({ limit, onLimitChange, accent }: any) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      <ToggleGroup>
+        {[10, 25].map((value) => (
+          <ToggleButton
+            key={value}
+            active={limit === value}
+            onClick={() => onLimitChange(value)}
+            activeColor={accent}
+          >
+            Top {value}
+          </ToggleButton>
+        ))}
+      </ToggleGroup>
+    </div>
   );
 }
 
@@ -2520,6 +2649,7 @@ function KeywordCloudCard({
   filterByGenre = true,
   combinedCloud = false,
 }: any) {
+  const overallOption = "__overall__";
   const genres = useMemo(
     () =>
       Array.from(
@@ -2527,11 +2657,11 @@ function KeywordCloudCard({
       ).sort() as string[],
     [games]
   );
-  const [selectedGenre, setSelectedGenre] = useState("");
-  const activeGenre = selectedGenre || genres[0] || "";
+  const [selectedGenre, setSelectedGenre] = useState(overallOption);
+  const activeGenre = selectedGenre || overallOption;
   const selectedGames = useMemo(
     () =>
-      filterByGenre
+      filterByGenre && activeGenre !== overallOption
         ? games.filter(
             (game: any) => (game.inferred_genre ?? "Other") === activeGenre
           )
@@ -2555,6 +2685,7 @@ function KeywordCloudCard({
             value={activeGenre}
             onChange={(event) => setSelectedGenre(event.target.value)}
           >
+            <option value={overallOption}>Overall</option>
             {genres.map((genre) => (
               <option key={genre} value={genre}>
                 {genre}
@@ -2575,13 +2706,13 @@ function KeywordCloudCard({
           <KeywordCloudPanel
             title="Title cloud"
             items={titleCloud}
-            emptyText="No title keywords available for this genre."
+            emptyText="No title keywords available for this selection."
             accent={accent}
           />
           <KeywordCloudPanel
             title="Description cloud"
             items={descriptionCloud}
-            emptyText="No description keywords available for this genre."
+            emptyText="No description keywords available for this selection."
             accent={accent}
           />
         </>
@@ -2664,6 +2795,7 @@ function ColorBreakdownCard({
   accent,
   filterByGenre = true,
 }: any) {
+  const overallOption = "__overall__";
   const [colors, setColors] = useState<any[]>([]);
   const [colorPage, setColorPage] = useState(0);
   const genres = useMemo(
@@ -2673,11 +2805,11 @@ function ColorBreakdownCard({
       ).sort() as string[],
     [games]
   );
-  const [selectedGenre, setSelectedGenre] = useState("");
-  const activeGenre = selectedGenre || genres[0] || "";
+  const [selectedGenre, setSelectedGenre] = useState(overallOption);
+  const activeGenre = selectedGenre || overallOption;
   const selectedGames = useMemo(
     () =>
-      filterByGenre
+      filterByGenre && activeGenre !== overallOption
         ? games.filter(
             (game: any) => (game.inferred_genre ?? "Other") === activeGenre
           )
@@ -2749,6 +2881,7 @@ function ColorBreakdownCard({
             value={activeGenre}
             onChange={(event) => setSelectedGenre(event.target.value)}
           >
+            <option value={overallOption}>Overall</option>
             {genres.map((genre) => (
               <option key={genre} value={genre}>
                 {genre}
@@ -3035,7 +3168,7 @@ function ReadOutCard({ maps, panel }: any) {
     <div className={`rounded-3xl border p-6 ${panel}`}>
       <h2 className="text-2xl font-bold">Research Readout</h2>
       <p className="mt-1 text-sm text-slate-500">
-        Synthesis across demand, saturation, velocity, and build complexity.
+        Synthesis across demand, saturation, velocity, and estimated game format complexity.
       </p>
 
       {strongest ? (
@@ -3064,9 +3197,9 @@ function ReadOutCard({ maps, panel }: any) {
 
           <div className="rounded-2xl border border-slate-200 p-4 text-sm leading-6 text-slate-600">
             <strong>Research interpretation:</strong>{" "}
-            consider investigating segments that appear green in more than one
-            lens; treat red/yellow areas as potentially crowded, slow-moving,
-            uncertain, or expensive to build.
+            consider investigating segments that appear as deeper blue in more
+            than one lens; treat lighter areas as potentially crowded,
+            slow-moving, uncertain, or expensive to build.
           </div>
         </div>
       ) : (
@@ -3081,10 +3214,10 @@ function opportunityCellColor(index: number) {
   const row = Math.floor(index / 4);
   const score = (col + (3 - row)) / 6;
 
-  if (score >= 0.72) return "#2fb8bd";
-  if (score >= 0.48) return "#d9e75f";
-  if (score >= 0.28) return "#fedb7a";
-  return "#fee2e2";
+  if (score >= 0.72) return "#0d69ac";
+  if (score >= 0.48) return "#4d91c4";
+  if (score >= 0.28) return "#9fc7e4";
+  return "#e8f2fa";
 }
 
 function buildOpportunityMap(items: any[], lens: string, platform: Platform) {
@@ -3113,7 +3246,7 @@ function buildOpportunityMap(items: any[], lens: string, platform: Platform) {
       colorLabel: "Research signal",
       xFormula: demandFormula,
       yFormula: "Number of records in this genre/subgenre divided by the most represented segment.",
-      colorFormula: "Demand score discounted by saturation; greener means a stronger directional research signal, not a guaranteed outcome.",
+      colorFormula: "Demand score discounted by saturation; deeper blue means a stronger directional research signal, not a guaranteed outcome.",
       x: (item: any) => item.players / maxPlayers || item.count / maxCount,
       y: (item: any) => item.count / maxCount,
       score: (x: number, y: number) => x * (1 - y * 0.65),
@@ -3129,7 +3262,7 @@ function buildOpportunityMap(items: any[], lens: string, platform: Platform) {
       colorLabel: "Momentum",
       xFormula: velocityFormula,
       yFormula: "Number of records in this genre/subgenre divided by the most represented segment.",
-      colorFormula: "Velocity score discounted by saturation; greener means faster movement with less crowding.",
+      colorFormula: "Velocity score discounted by saturation; deeper blue means faster movement with less crowding.",
       x: (item: any) =>
         platform === "roblox"
           ? Math.max(0, item.velocity) / maxVelocity
@@ -3139,16 +3272,16 @@ function buildOpportunityMap(items: any[], lens: string, platform: Platform) {
     },
     "demand-complexity": {
       id: "demand-complexity",
-      title: "Demand vs Build Complexity",
-      subtitle: "Find strong demand with manageable production effort.",
+      title: "Demand vs Game Format Complexity",
+      subtitle: "Find strong demand in formats with a lighter estimated scope.",
       xLabel: "Audience Demand",
-      yLabel: "Build Complexity",
+      yLabel: "Game Format Complexity",
       xLow: "Lower demand",
       xHigh: "Higher demand",
       colorLabel: "Feasibility",
       xFormula: demandFormula,
-      yFormula: "Average inferred build complexity: low is lower on the map, high is higher on the map.",
-      colorFormula: "Demand score discounted by build complexity; greener means strong demand with manageable effort.",
+      yFormula: "Estimated average game format complexity: simpler genre formats are lower on the map, broader or more system-heavy formats are higher on the map.",
+      colorFormula: "Demand score discounted by estimated game format complexity; deeper blue means strong demand with a lighter inferred format scope.",
       x: (item: any) => item.players / maxPlayers || item.count / maxCount,
       y: (item: any) => item.complexity,
       score: (x: number, y: number) => x * (1 - y * 0.5),
@@ -4333,45 +4466,65 @@ function Unavailable({ text }: any) {
   );
 }
 
-function TopGamesTrend({ games, percentile = 100 }: any) {
+function TrendChartFrame({ note, children }: any) {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">{children}</div>
+      {note && (
+        <p className="mt-2 text-[11px] font-semibold leading-4 text-amber-600">
+          {note}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function TopGamesTrend({ games, percentile = 100, timeWindow = "7d" }: any) {
   const visibleGames = applyPercentileBand(games, percentile);
-  const data = mergeGameTrends(visibleGames);
+  const trendWindow = applyTrendTimeWindow(mergeGameTrends(visibleGames), timeWindow);
+  const data = trendWindow.data;
   const domain = getLineChartDomain(data, visibleGames.map((game: any) => game.title));
-  const colors = ["#5fbfd0", "#7c3aed", "#d6a06d", "#5b5d78", "#16a34a"];
+  const colors = ["#0d69ac", "#7c3aed", "#d6a06d", "#5b5d78", "#16a34a"];
 
   if (!data.length) return <Unavailable text="No game snapshots available." />;
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
-	        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
-	        <XAxis dataKey="date" fontSize={11} />
-	        <YAxis fontSize={11} domain={domain} />
-	        <Tooltip content={<TopGamesTooltip />} />
-	        {visibleGames.map((game: any, index: number) => (
-	          <Line
-	            key={game.id}
-	            type="monotone"
-	            dataKey={game.title}
-	            stroke={colors[index % colors.length]}
-	            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
-              strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
-	            dot={false}
-	          />
-	        ))}
-	      </LineChart>
-	    </ResponsiveContainer>
+    <TrendChartFrame note={trendWindow.note}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+  	      <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+  	      <XAxis dataKey="date" fontSize={11} />
+  	      <YAxis fontSize={11} domain={domain} />
+  	      <Tooltip content={<TopGamesTooltip />} />
+  	      {visibleGames.map((game: any, index: number) => (
+  	        <Line
+  	          key={game.id}
+  	          type="monotone"
+  	          dataKey={game.title}
+  	          stroke={colors[index % colors.length]}
+  	          strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+            strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
+  	          dot={false}
+  	        />
+  	      ))}
+  	    </LineChart>
+  	  </ResponsiveContainer>
+    </TrendChartFrame>
 	  );
 }
 
-function FortniteIslandsTrend({ islands, percentile = 100 }: any) {
+function FortniteIslandsTrend({ islands, percentile = 100, timeWindow = "7d" }: any) {
   const visibleIslands = applyPercentileBand(islands, percentile);
-  const data = mergeFortniteIslandTrends(visibleIslands);
+  const trendWindow = applyTrendTimeWindow(
+    mergeFortniteIslandTrends(visibleIslands),
+    timeWindow
+  );
+  const data = trendWindow.data;
   const domain = getLineChartDomain(
     data,
     visibleIslands.map((island: any) => island.title)
   );
-  const colors = ["#7c3aed", "#5fbfd0", "#d6a06d", "#16a34a", "#ef4444"];
+  const colors = ["#7c3aed", "#0d69ac", "#d6a06d", "#16a34a", "#ef4444"];
 
   if (!data.length) {
     return (
@@ -4380,33 +4533,38 @@ function FortniteIslandsTrend({ islands, percentile = 100 }: any) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
-        <XAxis dataKey="date" fontSize={11} />
-        <YAxis fontSize={11} domain={domain} />
-        <Tooltip content={<TopGamesTooltip />} />
-        {visibleIslands.map((island: any, index: number) => (
-          <Line
-            key={island.id}
-            type="monotone"
-            dataKey={island.title}
-            stroke={colors[index % colors.length]}
-            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
-            strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
-            dot={false}
-          />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+    <TrendChartFrame note={trendWindow.note}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+          <XAxis dataKey="date" fontSize={11} />
+          <YAxis fontSize={11} domain={domain} />
+          <Tooltip content={<TopGamesTooltip />} />
+          {visibleIslands.map((island: any, index: number) => (
+            <Line
+              key={island.id}
+              type="monotone"
+              dataKey={island.title}
+              stroke={colors[index % colors.length]}
+              strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+              strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendChartFrame>
   );
 }
 
-function FortniteGenreTrend({ islands, percentile = 100 }: any) {
+function FortniteGenreTrend({ islands, percentile = 100, timeWindow = "7d" }: any) {
   const visibleIslands = applyPercentileBand(islands, percentile);
-  const { data, genres } = mergeFortniteGenreTrends(visibleIslands);
+  const merged = mergeFortniteGenreTrends(visibleIslands);
+  const trendWindow = applyTrendTimeWindow(merged.data, timeWindow);
+  const data = trendWindow.data;
+  const genres = merged.genres;
   const domain = getLineChartDomain(data, genres);
-  const colors = ["#7c3aed", "#5fbfd0", "#d6a06d", "#16a34a", "#ef4444"];
+  const colors = ["#7c3aed", "#0d69ac", "#d6a06d", "#16a34a", "#ef4444"];
 
   if (!data.length) {
     return (
@@ -4415,34 +4573,39 @@ function FortniteGenreTrend({ islands, percentile = 100 }: any) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
-        <XAxis dataKey="date" fontSize={11} />
-        <YAxis fontSize={11} domain={domain} />
-        <Tooltip content={<TopGamesTooltip />} />
-        {genres.map((genre: string, index: number) => (
-          <Line
-            key={genre}
-            type="monotone"
-            dataKey={genre}
-            stroke={colors[index % colors.length]}
-            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
-            strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
-            dot={false}
-          />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+    <TrendChartFrame note={trendWindow.note}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+          <XAxis dataKey="date" fontSize={11} />
+          <YAxis fontSize={11} domain={domain} />
+          <Tooltip content={<TopGamesTooltip />} />
+          {genres.map((genre: string, index: number) => (
+            <Line
+              key={genre}
+              type="monotone"
+              dataKey={genre}
+              stroke={colors[index % colors.length]}
+              strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+              strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendChartFrame>
   );
 }
 
-function FortniteLabelUsageTrend({ islands, limit }: any) {
-  const { data, labels } = mergeFortniteLabelUsageTrends(islands, limit);
+function FortniteLabelUsageTrend({ islands, limit, timeWindow = "7d" }: any) {
+  const merged = mergeFortniteLabelUsageTrends(islands, limit);
+  const trendWindow = applyTrendTimeWindow(merged.data, timeWindow);
+  const data = trendWindow.data;
+  const labels = merged.labels;
   const domain = getLineChartDomain(data, labels);
   const colors = [
     "#7c3aed",
-    "#5fbfd0",
+    "#0d69ac",
     "#d6a06d",
     "#16a34a",
     "#ef4444",
@@ -4456,25 +4619,27 @@ function FortniteLabelUsageTrend({ islands, limit }: any) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
-        <XAxis dataKey="date" fontSize={11} />
-        <YAxis fontSize={11} domain={domain} />
-        <Tooltip content={<TopGamesTooltip />} />
-        {labels.map((label: string, index: number) => (
-          <Line
-            key={label}
-            type="monotone"
-            dataKey={label}
-            stroke={colors[index % colors.length]}
-            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
-            strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.25}
-            dot={false}
-          />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+    <TrendChartFrame note={trendWindow.note}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+          <XAxis dataKey="date" fontSize={11} />
+          <YAxis fontSize={11} domain={domain} />
+          <Tooltip content={<TopGamesTooltip />} />
+          {labels.map((label: string, index: number) => (
+            <Line
+              key={label}
+              type="monotone"
+              dataKey={label}
+              stroke={colors[index % colors.length]}
+              strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+              strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.25}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendChartFrame>
   );
 }
 
@@ -4492,7 +4657,16 @@ function TopGamesTooltip({ active, payload, label }: any) {
       <div className="space-y-1">
         {rows.map((item: any) => (
           <div key={item.dataKey} className="flex items-center justify-between gap-3">
-            <span className="min-w-0 truncate text-slate-600">{item.dataKey}</span>
+            <span className="flex min-w-0 items-center gap-2 text-slate-600">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{
+                  backgroundColor:
+                    item.color ?? item.stroke ?? item.payload?.stroke ?? "#94a3b8",
+                }}
+              />
+              <span className="min-w-0 truncate">{item.dataKey}</span>
+            </span>
             <span className="font-black text-slate-900">
               {formatNumber(item.value)}
             </span>
@@ -4512,6 +4686,52 @@ function applyPercentileBand(items: any[], percentile: number) {
   return items.slice(start, start + bandSize);
 }
 
+function applyTrendTimeWindow(rows: any[], timeWindow: TrendTimeWindow) {
+  const sortedRows = sortChartRowsByDate([...rows]);
+  if (!sortedRows.length) return { data: sortedRows, note: "" };
+
+  const latestDate = parseDateKey(sortedRows[sortedRows.length - 1]?.dateKey);
+  const earliestDate = parseDateKey(sortedRows[0]?.dateKey);
+  const targetDays = getTrendWindowDays(timeWindow);
+
+  if (!latestDate || !earliestDate) return { data: sortedRows, note: "" };
+
+  const startDate = new Date(latestDate);
+  startDate.setUTCDate(startDate.getUTCDate() - targetDays + 1);
+
+  const data = sortedRows.filter((row) => {
+    const rowDate = parseDateKey(row.dateKey);
+    return rowDate ? rowDate >= startDate && rowDate <= latestDate : true;
+  });
+  const availableDays =
+    Math.floor((latestDate.getTime() - earliestDate.getTime()) / 86400000) + 1;
+  const note =
+    availableDays < targetDays
+      ? `Showing all available history: ${availableDays} ${availableDays === 1 ? "day" : "days"} captured so far. The ${getTrendWindowLabel(timeWindow)} view will expand as new daily snapshots are collected.`
+      : "";
+
+  return { data, note };
+}
+
+function getTrendWindowDays(timeWindow: TrendTimeWindow) {
+  if (timeWindow === "7d") return 7;
+  if (timeWindow === "30d") return 30;
+  return 92;
+}
+
+function getTrendWindowLabel(timeWindow: TrendTimeWindow) {
+  if (timeWindow === "7d") return "past 7 days";
+  if (timeWindow === "30d") return "past month";
+  return "past 3 months";
+}
+
+function parseDateKey(dateKey: string | undefined) {
+  if (!dateKey) return null;
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function getLineChartDomain(data: any[], keys: string[]) {
   const values = data.flatMap((row) =>
     keys
@@ -4528,34 +4748,39 @@ function getLineChartDomain(data: any[], keys: string[]) {
   return [Math.max(0, min - padding), max + padding];
 }
 
-function GenreLinesTrend({ games, percentile = 100 }: any) {
+function GenreLinesTrend({ games, percentile = 100, timeWindow = "7d" }: any) {
   const visibleGames = applyPercentileBand(games, percentile);
-  const { data, genres } = mergeGenreTrends(visibleGames);
+  const merged = mergeGenreTrends(visibleGames);
+  const trendWindow = applyTrendTimeWindow(merged.data, timeWindow);
+  const data = trendWindow.data;
+  const genres = merged.genres;
   const domain = getLineChartDomain(data, genres);
-  const colors = ["#5fbfd0", "#7c3aed", "#d6a06d", "#5b5d78", "#16a34a", "#ef4444"];
+  const colors = ["#0d69ac", "#7c3aed", "#d6a06d", "#5b5d78", "#16a34a", "#ef4444"];
 
   if (!data.length) return <Unavailable text="No genre snapshots available." />;
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
-        <XAxis dataKey="date" fontSize={11} />
-	        <YAxis fontSize={11} domain={domain} />
-	        <Tooltip content={<TopGamesTooltip />} />
-	        {genres.map((genre: string, index: number) => (
-	          <Line
-            key={genre}
-            type="monotone"
-	            dataKey={genre}
-	            stroke={colors[index % colors.length]}
-	            strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
-              strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
-	            dot={false}
-	          />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+    <TrendChartFrame note={trendWindow.note}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+          <XAxis dataKey="date" fontSize={11} />
+  	      <YAxis fontSize={11} domain={domain} />
+  	      <Tooltip content={<TopGamesTooltip />} />
+  	      {genres.map((genre: string, index: number) => (
+  	        <Line
+              key={genre}
+              type="monotone"
+  	          dataKey={genre}
+  	          stroke={colors[index % colors.length]}
+  	          strokeWidth={index < 5 ? 2.5 : index < 10 ? 1.5 : 0.8}
+            strokeOpacity={index < 5 ? 0.95 : index < 10 ? 0.58 : 0.22}
+  	          dot={false}
+  	        />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendChartFrame>
   );
 }
 
@@ -4752,7 +4977,7 @@ function buildHeatMapItems(items: any[]) {
 
 const fallbackTileColorPairs = [
   {
-    primary: { hex: "#5fbfd0", rgb: "RGB 95, 191, 208" },
+    primary: { hex: "#0d69ac", rgb: "RGB 13, 105, 172" },
     secondary: { hex: "#111827", rgb: "RGB 17, 24, 39" },
   },
   {
@@ -4769,7 +4994,7 @@ const fallbackTileColorPairs = [
   },
   {
     primary: { hex: "#5b5d78", rgb: "RGB 91, 93, 120" },
-    secondary: { hex: "#5fbfd0", rgb: "RGB 95, 191, 208" },
+    secondary: { hex: "#0d69ac", rgb: "RGB 13, 105, 172" },
   },
 ];
 
