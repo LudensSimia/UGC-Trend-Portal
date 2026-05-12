@@ -300,7 +300,7 @@ export async function GET(req: Request) {
 
     let inserted = 0;
 
-    for (const island of islands) {
+    for (const [index, island] of islands.entries()) {
       const islandCode = island.code ?? island.mnemonic ?? island.id;
 
       if (!islandCode) continue;
@@ -364,7 +364,7 @@ export async function GET(req: Request) {
         .insert({
           island_id: islandRow.id,
           source_name: "fortnite_data_api",
-          rank: pickMetric(island, ["rank", "position", "order"]),
+          rank: pickMetric(island, ["rank", "position", "order"]) ?? index + 1,
 
           minutes_played: pickMetric(island, [
             "minutesPlayed",

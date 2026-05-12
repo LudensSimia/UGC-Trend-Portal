@@ -12,6 +12,8 @@ import {
   YAxis,
   LineChart,
   Line,
+  BarChart,
+  Bar,
   Legend,
   PieChart,
   Pie,
@@ -59,6 +61,10 @@ export default function Home() {
     useState<TrendTimeWindow>("7d");
   const [fortniteLabelTrendLimit, setFortniteLabelTrendLimit] =
     useState<10 | 25>(10);
+  const [fortniteVisibilityLimit, setFortniteVisibilityLimit] =
+    useState<10 | 25>(25);
+  const [fortniteLifecycleLimit, setFortniteLifecycleLimit] =
+    useState<10 | 25>(25);
   const [fortniteLabelTrendWindow, setFortniteLabelTrendWindow] =
     useState<TrendTimeWindow>("7d");
   const [predictionSearch, setPredictionSearch] = useState("");
@@ -88,6 +94,7 @@ export default function Home() {
           url,
           thumbnail_url,
           description,
+          genre,
           inferred_genre,
           inferred_subgenre,
           core_loop,
@@ -182,29 +189,35 @@ export default function Home() {
 
   const activeItems =
     activePlatform === "roblox" ? robloxGames : fortniteIslands;
+  const activeGenreAnalysisItems = useMemo(
+    () => getGenreAnalysisItems(activeItems, activePlatform),
+    [activeItems, activePlatform]
+  );
 
   const genres = useMemo(() => {
     return Array.from(
-      new Set(activeItems.map((item) => item.inferred_genre ?? "Other"))
+      new Set(
+        activeGenreAnalysisItems.map((item) => getDisplayGenre(item, activePlatform))
+      )
     ).sort();
-  }, [activeItems]);
+  }, [activeGenreAnalysisItems, activePlatform]);
 
   const subgenres = useMemo(() => {
     return Array.from(
       new Set(
-        activeItems
+        activeGenreAnalysisItems
           .filter(
-            (item) => !selectedGenre || item.inferred_genre === selectedGenre
+            (item) => !selectedGenre || getDisplayGenre(item, activePlatform) === selectedGenre
           )
-          .map((item) => item.inferred_subgenre ?? "General")
+          .map((item) => getDisplaySubgenre(item, activePlatform))
       )
     ).sort();
-  }, [activeItems, selectedGenre]);
+  }, [activeGenreAnalysisItems, activePlatform, selectedGenre]);
 
-  const filteredIdeaItems = activeItems.filter((item) => {
-    const genreMatch = !selectedGenre || item.inferred_genre === selectedGenre;
+  const filteredIdeaItems = activeGenreAnalysisItems.filter((item) => {
+    const genreMatch = !selectedGenre || getDisplayGenre(item, activePlatform) === selectedGenre;
     const subgenreMatch =
-      !selectedSubgenre || item.inferred_subgenre === selectedSubgenre;
+      !selectedSubgenre || getDisplaySubgenre(item, activePlatform) === selectedSubgenre;
     return genreMatch && subgenreMatch;
   });
 
@@ -217,6 +230,10 @@ export default function Home() {
   const topFortniteIslands = useMemo(() => {
     return [...fortniteIslands].sort(compareFortniteIslands);
   }, [fortniteIslands]);
+  const robloxGenreAnalysisGames = useMemo(
+    () => getGenreAnalysisItems(robloxGames, "roblox"),
+    [robloxGames]
+  );
 
   const trendingHighlights = buildTrendingHighlights(
     activePlatform === "roblox" ? robloxGames : fortniteIslands,
@@ -237,7 +254,7 @@ export default function Home() {
     .sort((a, b) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0))
     .slice(0, 3);
 
-  const topGenreScoreboard = buildTopGenreScoreboard(robloxGames);
+  const topGenreScoreboard = buildTopGenreScoreboard(robloxGenreAnalysisGames);
   const topGameScoreboard = topRobloxGames.slice(0, 3);
   const topPlayedYesterday = getTopGameByUtcDate(robloxGames, 1);
   const topPlayedLastWeek = getTopGameByUtcDate(robloxGames, 7);
@@ -271,6 +288,8 @@ export default function Home() {
     activePlatform,
     activeItems,
     dataSourceHealth,
+    activeGenreAnalysisItems,
+    robloxGenreAnalysisGames,
     panel,
     accent,
     topFortniteIslands,
@@ -289,8 +308,12 @@ export default function Home() {
     setGenreTrendPercentile,
     setGenreTrendWindow,
     fortniteLabelTrendLimit,
+    fortniteVisibilityLimit,
+    fortniteLifecycleLimit,
     fortniteLabelTrendWindow,
     setFortniteLabelTrendLimit,
+    setFortniteVisibilityLimit,
+    setFortniteLifecycleLimit,
     setFortniteLabelTrendWindow,
     selectedGenre,
     selectedSubgenre,
@@ -423,6 +446,9 @@ export default function Home() {
                   )}.`,
                   `The data is pulled from: ${dataSourceHealth.source}.`,
                   `Automated classification confidence is ${dataSourceHealth.confidence}%.`,
+                  `Rows included in genre-level analysis, source-confirmed or estimated: ${formatNumber(
+                    dataSourceHealth.genreEligibleCount
+                  )} of ${formatNumber(dataSourceHealth.totalRecords)}.`,
                 ]}
                 lastRunLabel={dataSourceHealth.lastRunLabel}
                 panel={panel}
@@ -446,7 +472,7 @@ export default function Home() {
 	                    : topFortniteIslands.slice(0, 3).map((i) => ({
 	                        label: i.title,
                           subline: `${i.inferred_genre ?? "Other"} / ${
-                            i.inferred_subgenre ?? "General"
+                            getDisplaySubgenre(i, activePlatform)
                           }`,
 	                        value: getFortniteActivityLabel(i),
 	                        href: i.url,
@@ -581,8 +607,8 @@ export default function Home() {
                 }
               >
                 {activePlatform === "roblox" ? (
-                  <GenreLinesTrend
-                    games={topRobloxGames.slice(0, genreTrendLimit)}
+                    <GenreLinesTrend
+                    games={robloxGenreAnalysisGames.slice(0, genreTrendLimit)}
                     percentile={genreTrendPercentile}
                     timeWindow={genreTrendWindow}
                   />
@@ -601,10 +627,15 @@ export default function Home() {
 	                title="Top 25 Keyword Cloud"
 	                subtitle="Common title and description signals by genre"
 	                games={
-	                  activePlatform === "roblox"
-	                    ? topRobloxGames.slice(0, 25)
-	                    : topFortniteIslands.slice(0, 25)
-	                }
+                  activePlatform === "roblox"
+                    ? topRobloxGames.slice(0, 25)
+                    : topFortniteIslands.slice(0, 25)
+                }
+                genreOptionsItems={
+                  activePlatform === "roblox"
+                    ? robloxGenreAnalysisGames
+                    : topFortniteIslands
+                }
 	                panel={panel}
 	                accent={accent}
 	              />
@@ -625,10 +656,15 @@ export default function Home() {
 	                title="Top Tile Colors"
 	                subtitle="Primary and secondary RGB colors by genre"
 	                games={
-	                  activePlatform === "roblox"
-	                    ? topRobloxGames.slice(0, 50)
-	                    : topFortniteIslands.slice(0, 50)
-	                }
+                  activePlatform === "roblox"
+                    ? topRobloxGames.slice(0, 50)
+                    : topFortniteIslands.slice(0, 50)
+                }
+                genreOptionsItems={
+                  activePlatform === "roblox"
+                    ? robloxGenreAnalysisGames
+                    : topFortniteIslands
+                }
                 panel={panel}
                 accent={accent}
               />
@@ -641,7 +677,7 @@ export default function Home() {
                   Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
                 </p>
                 <BlockHeatMap
-                  items={activeItems}
+                  items={activeGenreAnalysisItems}
                   selectedGenre={selectedGenre}
                   selectedSubgenre={selectedSubgenre}
                   platform={activePlatform}
@@ -872,8 +908,12 @@ function FortniteDashboardView({ context }: any) {
     setGenreTrendPercentile,
     setGenreTrendWindow,
     fortniteLabelTrendLimit,
+    fortniteVisibilityLimit,
+    fortniteLifecycleLimit,
     fortniteLabelTrendWindow,
     setFortniteLabelTrendLimit,
+    setFortniteVisibilityLimit,
+    setFortniteLifecycleLimit,
     setFortniteLabelTrendWindow,
     selectedGenre,
     selectedSubgenre,
@@ -941,8 +981,8 @@ function FortniteDashboardView({ context }: any) {
         />
 
         <FortniteLabelRankingsCard
-          title="Top 10 Gameplay Labels"
-          subtitle="Most frequent labels across imported islands"
+          title="Top 10 Primary Labels"
+          subtitle="First surfaced label across imported islands"
           items={buildFortniteLabelRankings(fortniteIslands)}
           panel={panel}
           accent={accent}
@@ -951,66 +991,27 @@ function FortniteDashboardView({ context }: any) {
 
       <section className="mb-6 grid gap-6 lg:grid-cols-2">
         <ChartCard
-          title="Most Played Fortnite Islands Over Time"
-          subtitle={`Top ${topGamesTrendLimit} islands by available activity metric, tracked across stored snapshots.`}
+          title="Most Featured Islands"
+          subtitle={`Islands appearing most often in the source Top ${fortniteVisibilityLimit}.`}
           panel={panel}
           action={
-            <TrendControls
-              limit={topGamesTrendLimit}
-              percentile={topGamesTrendPercentile}
-              onLimitChange={setTopGamesTrendLimit}
-              onPercentileChange={setTopGamesTrendPercentile}
-              accent={accent}
-            />
-          }
-          footerAction={
-            <TimeWindowControls
-              timeWindow={topGamesTrendWindow}
-              onTimeWindowChange={setTopGamesTrendWindow}
+            <FortniteLabelTrendControls
+              limit={fortniteVisibilityLimit}
+              onLimitChange={setFortniteVisibilityLimit}
               accent={accent}
             />
           }
         >
-          <FortniteIslandsTrend
-            islands={topFortniteIslands.slice(0, topGamesTrendLimit)}
-            percentile={topGamesTrendPercentile}
-            timeWindow={topGamesTrendWindow}
+          <FortniteFeaturedIslandsBar
+            islands={fortniteIslands}
+            limit={fortniteVisibilityLimit}
+            accent={accent}
           />
         </ChartCard>
 
         <ChartCard
-          title="Most Played Genres Over Time"
-          subtitle="Genre-level Fortnite activity curves using peak CCU, plays, or unique-player snapshots when available."
-          panel={panel}
-          action={
-            <TrendControls
-              limit={genreTrendLimit}
-              percentile={genreTrendPercentile}
-              onLimitChange={setGenreTrendLimit}
-              onPercentileChange={setGenreTrendPercentile}
-              accent={accent}
-            />
-          }
-          footerAction={
-            <TimeWindowControls
-              timeWindow={genreTrendWindow}
-              onTimeWindowChange={setGenreTrendWindow}
-              accent={accent}
-            />
-          }
-        >
-          <FortniteGenreTrend
-            islands={topFortniteIslands.slice(0, genreTrendLimit)}
-            percentile={genreTrendPercentile}
-            timeWindow={genreTrendWindow}
-          />
-        </ChartCard>
-      </section>
-
-      <section className="mb-6">
-        <ChartCard
-          title="Gameplay Label Usage Over Time"
-          subtitle={`Top ${fortniteLabelTrendLimit} labels by island usage across stored Fortnite snapshots.`}
+          title="Primary Label Usage Over Time"
+          subtitle={`Top ${fortniteLabelTrendLimit} first-surfaced labels by island usage across stored snapshots.`}
           panel={panel}
           action={
             <FortniteLabelTrendControls
@@ -1035,7 +1036,48 @@ function FortniteDashboardView({ context }: any) {
         </ChartCard>
       </section>
 
-      <section className="mb-6 grid gap-6 lg:grid-cols-2">
+      <section className="mb-6">
+        <ChartCard
+          title="Genre / Format Presence Over Time"
+          subtitle="Count of tracked islands by inferred Fortnite genre or format."
+          panel={panel}
+          footerAction={
+            <TimeWindowControls
+              timeWindow={genreTrendWindow}
+              onTimeWindowChange={setGenreTrendWindow}
+              accent={accent}
+            />
+          }
+        >
+          <FortniteGenrePresenceTrend
+            islands={fortniteIslands}
+            timeWindow={genreTrendWindow}
+          />
+        </ChartCard>
+      </section>
+
+      <section className="mb-6">
+        <ChartCard
+          title="New vs Returning Islands"
+          subtitle={`Newest and longest-standing islands in the source Top ${fortniteLifecycleLimit}.`}
+          panel={panel}
+          action={
+            <FortniteLabelTrendControls
+              limit={fortniteLifecycleLimit}
+              onLimitChange={setFortniteLifecycleLimit}
+              accent={accent}
+            />
+          }
+        >
+          <FortniteIslandLifecycleRankings
+            islands={fortniteIslands}
+            limit={fortniteLifecycleLimit}
+            accent={accent}
+          />
+        </ChartCard>
+      </section>
+
+      <section className="mb-6 grid gap-6 lg:grid-cols-3">
         <KeywordCloudCard
           title="Top 25 Keyword Cloud"
           subtitle="Common title and description signals across the top 25 islands"
@@ -1043,6 +1085,14 @@ function FortniteDashboardView({ context }: any) {
           panel={panel}
           accent={accent}
           combinedCloud={true}
+        />
+
+        <FortniteIpSignalsCard
+          title="IP / Collaboration Signals"
+          subtitle="Primary labels and description cues in the top 25 islands"
+          islands={topFortniteIslands.slice(0, 25)}
+          panel={panel}
+          accent={accent}
         />
 
         <ColorBreakdownCard
@@ -1755,15 +1805,111 @@ function rankFortniteLabels(islands: any[]) {
   const counts: Record<string, number> = {};
 
   islands.forEach((island) => {
-    getFortniteGameplayLabels(island).forEach((label) => {
+    const label = getFortnitePrimaryLabel(island);
+    if (label) {
       counts[label] = (counts[label] ?? 0) + 1;
-    });
+    }
   });
 
   return Object.entries(counts)
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
     .map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
+const fortniteIpLabelPatterns = [
+  /star\s*wars/i,
+  /marvel/i,
+  /disney/i,
+  /tmnt|teenage mutant ninja/i,
+  /lego/i,
+  /dragon\s*ball/i,
+  /naruto/i,
+  /one\s*piece/i,
+  /k-?pop/i,
+  /nfl|nba|fifa|ufc/i,
+  /nike|adidas/i,
+  /squid\s*game/i,
+  /simpsons/i,
+  /avatar/i,
+  /jurassic/i,
+  /transformers/i,
+  /batman|dc comics/i,
+  /wendy'?s|mcdonald|burger king/i,
+];
+
+function buildFortniteIpSignals(islands: any[]) {
+  const map: Record<string, { label: string; type: string; count: number; examples: string[] }> = {};
+
+  islands.forEach((island) => {
+    const signal = getFortniteIpSignal(island);
+    if (!signal) return;
+
+    if (!map[signal.label]) {
+      map[signal.label] = {
+        label: signal.label,
+        type: signal.type,
+        count: 0,
+        examples: [],
+      };
+    }
+
+    map[signal.label].count += 1;
+    if (map[signal.label].examples.length < 3) {
+      map[signal.label].examples.push(island.title ?? "Untitled island");
+    }
+  });
+
+  return Object.values(map).sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label)
+  );
+}
+
+function getFortniteIpSignal(island: any) {
+  const primaryLabel = getFortnitePrimaryLabel(island);
+  const allLabels = getFortniteGameplayLabels(island);
+  const descriptionText = [
+    island.title,
+    island.description,
+    island.raw?.description,
+    island.raw_latest?.description,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const labelMatch = [primaryLabel, ...allLabels].find((label) =>
+    isFortniteIpLabel(label)
+  );
+
+  if (labelMatch) {
+    return {
+      label: labelMatch,
+      type: primaryLabel === labelMatch ? "Primary label" : "IP label",
+    };
+  }
+
+  if (/trademark|copyright|all rights reserved|not official|not endorsed/i.test(descriptionText)) {
+    return {
+      label: "Rights / brand notice",
+      type: "Description cue",
+    };
+  }
+
+  return null;
+}
+
+function isFortniteIpLabel(label: unknown) {
+  const text = String(label ?? "").trim();
+  if (!text) return false;
+
+  return fortniteIpLabelPatterns.some((pattern) => pattern.test(text));
+}
+
+function getFortnitePrimaryLabel(island: any) {
+  const firstTag = (island.extracted_tags ?? [])
+    .map((label: any) => String(label).trim())
+    .find((label: string) => label && !/^unknown|general$/i.test(label));
+
+  return firstTag ?? null;
 }
 
 function getFortniteGameplayLabels(island: any) {
@@ -2089,15 +2235,65 @@ function buildDataSourceHealth(
   const confidence = Math.round(
     auditSnapshot?.confidence_percent ?? fallbackConfidence
   );
+  const genreEligibleCount = getGenreAnalysisItems(items, platform).length;
 
   return {
+    totalRecords: items.length,
     queriedToday,
     source,
     confidence,
+    genreEligibleCount,
+    genreExcludedCount: Math.max(0, items.length - genreEligibleCount),
     lastRunLabel: formatUtcTimestamp(
       auditSnapshot?.created_at ?? getLatestSourceTimestamp(platform, items)
     ),
   };
+}
+
+function getGenreAnalysisItems(items: any[], platform: Platform) {
+  if (platform !== "roblox") return items;
+
+  return items.filter((item) => getClassificationConfidence(item, platform) !== "pending");
+}
+
+function getClassificationConfidence(item: any, platform: Platform) {
+  if (platform !== "roblox") return "medium";
+
+  const sourceGenre = getRobloxSourceGenre(item);
+  const hasEstimatedGenre =
+    Boolean(item.inferred_genre) && item.inferred_genre !== "Other";
+  const hasEstimatedSubgenre =
+    Boolean(item.inferred_subgenre) && item.inferred_subgenre !== "General";
+
+  if (sourceGenre) return "source";
+  if (hasEstimatedGenre && hasEstimatedSubgenre) return "estimated";
+  return "pending";
+}
+
+function getRobloxSourceGenre(item: any) {
+  return cleanClassificationLabel(item.genre);
+}
+
+function getDisplayGenre(item: any, platform: Platform) {
+  if (getClassificationConfidence(item, platform) === "pending") {
+    return "Classification pending";
+  }
+
+  return item.inferred_genre ?? "Other";
+}
+
+function getDisplaySubgenre(item: any, platform: Platform) {
+  if (getClassificationConfidence(item, platform) === "pending") {
+    return "Classification pending";
+  }
+
+  return item.inferred_subgenre ?? "General";
+}
+
+function cleanClassificationLabel(value: unknown) {
+  return typeof value === "string" && value.trim() && value !== "Other"
+    ? value.trim()
+    : null;
 }
 
 function getLatestSourceTimestamp(platform: Platform, items: any[]) {
@@ -2377,6 +2573,61 @@ function FortniteLabelRankingsCard({ title, subtitle, items, panel, accent }: an
   );
 }
 
+function FortniteIpSignalsCard({ title, subtitle, islands, panel, accent }: any) {
+  const signals = buildFortniteIpSignals(islands);
+  const topSignals = signals.slice(0, 5);
+  const ipLedIslands = islands.filter((island: any) => getFortniteIpSignal(island));
+
+  return (
+    <div className={`rounded-3xl border p-5 ${panel}`}>
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <p className="text-xs text-slate-400">{subtitle}</p>
+
+      <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+          IP-led islands
+        </p>
+        <div className="mt-2 flex items-end justify-between gap-3">
+          <span className="text-3xl font-black" style={{ color: accent }}>
+            {ipLedIslands.length}
+          </span>
+          <span className="text-right text-xs font-bold text-slate-400">
+            of {islands.length} top islands
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {topSignals.length ? (
+          topSignals.map((signal: any, index: number) => (
+            <div key={signal.label} className="rounded-xl border border-slate-200 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                    {index + 1}. {signal.type}
+                  </p>
+                  <p className="truncate text-sm font-black">{signal.label}</p>
+                </div>
+                <span
+                  className="rounded-full px-2 py-1 text-xs font-black"
+                  style={{ backgroundColor: `${accent}1f`, color: accent }}
+                >
+                  {signal.count}
+                </span>
+              </div>
+              <p className="mt-2 line-clamp-1 text-xs font-semibold text-slate-400">
+                {signal.examples.join(", ")}
+              </p>
+            </div>
+          ))
+        ) : (
+          <Unavailable text="No likely IP or collaboration labels detected in the top 25 yet." />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TrendingCard({ title, items, panel }: any) {
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
@@ -2644,18 +2895,20 @@ function KeywordCloudCard({
   title,
   subtitle,
   games,
+  genreOptionsItems,
   panel,
   accent,
   filterByGenre = true,
   combinedCloud = false,
 }: any) {
   const overallOption = "__overall__";
+  const genreItems = genreOptionsItems ?? games;
   const genres = useMemo(
     () =>
       Array.from(
-        new Set(games.map((game: any) => game.inferred_genre ?? "Other"))
+        new Set(genreItems.map((game: any) => game.inferred_genre ?? "Other"))
       ).sort() as string[],
-    [games]
+    [genreItems]
   );
   const [selectedGenre, setSelectedGenre] = useState(overallOption);
   const activeGenre = selectedGenre || overallOption;
@@ -2791,19 +3044,21 @@ function ColorBreakdownCard({
   title,
   subtitle,
   games,
+  genreOptionsItems,
   panel,
   accent,
   filterByGenre = true,
 }: any) {
   const overallOption = "__overall__";
+  const genreItems = genreOptionsItems ?? games;
   const [colors, setColors] = useState<any[]>([]);
   const [colorPage, setColorPage] = useState(0);
   const genres = useMemo(
     () =>
       Array.from(
-        new Set(games.map((game: any) => game.inferred_genre ?? "Other"))
+        new Set(genreItems.map((game: any) => game.inferred_genre ?? "Other"))
       ).sort() as string[],
-    [games]
+    [genreItems]
   );
   const [selectedGenre, setSelectedGenre] = useState(overallOption);
   const activeGenre = selectedGenre || overallOption;
@@ -3461,7 +3716,7 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
               ? `${Math.round(item.playerGainPercent ?? 0)}% ${
                   positive ? "▲" : "▼"
                 }`
-              : item.inferred_genre ?? "Other"}
+              : getDisplayGenre(item, platform)}
           </p>
         </div>
 
@@ -3490,14 +3745,14 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
         <div>
           <p className="text-slate-400">Genre</p>
           <p className="line-clamp-1 font-black">
-            {item.inferred_genre ?? "Other"}
+            {getDisplayGenre(item, platform)}
           </p>
         </div>
 
         <div>
           <p className="text-slate-400">Subgenre</p>
           <p className="line-clamp-1 font-black">
-            {item.inferred_subgenre ?? "General"}
+            {getDisplaySubgenre(item, platform)}
           </p>
         </div>
 
@@ -4597,6 +4852,124 @@ function FortniteGenreTrend({ islands, percentile = 100, timeWindow = "7d" }: an
   );
 }
 
+function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
+  const [page, setPage] = useState(0);
+  const rows = useMemo(
+    () => buildFortniteFeaturedIslandRows(islands, limit),
+    [islands, limit]
+  );
+  const pageSize = 5;
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const visibleRows = rows.slice(safePage * pageSize, safePage * pageSize + pageSize);
+
+  useEffect(() => {
+    setPage(0);
+  }, [limit]);
+
+  if (!rows.length) {
+    return <Unavailable text="No Fortnite visibility snapshots available yet." />;
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={visibleRows} layout="vertical" margin={{ left: 12, right: 18 }}>
+          <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+            <XAxis type="number" fontSize={11} allowDecimals={false} />
+            <YAxis
+              type="category"
+              dataKey="shortTitle"
+              width={92}
+              fontSize={10}
+              tickLine={false}
+            />
+            <Tooltip content={<FeaturedIslandTooltip />} />
+            <Bar dataKey="featuredCount" name="Featured snapshots" fill={accent} radius={[0, 8, 8, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <PagedChartFooter
+        page={safePage}
+        pageCount={pageCount}
+        start={safePage * pageSize + 1}
+        end={Math.min((safePage + 1) * pageSize, rows.length)}
+        total={rows.length}
+        onPrevious={() => setPage((value) => Math.max(0, value - 1))}
+        onNext={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
+      />
+    </div>
+  );
+}
+
+function FortniteGenrePresenceTrend({ islands, timeWindow = "7d" }: any) {
+  const merged = mergeFortniteGenrePresenceTrends(islands);
+  const trendWindow = applyTrendTimeWindow(merged.data, timeWindow);
+  const data = trendWindow.data;
+  const genres = merged.genres;
+  const domain = getLineChartDomain(data, genres);
+  const colors = ["#7c3aed", "#0d69ac", "#d6a06d", "#16a34a", "#ef4444", "#0f766e"];
+
+  if (!data.length) {
+    return <Unavailable text="No Fortnite genre presence snapshots available yet." />;
+  }
+
+  return (
+    <TrendChartFrame note={trendWindow.note}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
+          <XAxis dataKey="date" fontSize={11} />
+          <YAxis fontSize={11} domain={domain} />
+          <Tooltip content={<TopGamesTooltip />} />
+          {genres.map((genre: string, index: number) => (
+            <Line
+              key={genre}
+              type="monotone"
+              dataKey={genre}
+              stroke={colors[index % colors.length]}
+              strokeWidth={index < 5 ? 2.5 : 1.4}
+              strokeOpacity={index < 5 ? 0.95 : 0.42}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendChartFrame>
+  );
+}
+
+function FortniteIslandLifecycleRankings({ islands, limit, accent }: any) {
+  const { newest, longest } = useMemo(
+    () => buildFortniteIslandLifecycleRows(islands, limit),
+    [islands, limit]
+  );
+
+  if (!newest.length && !longest.length) {
+    return <Unavailable text="No Fortnite visibility history available yet." />;
+  }
+
+  return (
+    <div className="grid h-full gap-4 md:grid-cols-2">
+      <FortniteLifecycleList
+        title="Newest in scope"
+        rows={newest}
+        metricLabel="First seen"
+        metricKey="firstSeenLabel"
+        accent={accent}
+      />
+      <FortniteLifecycleList
+        title="Longest standing"
+        rows={longest}
+        metricLabel="Top snapshots"
+        metricKey="featuredCountLabel"
+        accent={accent}
+      />
+    </div>
+  );
+}
+
 function FortniteLabelUsageTrend({ islands, limit, timeWindow = "7d" }: any) {
   const merged = mergeFortniteLabelUsageTrends(islands, limit);
   const trendWindow = applyTrendTimeWindow(merged.data, timeWindow);
@@ -4670,6 +5043,94 @@ function TopGamesTooltip({ active, payload, label }: any) {
             <span className="font-black text-slate-900">
               {formatNumber(item.value)}
             </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FeaturedIslandTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+
+  const row = payload[0]?.payload;
+  if (!row) return null;
+
+  return (
+    <div className="max-w-xs rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-lg">
+      <p className="font-black text-slate-700">{row.title}</p>
+      <p className="mt-2 text-slate-500">
+        Featured snapshots: <strong>{formatNumber(row.featuredCount)}</strong>
+      </p>
+      <p className="text-slate-500">
+        First seen: <strong>{row.firstSeenLabel}</strong>
+      </p>
+      <p className="text-slate-500">
+        Latest seen: <strong>{row.latestSeenLabel}</strong>
+      </p>
+    </div>
+  );
+}
+
+function PagedChartFooter({
+  page,
+  pageCount,
+  start,
+  end,
+  total,
+  onPrevious,
+  onNext,
+}: any) {
+  return (
+    <div className="mt-2 flex items-center justify-between gap-3">
+      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+        {start}-{end} of {total}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="Previous set"
+          disabled={page === 0}
+          onClick={onPrevious}
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+        >
+          {"<"}
+        </button>
+        <button
+          type="button"
+          aria-label="Next set"
+          disabled={page >= pageCount - 1}
+          onClick={onNext}
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+        >
+          {">"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FortniteLifecycleList({ title, rows, metricLabel, metricKey, accent }: any) {
+  return (
+    <div className="min-h-0 rounded-2xl bg-slate-50 p-4">
+      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+        {title}
+      </p>
+      <div className="mt-3 space-y-2">
+        {rows.map((row: any, index: number) => (
+          <div key={row.id ?? row.title} className="flex items-start gap-3">
+            <span
+              className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-[10px] font-black text-white"
+              style={{ backgroundColor: accent }}
+            >
+              {index + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-1 text-sm font-black">{row.title}</p>
+              <p className="text-[11px] font-semibold text-slate-400">
+                {metricLabel}: {row[metricKey]} · Latest rank #{row.latestRank ?? "N/A"}
+              </p>
+            </div>
           </div>
         ))}
       </div>
@@ -4859,6 +5320,189 @@ function mergeFortniteGenreTrends(islands: any[]) {
   return { data: sortChartRowsByDate(Object.values(byDate)), genres };
 }
 
+function mergeFortniteVisibilityTrends(islands: any[]) {
+  const byDate: Record<string, any> = {};
+
+  islands.forEach((island) => {
+    (island.snapshots ?? []).forEach((snapshot: any) => {
+      const dateKey = getSnapshotDateKey(snapshot.created_at);
+      if (!dateKey) return;
+
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = {
+          date: formatShortDate(snapshot.created_at),
+          dateKey,
+          "Visible islands": 0,
+          "Ranked islands": 0,
+        };
+      }
+
+      byDate[dateKey]["Visible islands"] += 1;
+      if (typeof snapshot.rank === "number") {
+        byDate[dateKey]["Ranked islands"] += 1;
+      }
+    });
+  });
+
+  return sortChartRowsByDate(Object.values(byDate));
+}
+
+function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
+  return islands
+    .map((island) => {
+      const qualifyingSnapshots = getFortniteRankedSnapshotsInScope(island, limit);
+      const dateKeys = Array.from(
+        new Set(
+          qualifyingSnapshots
+            .map((snapshot: any) => getSnapshotDateKey(snapshot.created_at))
+            .filter(Boolean)
+        )
+      ).sort() as string[];
+      const latestSnapshot = qualifyingSnapshots
+        .filter((snapshot: any) => snapshot.created_at)
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )[0];
+
+      if (!dateKeys.length) return null;
+
+      return {
+        id: island.id,
+        title: island.title ?? "Untitled Fortnite Island",
+        shortTitle: truncateLabel(island.title ?? "Untitled", 18),
+        featuredCount: dateKeys.length,
+        firstSeen: dateKeys[0],
+        latestSeen: dateKeys.at(-1),
+        firstSeenLabel: formatDateKey(dateKeys[0]),
+        latestSeenLabel: formatDateKey(dateKeys.at(-1)),
+        latestRank: latestSnapshot?.rank ?? island.latestRank ?? null,
+      };
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => {
+      if (b.featuredCount !== a.featuredCount) return b.featuredCount - a.featuredCount;
+      return String(a.firstSeen).localeCompare(String(b.firstSeen));
+    });
+}
+
+function buildFortniteIslandLifecycleRows(islands: any[], limit: number) {
+  const rows = buildFortniteFeaturedIslandRows(islands, limit).map((row: any) => ({
+    ...row,
+    featuredCountLabel: formatNumber(row.featuredCount),
+  }));
+
+  return {
+    newest: [...rows]
+      .sort((a, b) => String(b.firstSeen).localeCompare(String(a.firstSeen)))
+      .slice(0, 5),
+    longest: [...rows]
+      .sort((a, b) => {
+        if (b.featuredCount !== a.featuredCount) return b.featuredCount - a.featuredCount;
+        return String(a.firstSeen).localeCompare(String(b.firstSeen));
+      })
+      .slice(0, 5),
+  };
+}
+
+function getFortniteRankedSnapshotsInScope(island: any, limit: number) {
+  const snapshots = island.snapshots ?? [];
+  const rankedSnapshots = snapshots.filter(
+    (snapshot: any) => typeof snapshot.rank === "number" && snapshot.rank <= limit
+  );
+
+  return rankedSnapshots.length ? rankedSnapshots : snapshots;
+}
+
+function truncateLabel(value: string, maxLength: number) {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
+}
+
+function formatDateKey(dateKey: string | undefined) {
+  if (!dateKey) return "N/A";
+
+  return formatShortDate(`${dateKey}T00:00:00.000Z`);
+}
+
+function mergeFortniteGenrePresenceTrends(islands: any[]) {
+  const byGenreTotals: Record<string, number> = {};
+
+  islands.forEach((island) => {
+    const genre = island.inferred_genre ?? "Other";
+    byGenreTotals[genre] = (byGenreTotals[genre] ?? 0) + 1;
+  });
+
+  const genres = Object.entries(byGenreTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([genre]) => genre);
+  const byDate: Record<string, any> = {};
+
+  islands
+    .filter((island) => genres.includes(island.inferred_genre ?? "Other"))
+    .forEach((island) => {
+      (island.snapshots ?? []).forEach((snapshot: any) => {
+        const dateKey = getSnapshotDateKey(snapshot.created_at);
+        if (!dateKey) return;
+
+        const genre = island.inferred_genre ?? "Other";
+        if (!byDate[dateKey]) {
+          byDate[dateKey] = {
+            date: formatShortDate(snapshot.created_at),
+            dateKey,
+          };
+        }
+
+        byDate[dateKey][genre] = (byDate[dateKey][genre] ?? 0) + 1;
+      });
+    });
+
+  return { data: sortChartRowsByDate(Object.values(byDate)), genres };
+}
+
+function mergeFortniteNewReturningTrends(islands: any[]) {
+  const firstDateByIsland = new Map<string, string>();
+  const byDate: Record<string, any> = {};
+
+  islands.forEach((island) => {
+    const dateKeys = (island.snapshots ?? [])
+      .map((snapshot: any) => getSnapshotDateKey(snapshot.created_at))
+      .filter(Boolean)
+      .sort();
+    const islandKey = String(island.id ?? island.island_code ?? island.title);
+    const firstDate = dateKeys[0];
+
+    if (firstDate) firstDateByIsland.set(islandKey, firstDate);
+  });
+
+  islands.forEach((island) => {
+    const islandKey = String(island.id ?? island.island_code ?? island.title);
+    const firstDate = firstDateByIsland.get(islandKey);
+
+    (island.snapshots ?? []).forEach((snapshot: any) => {
+      const dateKey = getSnapshotDateKey(snapshot.created_at);
+      if (!dateKey) return;
+
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = {
+          date: formatShortDate(snapshot.created_at),
+          dateKey,
+          "New islands": 0,
+          "Returning islands": 0,
+        };
+      }
+
+      if (dateKey === firstDate) {
+        byDate[dateKey]["New islands"] += 1;
+      } else {
+        byDate[dateKey]["Returning islands"] += 1;
+      }
+    });
+  });
+
+  return sortChartRowsByDate(Object.values(byDate));
+}
+
 function mergeGenreTrends(games: any[]) {
   const byGenreTotals: Record<string, number> = {};
 
@@ -4898,9 +5542,9 @@ function mergeFortniteLabelUsageTrends(islands: any[], limit: number) {
   const byDate: Record<string, any> = {};
 
   islands.forEach((island) => {
-    const islandLabels = getFortniteGameplayLabels(island).filter((label) =>
-      labels.includes(label)
-    );
+    const primaryLabel = getFortnitePrimaryLabel(island);
+    const islandLabels =
+      primaryLabel && labels.includes(primaryLabel) ? [primaryLabel] : [];
 
     if (!islandLabels.length) return;
 

@@ -61,6 +61,7 @@ async function loadRobloxDashboardData() {
         url,
         thumbnail_url,
         description,
+        genre,
         inferred_genre,
         inferred_subgenre,
         core_loop,
@@ -138,6 +139,7 @@ function buildPlatformSnapshot(platform: "roblox" | "fortnite", items: any[], au
         );
 
   const top25 = sorted.slice(0, 25);
+  const genreAnalysisItems = getGenreAnalysisItems(items, platform);
 
   return {
     generated_at: new Date().toISOString(),
@@ -153,8 +155,9 @@ function buildPlatformSnapshot(platform: "roblox" | "fortnite", items: any[], au
       url: item.url,
       thumbnail_url: item.thumbnail_url,
       current_players: item.latestPlayers ?? 0,
-      inferred_genre: item.inferred_genre ?? null,
-      inferred_subgenre: item.inferred_subgenre ?? null,
+      inferred_genre: getDisplayGenre(item, platform),
+      inferred_subgenre: getDisplaySubgenre(item, platform),
+      classification_confidence: getClassificationConfidence(item, platform),
       core_loop: item.core_loop ?? null,
       design_pattern: item.design_pattern ?? null,
       build_complexity: item.build_complexity ?? null,
@@ -162,10 +165,10 @@ function buildPlatformSnapshot(platform: "roblox" | "fortnite", items: any[], au
       latest_sort: item.latestSort ?? null,
       player_gain_percent: item.playerGainPercent ?? 0,
     })),
-    top_genres: buildGenreSummary(items, platform),
+    top_genres: buildGenreSummary(genreAnalysisItems, platform),
     keyword_cloud: buildKeywordCloud(top25),
     common_structure: buildCommonTemplate(top25),
-    opportunity_readout: buildOpportunityReadout(items, platform),
+    opportunity_readout: buildOpportunityReadout(genreAnalysisItems, platform),
   };
 }
 
@@ -214,6 +217,50 @@ function buildGenreSummary(items: any[], platform: "roblox" | "fortnite") {
     }))
     .sort((a, b) => b.metric - a.metric)
     .slice(0, 10);
+}
+
+function getGenreAnalysisItems(items: any[], platform: "roblox" | "fortnite") {
+  if (platform !== "roblox") return items;
+
+  return items.filter((item) => getClassificationConfidence(item, platform) !== "pending");
+}
+
+function getClassificationConfidence(item: any, platform: "roblox" | "fortnite") {
+  if (platform !== "roblox") return "medium";
+
+  if (cleanClassificationLabel(item.genre)) return "source";
+  if (
+    item.inferred_genre &&
+    item.inferred_genre !== "Other" &&
+    item.inferred_subgenre &&
+    item.inferred_subgenre !== "General"
+  ) {
+    return "estimated";
+  }
+
+  return "pending";
+}
+
+function getDisplayGenre(item: any, platform: "roblox" | "fortnite") {
+  if (getClassificationConfidence(item, platform) === "pending") {
+    return "Classification pending";
+  }
+
+  return item.inferred_genre ?? null;
+}
+
+function getDisplaySubgenre(item: any, platform: "roblox" | "fortnite") {
+  if (getClassificationConfidence(item, platform) === "pending") {
+    return "Classification pending";
+  }
+
+  return item.inferred_subgenre ?? null;
+}
+
+function cleanClassificationLabel(value: unknown) {
+  return typeof value === "string" && value.trim() && value !== "Other"
+    ? value.trim()
+    : null;
 }
 
 function buildOpportunityReadout(items: any[], platform: "roblox" | "fortnite") {
