@@ -1,21 +1,52 @@
 import { NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/serverAuth'
 import { createSupabaseServerClient } from '@/lib/supabaseServer'
+import {
+  finishIngestRun,
+  startIngestRun,
+  storeRawSourceResponse,
+} from '@/lib/ingestAudit'
 
 const supabase = createSupabaseServerClient()
 
 export async function GET(req: Request) {
   const unauthorized = requireCronSecret(req)
   if (unauthorized) return unauthorized
+  let ingestRunId: string | null = null
 
   try {
-    const chartRes = await fetch(
+    const sourceUrl =
       'https://apis.roblox.com/explore-api/v1/get-sort-content?sessionId=11111111-1111-1111-1111-111111111111&sortId=top-trending&device=computer&country=us'
-    )
+    ingestRunId = await startIngestRun(supabase, {
+      platform: 'roblox',
+      sourceName: 'roblox_top_trending',
+      sourceUrl,
+      parserVersion: 'roblox-top-trending-v0.02',
+    })
+    const responseStartedAt = new Date().toISOString()
+    const chartRes = await fetch(sourceUrl)
 
     const chartData = await chartRes.json()
+    await storeRawSourceResponse(supabase, {
+      ingestRunId,
+      platform: 'roblox',
+      sourceName: 'roblox_top_trending',
+      sourceUrl,
+      httpStatus: chartRes.status,
+      payload: chartData,
+      rowCount: chartData.games?.length ?? 0,
+      responseStartedAt,
+    })
 
     if (!chartData.games || chartData.games.length === 0) {
+      await finishIngestRun(supabase, {
+        ingestRunId,
+        status: 'failed',
+        httpStatus: chartRes.status,
+        rowsReturned: 0,
+        errorMessage: 'No games returned from Roblox chart API',
+      })
+
       return NextResponse.json(
         { error: 'No games returned from Roblox chart API', raw: chartData },
         { status: 500 }
@@ -40,6 +71,8 @@ export async function GET(req: Request) {
     const thumbnails = thumbnailsData.data || []
 
     let imported = 0
+    let failed = 0
+    const snapshotDate = new Date().toISOString().split('T')[0]
 
     for (let i = 0; i < chartGames.length; i++) {
       const chartGame = chartGames[i]
@@ -90,13 +123,14 @@ export async function GET(req: Request) {
 
       if (gameError || !savedGame) {
         console.error('Game save error:', gameError)
+        failed++
         continue
       }
 
       const { error: snapshotError } = await supabase
         .from('roblox_chart_snapshots')
         .insert({
-          snapshot_date: new Date().toISOString().split('T')[0],
+          snapshot_date: snapshotDate,
           sort_id: 'top-trending',
           sort_name: 'Top Trending',
           chart_rank: i + 1,
@@ -114,6 +148,7 @@ export async function GET(req: Request) {
 
       if (snapshotError) {
         console.error('Chart snapshot save error:', snapshotError)
+        failed++
         continue
       }
 
@@ -139,19 +174,38 @@ export async function GET(req: Request) {
 
       if (metricsError) {
         console.error('Metric save error:', metricsError)
+        failed++
         continue
       }
 
       imported++
     }
 
+    await finishIngestRun(supabase, {
+      ingestRunId,
+      status: failed ? 'partial' : 'completed',
+      httpStatus: chartRes.status,
+      rowsReturned: chartGames.length,
+      rowsInserted: imported,
+      rowsFailed: failed,
+      rawResponseSummary: {
+        totalReturnedByRoblox: chartGames.length,
+      },
+    })
+
     return NextResponse.json({
       success: true,
       imported,
+      failed,
       totalReturnedByRoblox: chartGames.length
     })
   } catch (err) {
     console.error(err)
+    await finishIngestRun(supabase, {
+      ingestRunId,
+      status: 'failed',
+      errorMessage: err instanceof Error ? err.message : 'Unknown server error',
+    })
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

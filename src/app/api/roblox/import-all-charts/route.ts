@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/serverAuth'
 import { createSupabaseServerClient } from '@/lib/supabaseServer'
+import {
+  finishIngestRun,
+  startIngestRun,
+  storeRawSourceResponse,
+} from '@/lib/ingestAudit'
 
 /* =========================================================
    SUPABASE CLIENT
@@ -751,13 +756,31 @@ function analyzeDescription(description: string) {
 export async function GET(req: Request) {
   const unauthorized = requireCronSecret(req)
   if (unauthorized) return unauthorized
+  let ingestRunId: string | null = null
 
   try {
-    const sortsRes = await fetch(
-      `https://apis.roblox.com/explore-api/v1/get-sorts?sessionId=${SESSION_ID}&device=${DEVICE}&country=${COUNTRY}`
-    )
+    const snapshotDate = new Date().toISOString().split('T')[0]
+    const sortsUrl = `https://apis.roblox.com/explore-api/v1/get-sorts?sessionId=${SESSION_ID}&device=${DEVICE}&country=${COUNTRY}`
+    ingestRunId = await startIngestRun(supabase, {
+      platform: 'roblox',
+      sourceName: 'roblox_explore_all_charts',
+      sourceUrl: sortsUrl,
+      parserVersion: 'roblox-all-charts-v0.02',
+    })
+    const sortsStartedAt = new Date().toISOString()
+    const sortsRes = await fetch(sortsUrl)
 
     const sortsData = await sortsRes.json()
+    await storeRawSourceResponse(supabase, {
+      ingestRunId,
+      platform: 'roblox',
+      sourceName: 'roblox_explore_sorts',
+      sourceUrl: sortsUrl,
+      httpStatus: sortsRes.status,
+      payload: sortsData,
+      rowCount: sortsData.sorts?.length ?? 0,
+      responseStartedAt: sortsStartedAt,
+    })
 
     const apiSorts = (sortsData.sorts || []).filter(
       (sort: any) => sort.contentType === 'Games' && sort.sortId
@@ -770,6 +793,8 @@ export async function GET(req: Request) {
     )
 
     let totalImported = 0
+    let totalReturned = 0
+    let totalFailed = 0
     const pageTaxonomyCache = new Map<
       string,
       { genre: string | null; subgenre: string | null; source: string | null }
@@ -779,12 +804,23 @@ export async function GET(req: Request) {
       const sortId = sort.sortId
       const sortName = sort.sortDisplayName || sortId
 
-      const contentRes = await fetch(
-        `https://apis.roblox.com/explore-api/v1/get-sort-content?sessionId=${SESSION_ID}&sortId=${sortId}&device=${DEVICE}&country=${COUNTRY}`
-      )
+      const contentUrl = `https://apis.roblox.com/explore-api/v1/get-sort-content?sessionId=${SESSION_ID}&sortId=${sortId}&device=${DEVICE}&country=${COUNTRY}`
+      const contentStartedAt = new Date().toISOString()
+      const contentRes = await fetch(contentUrl)
 
       const contentData = await contentRes.json()
       const games = contentData.games || []
+      totalReturned += games.length
+      await storeRawSourceResponse(supabase, {
+        ingestRunId,
+        platform: 'roblox',
+        sourceName: `roblox_sort_content:${sortId}`,
+        sourceUrl: contentUrl,
+        httpStatus: contentRes.status,
+        payload: contentData,
+        rowCount: games.length,
+        responseStartedAt: contentStartedAt,
+      })
 
       if (!games.length) continue
 
@@ -973,7 +1009,7 @@ export async function GET(req: Request) {
         const { error: snapshotError } = await supabase
           .from('roblox_chart_snapshots')
           .insert({
-            snapshot_date: new Date().toISOString().split('T')[0],
+            snapshot_date: snapshotDate,
             sort_id: sortId,
             sort_name: sortName,
             chart_rank: i + 1,
@@ -993,6 +1029,7 @@ export async function GET(req: Request) {
 
         if (snapshotError) {
           console.error('Snapshot insert error:', snapshotError)
+          totalFailed++
           continue
         }
 
@@ -1020,18 +1057,40 @@ export async function GET(req: Request) {
 
         if (metricError) {
           console.error('Metric insert error:', metricError)
+          totalFailed++
         }
 
         totalImported++
       }
     }
 
+    await finishIngestRun(supabase, {
+      ingestRunId,
+      status: totalFailed ? 'partial' : 'completed',
+      httpStatus: sortsRes.status,
+      rowsReturned: totalReturned,
+      rowsInserted: totalImported,
+      rowsFailed: totalFailed,
+      rawResponseSummary: {
+        sortsReturned: sortsData.sorts?.length ?? 0,
+        gameSortsProcessed: sorts.length,
+        totalReturned,
+      },
+    })
+
     return NextResponse.json({
       success: true,
-      totalImported
+      totalImported,
+      totalReturned,
+      totalFailed,
     })
   } catch (err) {
     console.error(err)
+    await finishIngestRun(supabase, {
+      ingestRunId,
+      status: 'failed',
+      errorMessage: err instanceof Error ? err.message : 'Unknown server error',
+    })
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

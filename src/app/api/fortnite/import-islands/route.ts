@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireCronSecret } from "@/lib/serverAuth";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import {
+  finishIngestRun,
+  startIngestRun,
+  storeRawSourceResponse,
+} from "@/lib/ingestAudit";
 
 /* =========================================================
    SUPABASE CLIENT
@@ -272,15 +277,32 @@ function pickMetric(source: any, keys: string[]) {
 }
 
 export async function GET(req: Request) {
+  let ingestRunId: string | null = null;
+
   try {
     const unauthorized = requireCronSecret(req);
     if (unauthorized) return unauthorized;
 
-    const res = await fetch("https://api.fortnite.com/ecosystem/v1/islands", {
+    const sourceUrl = "https://api.fortnite.com/ecosystem/v1/islands";
+    ingestRunId = await startIngestRun(supabase, {
+      platform: "fortnite",
+      sourceName: "fortnite_data_api",
+      sourceUrl,
+      parserVersion: "fortnite-islands-v0.02",
+    });
+    const responseStartedAt = new Date().toISOString();
+    const res = await fetch(sourceUrl, {
       cache: "no-store",
     });
 
     if (!res.ok) {
+      await finishIngestRun(supabase, {
+        ingestRunId,
+        status: "failed",
+        httpStatus: res.status,
+        errorMessage: "Official Fortnite Data API fetch failed",
+      });
+
       return NextResponse.json(
         {
           error: "Official Fortnite Data API fetch failed",
@@ -298,12 +320,28 @@ export async function GET(req: Request) {
       payload.results ??
       [];
 
+    await storeRawSourceResponse(supabase, {
+      ingestRunId,
+      platform: "fortnite",
+      sourceName: "fortnite_data_api",
+      sourceUrl,
+      httpStatus: res.status,
+      payload,
+      rowCount: islands.length,
+      responseStartedAt,
+    });
+
     let inserted = 0;
+    let failed = 0;
+    const snapshotDate = new Date().toISOString().split("T")[0];
 
     for (const [index, island] of islands.entries()) {
       const islandCode = island.code ?? island.mnemonic ?? island.id;
 
-      if (!islandCode) continue;
+      if (!islandCode) {
+        failed++;
+        continue;
+      }
 
       const intelligence = analyzeFortniteIsland(island);
 
@@ -349,6 +387,15 @@ export async function GET(req: Request) {
 
       if (upsertError) {
         console.error("Fortnite island upsert failed:", upsertError);
+        await finishIngestRun(supabase, {
+          ingestRunId,
+          status: "failed",
+          httpStatus: res.status,
+          rowsReturned: islands.length,
+          rowsInserted: inserted,
+          rowsFailed: failed + 1,
+          errorMessage: upsertError.message,
+        });
 
         return NextResponse.json(
           {
@@ -363,9 +410,13 @@ export async function GET(req: Request) {
         .from("fortnite_island_snapshots")
         .insert({
           island_id: islandRow.id,
-          snapshot_date: new Date().toISOString().split("T")[0],
+          snapshot_date: snapshotDate,
           source_name: "fortnite_data_api",
           rank: pickMetric(island, ["rank", "position", "order"]) ?? index + 1,
+          source_order: index + 1,
+          rank_source: pickMetric(island, ["rank", "position", "order"])
+            ? "explicit_rank"
+            : "source_order_fallback",
 
           minutes_played: pickMetric(island, [
             "minutesPlayed",
@@ -404,6 +455,15 @@ export async function GET(req: Request) {
 
       if (snapshotError) {
         console.error("Fortnite snapshot insert failed:", snapshotError);
+        await finishIngestRun(supabase, {
+          ingestRunId,
+          status: "failed",
+          httpStatus: res.status,
+          rowsReturned: islands.length,
+          rowsInserted: inserted,
+          rowsFailed: failed + 1,
+          errorMessage: snapshotError.message,
+        });
 
         return NextResponse.json(
           {
@@ -417,13 +477,32 @@ export async function GET(req: Request) {
       inserted++;
     }
 
+    await finishIngestRun(supabase, {
+      ingestRunId,
+      status: failed ? "partial" : "completed",
+      httpStatus: res.status,
+      rowsReturned: islands.length,
+      rowsInserted: inserted,
+      rowsFailed: failed,
+      rawResponseSummary: {
+        payloadKeys: Object.keys(payload ?? {}),
+        rowsReturned: islands.length,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       platform: "fortnite",
       inserted,
+      failed,
     });
   } catch (err) {
     console.error("Fortnite import server error:", err);
+    await finishIngestRun(supabase, {
+      ingestRunId,
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Unknown server error",
+    });
 
     return NextResponse.json(
       { error: "Server error" },
