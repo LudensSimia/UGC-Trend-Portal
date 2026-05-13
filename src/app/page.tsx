@@ -1065,6 +1065,7 @@ function FortniteDashboardView({ context }: any) {
           title="Most Featured Islands"
           subtitle={`Islands appearing most often in the source Top ${fortniteVisibilityLimit}.`}
           panel={panel}
+          contentClassName="min-h-[30rem]"
           action={
             <FortniteLabelTrendControls
               limit={fortniteVisibilityLimit}
@@ -5624,6 +5625,9 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
     () => buildFortniteLatestFeaturedIslandRows(islands, limit),
     [islands, limit]
   );
+  const hasOnlySingleDayRows = rows.every(
+    (row: any) => (row.visibilityDays ?? row.featuredCount ?? 1) <= 1
+  );
   const pageSize = 5;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
@@ -5638,8 +5642,8 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1 space-y-3">
+    <div className="flex min-h-[30rem] flex-col">
+      <div className="space-y-4 pb-5">
         {visibleRows.map((row: any) => {
           const maxScore = Math.max(
             ...rows.map((item: any) => item.visibilityDays ?? item.featuredCount ?? 1),
@@ -5676,15 +5680,22 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
           );
         })}
       </div>
-      <PagedChartFooter
-        page={safePage}
-        pageCount={pageCount}
-        start={safePage * pageSize + 1}
-        end={Math.min((safePage + 1) * pageSize, rows.length)}
-        total={rows.length}
-        onPrevious={() => setPage((value) => Math.max(0, value - 1))}
-        onNext={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
-      />
+      <div className="mt-auto border-t border-slate-100 pt-4">
+        {hasOnlySingleDayRows && (
+          <p className="mb-3 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-snug text-slate-400">
+            Current Top {limit} entries only have one captured snapshot day in storage.
+          </p>
+        )}
+        <PagedChartFooter
+          page={safePage}
+          pageCount={pageCount}
+          start={safePage * pageSize + 1}
+          end={Math.min((safePage + 1) * pageSize, rows.length)}
+          total={rows.length}
+          onPrevious={() => setPage((value) => Math.max(0, value - 1))}
+          onNext={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
+        />
+      </div>
     </div>
   );
 }
@@ -6211,6 +6222,8 @@ function buildFortniteLatestFeaturedIslandRows(islands: any[], limit: number) {
   const latestDateKey =
     getFortniteSubstantialSnapshotDateKeys(islands).at(-1) ??
     getAvailableFortniteSnapshotDateKeys(islands).at(-1);
+  const latestAvailableDateKey =
+    getAvailableFortniteSnapshotDateKeys(islands).at(-1) ?? latestDateKey;
 
   if (!latestDateKey) return [];
 
@@ -6224,7 +6237,7 @@ function buildFortniteLatestFeaturedIslandRows(islands: any[], limit: number) {
     .filter((row: any) => latestKeys.has(getFortniteIslandKey(row)))
     .map((row: any) => ({
       ...row,
-      visibilityDays: getFortniteFeaturedVisibilityDays(row, latestDateKey),
+      visibilityDays: getFortniteFeaturedVisibilityDays(row, latestAvailableDateKey),
       visibilityFirstSeen: row.allFirstSeen ?? row.firstSeen,
       visibilityFirstSeenLabel: row.allFirstSeenLabel ?? row.firstSeenLabel,
     }))
