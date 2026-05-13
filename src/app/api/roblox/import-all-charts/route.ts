@@ -52,8 +52,106 @@ function pickText(...values: any[]) {
   return null
 }
 
-function pickRobloxSourceGenre(chartGame: any, detailedGame: any) {
+function chunk<T>(items: T[], size: number) {
+  const chunks: T[][] = []
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+
+  return chunks
+}
+
+async function fetchJson(url: string) {
+  const response = await fetch(url, { cache: 'no-store' })
+  if (!response.ok) return null
+
+  return response.json()
+}
+
+async function fetchRobloxPageTaxonomy(placeId?: string | number | null) {
+  if (!placeId) return { genre: null, subgenre: null, source: null }
+
+  try {
+    const response = await fetch(`https://www.roblox.com/games/${placeId}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3500),
+      headers: {
+        'user-agent': 'Snout-UGC-Intel/0.1 taxonomy audit'
+      }
+    })
+
+    if (!response.ok) return { genre: null, subgenre: null, source: null }
+
+    const html = await response.text()
+    const genre = extractTaxonomyValue(html, [
+      'genreDisplayName',
+      'genreName',
+      'rootGenre',
+      'genre'
+    ])
+    const subgenre = extractTaxonomyValue(html, [
+      'subgenreDisplayName',
+      'subGenreDisplayName',
+      'subgenreName',
+      'subGenre',
+      'subgenre'
+    ])
+
+    return {
+      genre,
+      subgenre,
+      source: genre || subgenre ? 'roblox_game_page' : null
+    }
+  } catch {
+    return { genre: null, subgenre: null, source: null }
+  }
+}
+
+function extractTaxonomyValue(html: string, keys: string[]) {
+  for (const key of keys) {
+    const patterns = [
+      new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`, 'i'),
+      new RegExp(`&quot;${key}&quot;\\s*:\\s*&quot;([^&]+)&quot;`, 'i')
+    ]
+
+    for (const pattern of patterns) {
+      const match = html.match(pattern)
+      const value = cleanTaxonomyText(match?.[1])
+      if (value && !isLegacyTaxonomyNoise(value)) return value
+    }
+  }
+
+  const wantsSubgenre = keys.some((key) => /subgenre/i.test(key))
+  const label = wantsSubgenre ? 'Subgenre' : 'Genre'
+  const visibleMatch = html.match(
+    new RegExp(`>\\s*${label}\\s*<\\/[^>]+>\\s*<[^>]+>\\s*([^<]+)<`, 'i')
+  )
+  const value = cleanTaxonomyText(visibleMatch?.[1])
+  return value && !isLegacyTaxonomyNoise(value) ? value : null
+}
+
+function cleanTaxonomyText(value: unknown) {
+  if (typeof value !== 'string') return null
+
+  return value
+    .replace(/\\u0026/g, '&')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .trim()
+}
+
+function isLegacyTaxonomyNoise(value: string) {
+  return /^(all|all genres|n\/a|none|unknown|general)$/i.test(value)
+}
+
+function pickRobloxSourceGenre(
+  chartGame: any,
+  detailedGame: any,
+  pageTaxonomy?: { genre?: string | null }
+) {
   return pickText(
+    pageTaxonomy?.genre,
     detailedGame?.genre,
     detailedGame?.genreName,
     detailedGame?.genre_l1,
@@ -68,8 +166,13 @@ function pickRobloxSourceGenre(chartGame: any, detailedGame: any) {
   )
 }
 
-function pickRobloxSourceSubgenre(chartGame: any, detailedGame: any) {
+function pickRobloxSourceSubgenre(
+  chartGame: any,
+  detailedGame: any,
+  pageTaxonomy?: { subgenre?: string | null }
+) {
   return pickText(
+    pageTaxonomy?.subgenre,
     detailedGame?.subgenre,
     detailedGame?.subGenre,
     detailedGame?.subgenreName,
@@ -116,75 +219,100 @@ function classifyGame(game: any, category: string) {
      ------------------------- */
 
   if (
-    has(text, /roleplay|role play|\brp\b|life|city|town|brookhaven|bloxburg|family|school|hospital|police|jobs?|house|home|apartment|hangout|social|vibe/)
+    has(text, /adopt me|pet care|raise.*pet|care.*pet|pet shop|pets?|baby|family/)
   ) {
-    inferred_genre = 'Roleplay / Social'
-    inferred_subgenre = 'Life RP'
+    inferred_genre = 'Roleplay & Avatar Sim'
+    inferred_subgenre = 'Pet Care'
+  } else if (
+    has(text, /dress up|avatar|outfit|fashion|makeover|catalog|ugc outfit/)
+  ) {
+    inferred_genre = 'Roleplay & Avatar Sim'
+    inferred_subgenre = 'Dress Up'
+  } else if (
+    has(text, /morph roleplay|morph|character roleplay/)
+  ) {
+    inferred_genre = 'Roleplay & Avatar Sim'
+    inferred_subgenre = 'Morph Roleplay'
+  } else if (
+    has(text, /roleplay|role play|\brp\b|life|city|town|brookhaven|bloxburg|school|hospital|police|jobs?|house|home|apartment/)
+  ) {
+    inferred_genre = 'Roleplay & Avatar Sim'
+    inferred_subgenre = 'Life'
   } else if (
     has(text, /blue lock|chigiri|soccer|football|basketball|baseball|tennis|golf|sports|volleyball|hockey/)
   ) {
-    inferred_genre = 'Sports'
-    inferred_subgenre = 'Sports Competition'
-  } else if (
-    has(text, /fish|fishing|angler|aquarium|catch fish|catching fish/)
-  ) {
-    inferred_genre = 'Fishing / Collection'
-    inferred_subgenre = 'Incremental Collection'
-  } else if (
-    has(text, /anime|manga|naruto|one piece|dragon ball|dragon|titan|demon slayer|jujutsu|bleach|pokemon|pokémon|roria|shinobi|ninja|saiyan|hero academy|blox fruit|fruit battleground/)
-  ) {
-    inferred_genre = 'Anime / Fandom'
-    inferred_subgenre = 'Anime RPG / Combat'
-  } else if (
-    has(text, /simulator|clicker|idle|incremental|upgrade|rebirth|re-birth|prestige|earn|cash|money|coins|gems|profit|sell|farm|grind|level up|leveling|xp|boost|multiplier|pets|pet simulator/)
-  ) {
-    inferred_genre = 'Simulator'
-    inferred_subgenre = 'Progression Loop'
-  } else if (
-    has(text, /tycoon|factory|build|builder|base|empire|business|store|shop|restaurant|cafe|hotel|city builder|tower|colony|manage|management/)
-  ) {
-    inferred_genre = 'Tycoon / Builder'
-    inferred_subgenre = 'Builder Economy'
-  } else if (
-    has(text, /obby|parkour|obstacle|tower of|climb|jump|platformer|escape room|lava|floor is lava/)
-  ) {
-    inferred_genre = 'Obby'
-    inferred_subgenre = 'Obstacle Course'
-  } else if (
-    has(text, /fight|fighting|battle|battleground|pvp|duel|arena|rivals|weapon|weapons|sword|gun|guns|shooter|shoot|laser|combat|war|military|boxing|slap|super power|power|boss fight/)
-  ) {
-    inferred_genre = 'Combat'
-    inferred_subgenre = 'Arena PvP'
-  } else if (
-    has(text, /survive|survival|hide|killer|escape|hunt|horror|scary|monster|zombie|ghost|nightmare|doors|murder|mystery|infected|infection/)
-  ) {
-    inferred_genre = 'Survival / Horror'
-    inferred_subgenre = 'Hide / Survival'
+    inferred_genre = 'Sports & Racing'
+    inferred_subgenre = 'Sports'
   } else if (
     has(text, /race|racing|drive|driving|car|cars|vehicle|bike|motorcycle|drift|speed|kart|obby race|runner/)
   ) {
-    inferred_genre = 'Racing / Vehicle'
-    inferred_subgenre = 'Driving / Racing'
+    inferred_genre = 'Sports & Racing'
+    inferred_subgenre = 'Racing'
+  } else if (
+    has(text, /fish|fishing|angler|aquarium|catch fish|catching fish/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Incremental Simulator'
+  } else if (
+    has(text, /anime|manga|naruto|one piece|dragon ball|dragon|titan|demon slayer|jujutsu|bleach|pokemon|pokémon|roria|shinobi|ninja|saiyan|hero academy|blox fruit|fruit battleground/)
+  ) {
+    inferred_genre = 'RPG'
+    inferred_subgenre = 'Action RPG'
+  } else if (
+    has(text, /idle/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Idle'
+  } else if (
+    has(text, /simulator|clicker|incremental|upgrade|rebirth|re-birth|prestige|earn|cash|money|coins|gems|profit|sell|farm|grind|level up|leveling|xp|boost|multiplier|pet simulator/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Incremental Simulator'
+  } else if (
+    has(text, /tycoon|factory|build|builder|base|empire|business|store|shop|restaurant|cafe|hotel|city builder|tower|colony|manage|management/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Tycoon'
+  } else if (
+    has(text, /obby|parkour|obstacle|tower of|climb|jump|platformer|escape room|lava|floor is lava/)
+  ) {
+    inferred_genre = 'Obby & Platformer'
+    inferred_subgenre = has(text, /tower of|climb/) ? 'Tower Obby' : 'Classic Obby'
+  } else if (
+    has(text, /gun|guns|shooter|shoot|fps|sniper|laser|weapon|weapons/)
+  ) {
+    inferred_genre = 'Shooter'
+    inferred_subgenre = 'Deathmatch Shooter'
+  } else if (
+    has(text, /fight|fighting|battle|battleground|pvp|duel|arena|rivals|sword|combat|war|military|boxing|slap|super power|power|boss fight/)
+  ) {
+    inferred_genre = 'Action'
+    inferred_subgenre = 'Battlegrounds & Fighting'
+  } else if (
+    has(text, /survive|survival|hide|killer|escape|hunt|horror|scary|monster|zombie|ghost|nightmare|doors|murder|mystery|infected|infection/)
+  ) {
+    inferred_genre = 'Survival'
+    inferred_subgenre = has(text, /escape/) ? 'Escape' : '1 vs All'
   } else if (
     has(text, /guess|quiz|trivia|puzzle|word|tiles|mahjong|memory|answer|brain|logic/)
   ) {
-    inferred_genre = 'Puzzle / Guessing'
-    inferred_subgenre = 'Guessing / Logic'
+    inferred_genre = has(text, /quiz|trivia/) ? 'Party & Casual' : 'Puzzle'
+    inferred_subgenre = has(text, /quiz|trivia/) ? 'Quiz' : 'Word'
   } else if (
     has(text, /rng|spin|roll|luck|random|crate|case opening|gacha|summon|draw/)
   ) {
-    inferred_genre = 'RNG / Gacha'
-    inferred_subgenre = 'Spin / Roll'
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Incremental Simulator'
   } else if (
     has(text, /party|minigame|mini game|mini-game|rounds|round-based|quick game|challenge|challenges|race against|obby but|friends/)
   ) {
-    inferred_genre = 'Mini-game / Party'
-    inferred_subgenre = 'Short-session Party'
+    inferred_genre = 'Party & Casual'
+    inferred_subgenre = 'Minigame'
   } else if (
     has(text, /food|cook|cooking|restaurant|cafe|bakery|pizza|burger|sushi|korean|convenience store|store|asmr|cozy|cute/)
   ) {
-    inferred_genre = 'Cozy / Food'
-    inferred_subgenre = 'Food / Cozy Roleplay'
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Tycoon'
   }
 
   /* -------------------------
@@ -642,6 +770,10 @@ export async function GET(req: Request) {
     )
 
     let totalImported = 0
+    const pageTaxonomyCache = new Map<
+      string,
+      { genre: string | null; subgenre: string | null; source: string | null }
+    >()
 
     for (const sort of sorts) {
       const sortId = sort.sortId
@@ -660,26 +792,57 @@ export async function GET(req: Request) {
 
       if (!universeIds.length) continue
 
-      const detailsRes = await fetch(
-        `https://games.roblox.com/v1/games?universeIds=${universeIds.join(',')}`
-      )
+      const detailedGames = (
+        await Promise.all(
+          chunk(universeIds, 100).map(async (ids) => {
+            const data = await fetchJson(
+              `https://games.roblox.com/v1/games?universeIds=${ids.join(',')}`
+            )
 
-      const detailsData = await detailsRes.json()
-      const detailedGames = detailsData.data || []
+            return data?.data ?? []
+          })
+        )
+      ).flat()
 
-      const thumbnailsRes = await fetch(
-        `https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeIds.join(',')}&size=512x512&format=Png&isCircular=false`
-      )
+      const thumbnails = (
+        await Promise.all(
+          chunk(universeIds, 100).map(async (ids) => {
+            const data = await fetchJson(
+              `https://thumbnails.roblox.com/v1/games/icons?universeIds=${ids.join(',')}&size=512x512&format=Png&isCircular=false`
+            )
 
-      const thumbnailsData = await thumbnailsRes.json()
-      const thumbnails = thumbnailsData.data || []
+            return data?.data ?? []
+          })
+        )
+      ).flat()
 
-      const votesRes = await fetch(
-        `https://games.roblox.com/v1/games/votes?universeIds=${universeIds.join(',')}`
-      )
+      const votes = (
+        await Promise.all(
+          chunk(universeIds, 100).map(async (ids) => {
+            const data = await fetchJson(
+              `https://games.roblox.com/v1/games/votes?universeIds=${ids.join(',')}`
+            )
 
-      const votesData = await votesRes.json()
-      const votes = votesData.data || []
+            return data?.data ?? []
+          })
+        )
+      ).flat()
+
+      for (const batch of chunk(games, 12)) {
+        await Promise.all(
+          batch.map(async (game: any) => {
+            if (!game?.rootPlaceId) return
+
+            const placeKey = String(game.rootPlaceId)
+            if (pageTaxonomyCache.has(placeKey)) return
+
+            pageTaxonomyCache.set(
+              placeKey,
+              await fetchRobloxPageTaxonomy(game.rootPlaceId)
+            )
+          })
+        )
+      }
 
       for (let i = 0; i < games.length; i++) {
         const chartGame = games[i]
@@ -715,6 +878,13 @@ export async function GET(req: Request) {
           chartGame?.name ??
           ''
 
+        const pageTaxonomy = chartGame.rootPlaceId
+          ? pageTaxonomyCache.get(String(chartGame.rootPlaceId)) ?? {
+              genre: null,
+              subgenre: null,
+              source: null
+            }
+          : { genre: null, subgenre: null, source: null }
         const classification = classifyGame(
           {
             title: chartGame.name ?? detailedGame?.name ?? '',
@@ -722,8 +892,16 @@ export async function GET(req: Request) {
           },
           sortName
         )
-        const robloxSourceGenre = pickRobloxSourceGenre(chartGame, detailedGame)
-        const robloxSourceSubgenre = pickRobloxSourceSubgenre(chartGame, detailedGame)
+        const robloxSourceGenre = pickRobloxSourceGenre(
+          chartGame,
+          detailedGame,
+          pageTaxonomy
+        )
+        const robloxSourceSubgenre = pickRobloxSourceSubgenre(
+          chartGame,
+          detailedGame,
+          pageTaxonomy
+        )
 
         const fallbackDescription = [
           classification.inferred_genre,
@@ -775,7 +953,10 @@ export async function GET(req: Request) {
               audience_signal: intelligence.audience_signal,
               update_signal: intelligence.update_signal,
               raw_top_trending: chartGame,
-              raw_game_details: detailedGame ?? null
+              raw_game_details: {
+                ...(detailedGame ?? {}),
+                page_taxonomy: pageTaxonomy
+              }
             },
             { onConflict: 'roblox_universe_id' }
           )
