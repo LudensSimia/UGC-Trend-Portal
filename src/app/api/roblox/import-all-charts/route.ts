@@ -116,6 +116,21 @@ function classifyGame(game: any, category: string) {
      ------------------------- */
 
   if (
+    has(text, /roleplay|role play|\brp\b|life|city|town|brookhaven|bloxburg|family|school|hospital|police|jobs?|house|home|apartment|hangout|social|vibe/)
+  ) {
+    inferred_genre = 'Roleplay / Social'
+    inferred_subgenre = 'Life RP'
+  } else if (
+    has(text, /blue lock|chigiri|soccer|football|basketball|baseball|tennis|golf|sports|volleyball|hockey/)
+  ) {
+    inferred_genre = 'Sports'
+    inferred_subgenre = 'Sports Competition'
+  } else if (
+    has(text, /fish|fishing|angler|aquarium|catch fish|catching fish/)
+  ) {
+    inferred_genre = 'Fishing / Collection'
+    inferred_subgenre = 'Incremental Collection'
+  } else if (
     has(text, /anime|manga|naruto|one piece|dragon ball|dragon|titan|demon slayer|jujutsu|bleach|pokemon|pokémon|roria|shinobi|ninja|saiyan|hero academy|blox fruit|fruit battleground/)
   ) {
     inferred_genre = 'Anime / Fandom'
@@ -135,11 +150,6 @@ function classifyGame(game: any, category: string) {
   ) {
     inferred_genre = 'Obby'
     inferred_subgenre = 'Obstacle Course'
-  } else if (
-    has(text, /roleplay|role play|\brp\b|life|city|town|brookhaven|bloxburg|family|school|hospital|police|jobs?|house|home|apartment|hangout|social|vibe/)
-  ) {
-    inferred_genre = 'Roleplay / Social'
-    inferred_subgenre = 'Life RP'
   } else if (
     has(text, /fight|fighting|battle|battleground|pvp|duel|arena|rivals|weapon|weapons|sword|gun|guns|shooter|shoot|laser|combat|war|military|boxing|slap|super power|power|boss fight/)
   ) {
@@ -175,11 +185,6 @@ function classifyGame(game: any, category: string) {
   ) {
     inferred_genre = 'Cozy / Food'
     inferred_subgenre = 'Food / Cozy Roleplay'
-  } else if (
-    has(text, /soccer|football|basketball|baseball|tennis|golf|sports|volleyball|hockey/)
-  ) {
-    inferred_genre = 'Sports'
-    inferred_subgenre = 'Sports Competition'
   }
 
   /* -------------------------
