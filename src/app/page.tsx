@@ -707,6 +707,16 @@ export default function Home() {
             </section>
 
             <section className="mb-6">
+              <CorrelationAnalysisCard
+                title="Metric Correlation Analysis"
+                subtitle="Compare Roblox game-level metrics to see whether two signals move together."
+                games={topRobloxGames}
+                panel={panel}
+                accent={accent}
+              />
+            </section>
+
+            <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
                 <h2 className="text-2xl font-bold">Directional Research Map</h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -3672,6 +3682,427 @@ function OpportunityMapCard({
   );
 }
 
+const correlationMetricOptions = [
+  {
+    key: "latestPlayers",
+    label: "Current players",
+    value: (game: any) => game.latestPlayers,
+    format: formatNumber,
+  },
+  {
+    key: "periodHigh",
+    label: "Stored peak players",
+    value: (game: any) => game.periodHigh,
+    format: formatNumber,
+  },
+  {
+    key: "playerGainPercent",
+    label: "Player gain %",
+    value: (game: any) => game.playerGainPercent,
+    format: (value: number) => `${Math.round(value)}%`,
+  },
+  {
+    key: "averagePlayerGain7Days",
+    label: "Avg daily gain, 7D",
+    value: (game: any) => game.averagePlayerGain7Days,
+    format: (value: number) => `${formatNumber(Math.round(value))}/day`,
+  },
+  {
+    key: "upVotes",
+    label: "Likes",
+    value: (game: any) => game.upVotes,
+    format: formatNumber,
+  },
+  {
+    key: "likeRatio",
+    label: "Like ratio",
+    value: (game: any) =>
+      typeof game.likeRatio === "number" ? game.likeRatio * 100 : null,
+    format: (value: number) => `${Math.round(value)}%`,
+  },
+  {
+    key: "visits",
+    label: "Visits",
+    value: (game: any) => game.visits,
+    format: formatNumber,
+  },
+  {
+    key: "bestRank",
+    label: "Best measured rank",
+    value: (game: any) => game.bestRank,
+    format: (value: number) => `#${Math.round(value)}`,
+  },
+];
+
+function CorrelationAnalysisCard({ title, subtitle, games, panel, accent }: any) {
+  const [xMetricKey, setXMetricKey] = useState("latestPlayers");
+  const [yMetricKey, setYMetricKey] = useState("upVotes");
+  const xMetric =
+    correlationMetricOptions.find((metric) => metric.key === xMetricKey) ??
+    correlationMetricOptions[0];
+  const yMetric =
+    correlationMetricOptions.find((metric) => metric.key === yMetricKey) ??
+    correlationMetricOptions[1];
+  const analysis = useMemo(
+    () => buildCorrelationAnalysis(games, xMetric, yMetric),
+    [games, xMetric, yMetric]
+  );
+  const lineColor =
+    analysis.correlation == null
+      ? "#94a3b8"
+      : analysis.correlation >= 0
+        ? "#16a34a"
+        : "#ef4444";
+
+  return (
+    <div className={`rounded-3xl border p-6 ${panel}`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <MetricSelect
+            label="X axis"
+            value={xMetricKey}
+            onChange={setXMetricKey}
+          />
+          <MetricSelect
+            label="Y axis"
+            value={yMetricKey}
+            onChange={setYMetricKey}
+          />
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.55fr)]">
+        <div className="rounded-2xl bg-slate-50 p-4">
+          <CorrelationScatterPlot
+            analysis={analysis}
+            xMetric={xMetric}
+            yMetric={yMetric}
+            lineColor={lineColor}
+            accent={accent}
+          />
+        </div>
+
+        <CorrelationReadout
+          analysis={analysis}
+          xMetric={xMetric}
+          yMetric={yMetric}
+          lineColor={lineColor}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MetricSelect({ label, value, onChange }: any) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">
+        {label}
+      </span>
+      <select
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {correlationMetricOptions.map((metric) => (
+          <option key={metric.key} value={metric.key}>
+            {metric.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CorrelationScatterPlot({
+  analysis,
+  xMetric,
+  yMetric,
+  lineColor,
+  accent,
+}: any) {
+  if (analysis.points.length < 3) {
+    return (
+      <Unavailable text="Not enough complete rows for this metric pair yet." />
+    );
+  }
+
+  const width = 720;
+  const height = 360;
+  const margin = { top: 18, right: 28, bottom: 56, left: 72 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const xScale = (value: number) =>
+    margin.left +
+    ((value - analysis.xMin) / Math.max(analysis.xMax - analysis.xMin, 1)) *
+      plotWidth;
+  const yScale = (value: number) =>
+    margin.top +
+    plotHeight -
+    ((value - analysis.yMin) / Math.max(analysis.yMax - analysis.yMin, 1)) *
+      plotHeight;
+  const lineStart = {
+    x: xScale(analysis.xMin),
+    y: yScale(analysis.slope * analysis.xMin + analysis.intercept),
+  };
+  const lineEnd = {
+    x: xScale(analysis.xMax),
+    y: yScale(analysis.slope * analysis.xMax + analysis.intercept),
+  };
+
+  return (
+    <div className="h-[24rem]">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-full w-full overflow-visible"
+        role="img"
+        aria-label={`${xMetric.label} versus ${yMetric.label} scatter plot`}
+      >
+        <line
+          x1={margin.left}
+          y1={margin.top + plotHeight}
+          x2={margin.left + plotWidth}
+          y2={margin.top + plotHeight}
+          stroke="#cbd5e1"
+          strokeWidth="2"
+        />
+        <line
+          x1={margin.left}
+          y1={margin.top}
+          x2={margin.left}
+          y2={margin.top + plotHeight}
+          stroke="#cbd5e1"
+          strokeWidth="2"
+        />
+
+        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+          const x = margin.left + tick * plotWidth;
+          const y = margin.top + tick * plotHeight;
+
+          return (
+            <g key={tick}>
+              <line
+                x1={x}
+                y1={margin.top}
+                x2={x}
+                y2={margin.top + plotHeight}
+                stroke="#e2e8f0"
+                strokeDasharray="4 6"
+              />
+              <line
+                x1={margin.left}
+                y1={y}
+                x2={margin.left + plotWidth}
+                y2={y}
+                stroke="#e2e8f0"
+                strokeDasharray="4 6"
+              />
+            </g>
+          );
+        })}
+
+        <line
+          x1={lineStart.x}
+          y1={lineStart.y}
+          x2={lineEnd.x}
+          y2={lineEnd.y}
+          stroke={lineColor}
+          strokeWidth="4"
+          strokeLinecap="round"
+          opacity="0.86"
+        />
+
+        {analysis.points.map((point: any) => (
+          <circle
+            key={point.id}
+            cx={xScale(point.x)}
+            cy={yScale(point.y)}
+            r="5"
+            fill={accent}
+            opacity="0.62"
+          >
+            <title>
+              {point.title}: {xMetric.label} {xMetric.format(point.x)},{" "}
+              {yMetric.label} {yMetric.format(point.y)}
+            </title>
+          </circle>
+        ))}
+
+        <text
+          x={margin.left + plotWidth / 2}
+          y={height - 16}
+          textAnchor="middle"
+          className="fill-slate-500 text-[13px] font-bold"
+        >
+          {xMetric.label}
+        </text>
+        <text
+          x={-margin.top - plotHeight / 2}
+          y={20}
+          textAnchor="middle"
+          transform="rotate(-90)"
+          className="fill-slate-500 text-[13px] font-bold"
+        >
+          {yMetric.label}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function CorrelationReadout({ analysis, xMetric, yMetric, lineColor }: any) {
+  const correlationLabel =
+    analysis.correlation == null
+      ? "Pending"
+      : `${analysis.correlation >= 0 ? "+" : ""}${analysis.correlation.toFixed(2)}`;
+  const direction =
+    analysis.correlation == null
+      ? "not enough data"
+      : analysis.correlation >= 0
+        ? "positive"
+        : "negative";
+  const strength =
+    analysis.correlation == null
+      ? "unclear"
+      : Math.abs(analysis.correlation) >= 0.7
+        ? "strong"
+        : Math.abs(analysis.correlation) >= 0.4
+          ? "moderate"
+          : Math.abs(analysis.correlation) >= 0.2
+            ? "weak"
+            : "very weak";
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+        Readout
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <MetricStat
+          label={`${xMetric.label} mean`}
+          value={xMetric.format(analysis.xMean)}
+        />
+        <MetricStat
+          label={`${xMetric.label} std dev`}
+          value={xMetric.format(analysis.xStdDev)}
+        />
+        <MetricStat
+          label={`${yMetric.label} mean`}
+          value={yMetric.format(analysis.yMean)}
+        />
+        <MetricStat
+          label={`${yMetric.label} std dev`}
+          value={yMetric.format(analysis.yStdDev)}
+        />
+      </div>
+
+      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+          Correlation
+        </p>
+        <p className="mt-1 text-2xl font-black" style={{ color: lineColor }}>
+          {correlationLabel}
+        </p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          There is a {strength} {direction} link between{" "}
+          <strong>{xMetric.label}</strong> and{" "}
+          <strong>{yMetric.label}</strong> in the rows with complete data.
+        </p>
+      </div>
+
+      <p className="mt-4 text-xs leading-5 text-slate-400">
+        Correlation is directional market intelligence, not causation. Outliers,
+        missing visits, and heuristic classifications can distort the result.
+      </p>
+    </div>
+  );
+}
+
+function MetricStat({ label, value }: any) {
+  return (
+    <div>
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 font-black text-slate-800">{value}</p>
+    </div>
+  );
+}
+
+function buildCorrelationAnalysis(games: any[], xMetric: any, yMetric: any) {
+  const points = games
+    .map((game) => ({
+      id: game.id,
+      title: game.title,
+      x: toFiniteMetricValue(xMetric.value(game)),
+      y: toFiniteMetricValue(yMetric.value(game)),
+    }))
+    .filter((point) => point.x != null && point.y != null) as Array<{
+      id: string;
+      title: string;
+      x: number;
+      y: number;
+    }>;
+  const xValues = points.map((point) => point.x);
+  const yValues = points.map((point) => point.y);
+  const xMean = mean(xValues);
+  const yMean = mean(yValues);
+  const xStdDev = standardDeviation(xValues, xMean);
+  const yStdDev = standardDeviation(yValues, yMean);
+  const covariance =
+    points.reduce((sum, point) => sum + (point.x - xMean) * (point.y - yMean), 0) /
+    Math.max(points.length - 1, 1);
+  const correlation =
+    points.length >= 3 && xStdDev > 0 && yStdDev > 0
+      ? covariance / (xStdDev * yStdDev)
+      : null;
+  const slope = xStdDev > 0 ? covariance / (xStdDev * xStdDev) : 0;
+  const intercept = yMean - slope * xMean;
+  const xMin = Math.min(...xValues, 0);
+  const xMax = Math.max(...xValues, 1);
+  const yMin = Math.min(...yValues, 0);
+  const yMax = Math.max(...yValues, 1);
+
+  return {
+    points,
+    correlation,
+    slope,
+    intercept,
+    xMean,
+    yMean,
+    xStdDev,
+    yStdDev,
+    xMin,
+    xMax,
+    yMin,
+    yMax,
+  };
+}
+
+function toFiniteMetricValue(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value;
+}
+
+function mean(values: number[]) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function standardDeviation(values: number[], valueMean = mean(values)) {
+  if (values.length < 2) return 0;
+
+  const variance =
+    values.reduce((sum, value) => sum + (value - valueMean) ** 2, 0) /
+    (values.length - 1);
+  return Math.sqrt(variance);
+}
+
 function OpportunityGrid({ map, selectedKey, selectedGenre, selectedSubgenre }: any) {
   return (
     <div className="relative mx-auto grid max-w-xl grid-cols-4 rounded-xl border-2 border-slate-900">
@@ -5190,7 +5621,7 @@ function FortniteGenreTrend({ islands, percentile = 100, timeWindow = "7d" }: an
 function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
   const [page, setPage] = useState(0);
   const rows = useMemo(
-    () => buildFortniteFeaturedIslandRows(islands, limit).slice(0, limit),
+    () => buildFortniteLatestFeaturedIslandRows(islands, limit),
     [islands, limit]
   );
   const pageSize = 5;
@@ -5208,22 +5639,42 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={visibleRows} layout="vertical" margin={{ left: 12, right: 18 }}>
-          <CartesianGrid strokeDasharray="4 4" stroke="#d9dde5" />
-            <XAxis type="number" fontSize={11} allowDecimals={false} />
-            <YAxis
-              type="category"
-              dataKey="shortTitle"
-              width={92}
-              fontSize={10}
-              tickLine={false}
-            />
-            <Tooltip content={<FeaturedIslandTooltip />} />
-            <Bar dataKey="featuredCount" name="Featured snapshots" fill={accent} radius={[0, 8, 8, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="min-h-0 flex-1 space-y-3">
+        {visibleRows.map((row: any) => {
+          const maxScore = Math.max(
+            ...rows.map((item: any) => item.visibilityDays ?? item.featuredCount ?? 1),
+            1
+          );
+          const score = row.visibilityDays ?? row.featuredCount ?? 1;
+
+          return (
+            <div key={row.id ?? row.title}>
+              <div className="mb-1 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black leading-snug text-slate-800">
+                    {row.title}
+                  </p>
+                  <p className="text-[11px] font-semibold text-slate-400">
+                    First seen {row.visibilityFirstSeenLabel ?? row.firstSeenLabel} · latest rank #
+                    {row.latestRank ?? "N/A"}
+                  </p>
+                </div>
+                <span className="flex-none text-sm font-black" style={{ color: accent }}>
+                  {score}d
+                </span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(8, (score / maxScore) * 100)}%`,
+                    backgroundColor: accent,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
       <PagedChartFooter
         page={safePage}
@@ -5711,6 +6162,13 @@ function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
             .filter(Boolean)
         )
       ).sort() as string[];
+      const allSeenDateKeys = Array.from(
+        new Set(
+          (island.snapshots ?? [])
+            .map((snapshot: any) => getSnapshotDateKey(snapshot.created_at))
+            .filter(Boolean)
+        )
+      ).sort() as string[];
       const latestSnapshot = qualifyingSnapshots
         .filter((snapshot: any) => snapshot.created_at)
         .sort(
@@ -5732,8 +6190,12 @@ function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
         rankLimit: limit,
         firstSeen: dateKeys[0],
         latestSeen: dateKeys.at(-1),
+        allFirstSeen: allSeenDateKeys[0] ?? dateKeys[0],
+        allLatestSeen: allSeenDateKeys.at(-1) ?? dateKeys.at(-1),
         firstSeenLabel: formatDateKey(dateKeys[0]),
         latestSeenLabel: formatDateKey(dateKeys.at(-1)),
+        allFirstSeenLabel: formatDateKey(allSeenDateKeys[0] ?? dateKeys[0]),
+        allLatestSeenLabel: formatDateKey(allSeenDateKeys.at(-1) ?? dateKeys.at(-1)),
         latestRank: latestSnapshot?.rank ?? island.latestRank ?? null,
         ipSignal: getFortniteIpSignal(island),
       };
@@ -5745,6 +6207,50 @@ function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
     });
 }
 
+function buildFortniteLatestFeaturedIslandRows(islands: any[], limit: number) {
+  const latestDateKey =
+    getFortniteSubstantialSnapshotDateKeys(islands).at(-1) ??
+    getAvailableFortniteSnapshotDateKeys(islands).at(-1);
+
+  if (!latestDateKey) return [];
+
+  const latestKeys = new Set(
+    getFortniteIslandsForDateRanked(islands, latestDateKey)
+      .slice(0, limit)
+      .map((island) => getFortniteIslandKey(island))
+  );
+
+  return buildFortniteFeaturedIslandRows(islands, limit)
+    .filter((row: any) => latestKeys.has(getFortniteIslandKey(row)))
+    .map((row: any) => ({
+      ...row,
+      visibilityDays: getFortniteFeaturedVisibilityDays(row, latestDateKey),
+      visibilityFirstSeen: row.allFirstSeen ?? row.firstSeen,
+      visibilityFirstSeenLabel: row.allFirstSeenLabel ?? row.firstSeenLabel,
+    }))
+    .sort((a: any, b: any) => (a.latestRank ?? 999999) - (b.latestRank ?? 999999))
+    .slice(0, limit);
+}
+
+function getDateDifferenceDays(startDateKey?: string, endDateKey?: string) {
+  const start = parseDateKey(startDateKey);
+  const end = parseDateKey(endDateKey);
+
+  if (!start || !end) return 1;
+
+  return Math.max(
+    1,
+    Math.round((end.getTime() - start.getTime()) / 86400000)
+  );
+}
+
+function getFortniteFeaturedVisibilityDays(row: any, latestDateKey?: string) {
+  return Math.max(
+    row.featuredCount ?? 1,
+    getDateDifferenceDays(row.allFirstSeen ?? row.firstSeen, latestDateKey)
+  );
+}
+
 function buildFortniteIslandLifecycleRows(islands: any[], limit: number) {
   const rows = buildFortniteFeaturedIslandRows(islands, limit).map((row: any) => ({
     ...row,
@@ -5753,12 +6259,14 @@ function buildFortniteIslandLifecycleRows(islands: any[], limit: number) {
 
   return {
     newest: [...rows]
-      .sort((a, b) => String(b.firstSeen).localeCompare(String(a.firstSeen))),
+      .sort((a, b) => String(b.firstSeen).localeCompare(String(a.firstSeen)))
+      .slice(0, limit),
     longest: [...rows]
       .sort((a, b) => {
         if (b.featuredCount !== a.featuredCount) return b.featuredCount - a.featuredCount;
         return String(a.firstSeen).localeCompare(String(b.firstSeen));
-      }),
+      })
+      .slice(0, limit),
   };
 }
 
