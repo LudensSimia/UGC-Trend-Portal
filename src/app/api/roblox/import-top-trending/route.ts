@@ -93,6 +93,30 @@ export async function GET(req: Request) {
         continue
       }
 
+      const { error: snapshotError } = await supabase
+        .from('roblox_chart_snapshots')
+        .insert({
+          snapshot_date: new Date().toISOString().split('T')[0],
+          sort_id: 'top-trending',
+          sort_name: 'Top Trending',
+          chart_rank: i + 1,
+          universe_id: String(chartGame.universeId),
+          root_place_id: String(chartGame.rootPlaceId),
+          game_id: savedGame.id,
+          current_players: chartGame.playerCount,
+          up_votes: upVotes,
+          down_votes: downVotes,
+          like_ratio: likeRatio,
+          raw_chart_item: chartGame,
+          raw_game_details: detailedGame ?? null,
+          raw_thumbnail: thumbnail ?? null
+        })
+
+      if (snapshotError) {
+        console.error('Chart snapshot save error:', snapshotError)
+        continue
+      }
+
       const { error: metricsError } = await supabase
         .from('game_metrics')
         .insert({

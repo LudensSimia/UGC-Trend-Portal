@@ -363,6 +363,7 @@ export async function GET(req: Request) {
         .from("fortnite_island_snapshots")
         .insert({
           island_id: islandRow.id,
+          snapshot_date: new Date().toISOString().split("T")[0],
           source_name: "fortnite_data_api",
           rank: pickMetric(island, ["rank", "position", "order"]) ?? index + 1,
 
