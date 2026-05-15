@@ -44,6 +44,42 @@ create table if not exists public.data_integrity_snapshots (
   payload jsonb not null
 );
 
+alter table public.ingest_runs
+  add column if not exists platform text,
+  add column if not exists source_name text,
+  add column if not exists source_url text,
+  add column if not exists snapshot_date date not null default current_date,
+  add column if not exists status text not null default 'running',
+  add column if not exists http_status integer,
+  add column if not exists rows_returned integer not null default 0,
+  add column if not exists rows_inserted integer not null default 0,
+  add column if not exists rows_failed integer not null default 0,
+  add column if not exists parser_version text,
+  add column if not exists dashboard_build text,
+  add column if not exists error_message text,
+  add column if not exists raw_response_summary jsonb,
+  add column if not exists started_at timestamptz not null default now(),
+  add column if not exists finished_at timestamptz;
+
+alter table public.raw_source_responses
+  add column if not exists ingest_run_id uuid,
+  add column if not exists platform text,
+  add column if not exists source_name text,
+  add column if not exists source_url text,
+  add column if not exists response_started_at timestamptz,
+  add column if not exists response_finished_at timestamptz not null default now(),
+  add column if not exists http_status integer,
+  add column if not exists row_count integer not null default 0,
+  add column if not exists payload_sha256 text,
+  add column if not exists payload jsonb,
+  add column if not exists created_at timestamptz not null default now();
+
+alter table public.data_integrity_snapshots
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists snapshot_date date not null default current_date,
+  add column if not exists status text not null default 'completed',
+  add column if not exists payload jsonb;
+
 alter table public.games
   add column if not exists raw_top_trending jsonb,
   add column if not exists raw_game_details jsonb;
