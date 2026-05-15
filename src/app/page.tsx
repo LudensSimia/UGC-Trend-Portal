@@ -25,6 +25,39 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+const FORTNITE_ISLAND_SELECT = `
+  id,
+  island_code,
+  title,
+  url,
+  thumbnail_url,
+  description,
+  inferred_genre,
+  inferred_subgenre,
+  core_loop,
+  player_intent,
+  competition_level,
+  build_complexity,
+  extracted_tags,
+  design_pattern,
+  audience_signal,
+  raw_latest,
+  fortnite_island_snapshots (
+    created_at,
+    rank,
+    minutes_played,
+    minutes_per_player,
+    plays,
+    favorites,
+    recommends,
+    peak_ccu,
+    unique_players,
+    retention_d1,
+    retention_d7,
+    raw_payload
+  )
+`;
+
 type Platform = "roblox" | "fortnite";
 type TrendTimeWindow = "7d" | "30d" | "3m";
 
@@ -128,42 +161,8 @@ export default function Home() {
 
       if (robloxError) console.error("Roblox fetch error:", robloxError);
 
-      const { data: fortniteData, error: fortniteError } = await supabase
-        .from("fortnite_islands")
-        .select(`
-          id,
-          island_code,
-          title,
-          url,
-          thumbnail_url,
-          description,
-          inferred_genre,
-          inferred_subgenre,
-          core_loop,
-          player_intent,
-          competition_level,
-          build_complexity,
-          extracted_tags,
-          design_pattern,
-          audience_signal,
-          raw_latest,
-          fortnite_island_snapshots (
-            created_at,
-            rank,
-            minutes_played,
-            minutes_per_player,
-            plays,
-            favorites,
-            recommends,
-            peak_ccu,
-            unique_players,
-            retention_d1,
-            retention_d7,
-            raw_payload
-          )
-        `);
-
-      if (fortniteError) console.error("Fortnite fetch error:", fortniteError);
+      const { data: fortniteData, error: fortniteError } =
+        await fetchAllFortniteIslands();
 
       const { data: auditData, error: auditError } = await supabase
         .from("data_quality_snapshots")
@@ -1395,6 +1394,30 @@ function withLatestRobloxSnapshot(game: any) {
         ? earliestRanked.chart_rank - latest.chart_rank
         : 0,
   };
+}
+
+async function fetchAllFortniteIslands() {
+  const pageSize = 1000;
+  const rows: any[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("fortnite_islands")
+      .select(FORTNITE_ISLAND_SELECT)
+      .order("island_code", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error("Fortnite fetch error:", error);
+      return { data: rows, error };
+    }
+
+    rows.push(...(data ?? []));
+
+    if (!data || data.length < pageSize) {
+      return { data: rows, error: null };
+    }
+  }
 }
 
 function getAveragePlayerGain(snapshots: any[], days: number) {
