@@ -1,6 +1,8 @@
 export const ACCESS_TIERS = [
+  "free",
   "newsletter",
   "trial",
+  "scout",
   "paid",
   "pro",
   "admin",
@@ -49,6 +51,7 @@ const PAID_WIDGETS: WidgetKey[] = [
 ];
 
 export const TIER_WIDGETS: Record<AccessTier, readonly WidgetKey[] | readonly ["*"]> = {
+  free: [],
   newsletter: [
     "data_source_health",
     "top_games",
@@ -57,6 +60,8 @@ export const TIER_WIDGETS: Record<AccessTier, readonly WidgetKey[] | readonly ["
     "directional_research_maps",
   ],
   trial: PAID_WIDGETS,
+  scout: PAID_WIDGETS,
+  // Legacy alias kept so existing database rows using "paid" do not lose access.
   paid: PAID_WIDGETS,
   pro: [
     ...PAID_WIDGETS,
@@ -68,9 +73,11 @@ export const TIER_WIDGETS: Record<AccessTier, readonly WidgetKey[] | readonly ["
 };
 
 export function normalizeAccessTier(value: unknown): AccessTier {
+  if (value === "paid") return "scout";
+
   return ACCESS_TIERS.includes(value as AccessTier)
     ? (value as AccessTier)
-    : "newsletter";
+    : "free";
 }
 
 export function getTierWidgets(tier: AccessTier): readonly WidgetKey[] | readonly ["*"] {
@@ -84,9 +91,15 @@ export function canAccessWidget(tier: AccessTier, widgetKey: WidgetKey) {
 }
 
 export function canAccessDashboard(tier: AccessTier) {
-  return tier === "trial" || tier === "paid" || tier === "pro" || tier === "admin";
+  return (
+    tier === "trial" ||
+    tier === "scout" ||
+    tier === "paid" ||
+    tier === "pro" ||
+    tier === "admin"
+  );
 }
 
 export function canReceiveNewsletter(tier: AccessTier) {
-  return tier === "newsletter" || canAccessDashboard(tier);
+  return tier === "free" || tier === "newsletter" || canAccessDashboard(tier);
 }
