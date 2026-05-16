@@ -45,6 +45,8 @@ const FORTNITE_ISLAND_SELECT = `
   fortnite_island_snapshots (
     created_at,
     rank,
+    source_order,
+    rank_source,
     minutes_played,
     minutes_per_player,
     plays,
@@ -1461,7 +1463,7 @@ function withLatestFortniteSnapshot(island: any) {
     ...island,
     raw: island.raw_latest ?? latest?.raw_payload ?? {},
     snapshots: sorted,
-    latestRank: latest?.rank ?? null,
+    latestRank: getFortniteSnapshotRank(latest),
     latestPlays: latest?.plays ?? null,
     latestFavorites: latest?.favorites ?? null,
     latestRecommends: latest?.recommends ?? null,
@@ -5827,7 +5829,7 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
       <div className="mt-auto border-t border-slate-100 pt-4">
         {hasOnlySingleDayRows && (
           <p className="mb-3 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-snug text-slate-400">
-            Each Top {limit} entry has a one-day Top {limit} streak so far.
+            Multi-day Top {limit} streaks are not available yet from rank-captured snapshots.
           </p>
         )}
         <PagedChartFooter
@@ -6514,9 +6516,11 @@ function getFortniteIslandsForDateRanked(islands: any[], dateKey: string) {
 function getFortniteSnapshotRank(snapshot: any) {
   return parseFiniteNumber(
     snapshot?.rank ??
+      snapshot?.source_order ??
       snapshot?.position ??
       snapshot?.order ??
       snapshot?.source_rank ??
+      snapshot?.raw_payload?.source_order ??
       snapshot?.raw_payload?.rank ??
       snapshot?.raw_payload?.position ??
       snapshot?.raw_payload?.order
