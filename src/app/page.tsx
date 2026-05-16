@@ -5765,11 +5765,11 @@ function FortniteGenreTrend({ islands, percentile = 100, timeWindow = "7d" }: an
 function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
   const [page, setPage] = useState(0);
   const rows = useMemo(
-    () => buildFortniteLatestFeaturedIslandRows(islands, limit),
+    () => buildFortniteFeaturedIslandRows(islands, limit).slice(0, 100),
     [islands, limit]
   );
   const hasOnlySingleDayRows = rows.every(
-    (row: any) => (row.visibilityDays ?? row.featuredCount ?? 1) <= 1
+    (row: any) => (row.topScopeDays ?? 1) <= 1
   );
   const pageSize = 5;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -5789,10 +5789,10 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
       <div className="space-y-4 pb-5">
         {visibleRows.map((row: any) => {
           const maxScore = Math.max(
-            ...rows.map((item: any) => item.visibilityDays ?? item.featuredCount ?? 1),
+            ...rows.map((item: any) => item.topScopeDays ?? 1),
             1
           );
-          const score = row.visibilityDays ?? row.featuredCount ?? 1;
+          const score = row.topScopeDays ?? 1;
 
           return (
             <div key={row.id ?? row.title}>
@@ -5802,8 +5802,9 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
                     {row.title}
                   </p>
                   <p className="text-[11px] font-semibold text-slate-400">
-                    First seen {row.visibilityFirstSeenLabel ?? row.firstSeenLabel} · latest rank #
-                    {row.latestRank ?? "N/A"}
+                    Longest Top {limit} streak: {row.streakFirstSeenLabel} -{" "}
+                    {row.streakLatestSeenLabel} · {formatNumber(row.featuredCount)} captured
+                    appearances
                   </p>
                 </div>
                 <span className="flex-none text-sm font-black" style={{ color: accent }}>
@@ -5826,7 +5827,7 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
       <div className="mt-auto border-t border-slate-100 pt-4">
         {hasOnlySingleDayRows && (
           <p className="mb-3 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-snug text-slate-400">
-            Current Top {limit} entries only have one captured snapshot day in storage.
+            Each Top {limit} entry has a one-day Top {limit} streak so far.
           </p>
         )}
         <PagedChartFooter
@@ -6299,10 +6300,12 @@ function mergeFortniteVisibilityTrends(islands: any[]) {
 }
 
 function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
-  const scopedIslandKeys = new Set(getFortniteVisibleIslandKeysByScope(islands, limit));
+  const sourceDateKeys =
+    getFortniteSubstantialSnapshotDateKeys(islands).length > 0
+      ? getFortniteSubstantialSnapshotDateKeys(islands)
+      : getAvailableFortniteSnapshotDateKeys(islands);
 
   return islands
-    .filter((island) => scopedIslandKeys.has(getFortniteIslandKey(island)))
     .map((island) => {
       const qualifyingSnapshots = getFortniteScopedSnapshotsForIsland(
         island,
@@ -6332,6 +6335,8 @@ function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
 
       if (!dateKeys.length) return null;
 
+      const topScopeStreak = getLongestDateStreak(dateKeys, sourceDateKeys);
+
       return {
         id: island.id,
         title: island.title ?? "Untitled Fortnite Island",
@@ -6348,63 +6353,87 @@ function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
         allLatestSeen: allSeenDateKeys.at(-1) ?? dateKeys.at(-1),
         firstSeenLabel: formatDateKey(dateKeys[0]),
         latestSeenLabel: formatDateKey(dateKeys.at(-1)),
+        topScopeDays: topScopeStreak.days,
+        streakFirstSeen: topScopeStreak.firstSeen,
+        streakLatestSeen: topScopeStreak.latestSeen,
+        streakFirstSeenLabel: formatDateKey(topScopeStreak.firstSeen),
+        streakLatestSeenLabel: formatDateKey(topScopeStreak.latestSeen),
         allFirstSeenLabel: formatDateKey(allSeenDateKeys[0] ?? dateKeys[0]),
         allLatestSeenLabel: formatDateKey(allSeenDateKeys.at(-1) ?? dateKeys.at(-1)),
         latestRank: latestSnapshot?.rank ?? island.latestRank ?? null,
+        bestRank: Math.min(
+          ...qualifyingSnapshots
+            .map((snapshot: any) => getFortniteSnapshotRank(snapshot))
+            .filter((rank: any) => typeof rank === "number")
+        ),
         ipSignal: getFortniteIpSignal(island),
       };
     })
     .filter(Boolean)
     .sort((a: any, b: any) => {
+      if ((b.topScopeDays ?? 0) !== (a.topScopeDays ?? 0)) {
+        return (b.topScopeDays ?? 0) - (a.topScopeDays ?? 0);
+      }
       if (b.featuredCount !== a.featuredCount) return b.featuredCount - a.featuredCount;
+      if ((a.bestRank ?? 999999) !== (b.bestRank ?? 999999)) {
+        return (a.bestRank ?? 999999) - (b.bestRank ?? 999999);
+      }
       return String(a.firstSeen).localeCompare(String(b.firstSeen));
     });
 }
 
-function buildFortniteLatestFeaturedIslandRows(islands: any[], limit: number) {
-  const latestDateKey =
-    getFortniteSubstantialSnapshotDateKeys(islands).at(-1) ??
-    getAvailableFortniteSnapshotDateKeys(islands).at(-1);
-  const latestAvailableDateKey =
-    getAvailableFortniteSnapshotDateKeys(islands).at(-1) ?? latestDateKey;
+function getLongestDateStreak(dateKeys: string[], sourceDateKeys: string[]) {
+  const topDates = new Set(dateKeys);
+  const orderedDates = (sourceDateKeys.length ? sourceDateKeys : dateKeys).filter(Boolean);
+  let currentStart: string | null = null;
+  let currentEnd: string | null = null;
+  let bestStart = dateKeys[0];
+  let bestEnd = dateKeys[0];
+  let bestDays = 1;
 
-  if (!latestDateKey) return [];
+  orderedDates.forEach((dateKey) => {
+    if (topDates.has(dateKey)) {
+      currentStart = currentStart ?? dateKey;
+      currentEnd = dateKey;
+      return;
+    }
 
-  const latestKeys = new Set(
-    getFortniteIslandsForDateRanked(islands, latestDateKey)
-      .slice(0, limit)
-      .map((island) => getFortniteIslandKey(island))
-  );
+    if (currentStart && currentEnd) {
+      const days = getElapsedDateDays(currentStart, currentEnd);
+      if (days > bestDays) {
+        bestDays = days;
+        bestStart = currentStart;
+        bestEnd = currentEnd;
+      }
+    }
 
-  return buildFortniteFeaturedIslandRows(islands, limit)
-    .filter((row: any) => latestKeys.has(getFortniteIslandKey(row)))
-    .map((row: any) => ({
-      ...row,
-      visibilityDays: getFortniteFeaturedVisibilityDays(row, latestAvailableDateKey),
-      visibilityFirstSeen: row.allFirstSeen ?? row.firstSeen,
-      visibilityFirstSeenLabel: row.allFirstSeenLabel ?? row.firstSeenLabel,
-    }))
-    .sort((a: any, b: any) => (a.latestRank ?? 999999) - (b.latestRank ?? 999999))
-    .slice(0, limit);
+    currentStart = null;
+    currentEnd = null;
+  });
+
+  if (currentStart && currentEnd) {
+    const days = getElapsedDateDays(currentStart, currentEnd);
+    if (days > bestDays) {
+      bestDays = days;
+      bestStart = currentStart;
+      bestEnd = currentEnd;
+    }
+  }
+
+  return {
+    days: bestDays,
+    firstSeen: bestStart,
+    latestSeen: bestEnd,
+  };
 }
 
-function getDateDifferenceDays(startDateKey?: string, endDateKey?: string) {
+function getElapsedDateDays(startDateKey?: string, endDateKey?: string) {
   const start = parseDateKey(startDateKey);
   const end = parseDateKey(endDateKey);
 
   if (!start || !end) return 1;
 
-  return Math.max(
-    1,
-    Math.round((end.getTime() - start.getTime()) / 86400000)
-  );
-}
-
-function getFortniteFeaturedVisibilityDays(row: any, latestDateKey?: string) {
-  return Math.max(
-    row.featuredCount ?? 1,
-    getDateDifferenceDays(row.allFirstSeen ?? row.firstSeen, latestDateKey)
-  );
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000));
 }
 
 function buildFortniteIslandLifecycleRows(islands: any[], limit: number) {
@@ -6424,15 +6453,6 @@ function buildFortniteIslandLifecycleRows(islands: any[], limit: number) {
       })
       .slice(0, limit),
   };
-}
-
-function getFortniteRankedSnapshotsInScope(island: any, limit: number) {
-  const snapshots = island.snapshots ?? [];
-
-  return snapshots.filter((snapshot: any) => {
-    const rank = getFortniteSnapshotRank(snapshot);
-    return typeof rank === "number" && rank <= limit;
-  });
 }
 
 function getFortniteScopedSnapshotsForIsland(island: any, islands: any[], limit: number) {
@@ -6461,19 +6481,6 @@ function getFortniteScopedSnapshotsForIsland(island: any, islands: any[], limit:
       };
     })
     .filter(Boolean);
-}
-
-function getFortniteVisibleIslandKeysByScope(islands: any[], limit: number) {
-  const dateKeys = getFortniteSubstantialSnapshotDateKeys(islands);
-  const keys = new Set<string>();
-
-  dateKeys.forEach((dateKey) => {
-    getFortniteIslandsForDateRanked(islands, dateKey)
-      .slice(0, limit)
-      .forEach((island) => keys.add(getFortniteIslandKey(island)));
-  });
-
-  return Array.from(keys);
 }
 
 function getFortniteIslandsForDateRanked(islands: any[], dateKey: string) {
