@@ -97,8 +97,6 @@ export default function Home() {
     useState<TrendTimeWindow>("7d");
   const [fortniteLabelTrendLimit, setFortniteLabelTrendLimit] =
     useState<10 | 25>(10);
-  const [fortniteVisibilityLimit, setFortniteVisibilityLimit] =
-    useState<10 | 25>(25);
   const [fortniteLifecycleLimit, setFortniteLifecycleLimit] =
     useState<10 | 25>(25);
   const [fortniteLabelTrendWindow, setFortniteLabelTrendWindow] =
@@ -332,13 +330,11 @@ export default function Home() {
     setGenreTrendPercentile,
     setGenreTrendWindow,
     fortniteLabelTrendLimit,
-    fortniteVisibilityLimit,
     fortniteLifecycleLimit,
     fortniteLabelTrendWindow,
     fortniteGenreScoreboardLimit,
     fortniteGenreScoreboardWindow,
     setFortniteLabelTrendLimit,
-    setFortniteVisibilityLimit,
     setFortniteLifecycleLimit,
     setFortniteLabelTrendWindow,
     setFortniteGenreScoreboardLimit,
@@ -832,6 +828,7 @@ export default function Home() {
                 title="Design Cues"
                 panel={panel}
                 accent={accent}
+                readout={buildDesignCuesReadout(topTags(filteredIdeaItems), filteredIdeaItems.length)}
                 tags={topTags(filteredIdeaItems)}
               />
 
@@ -971,13 +968,11 @@ function FortniteDashboardView({ context }: any) {
     setGenreTrendPercentile,
     setGenreTrendWindow,
     fortniteLabelTrendLimit,
-    fortniteVisibilityLimit,
     fortniteLifecycleLimit,
     fortniteLabelTrendWindow,
     fortniteGenreScoreboardLimit,
     fortniteGenreScoreboardWindow,
     setFortniteLabelTrendLimit,
-    setFortniteVisibilityLimit,
     setFortniteLifecycleLimit,
     setFortniteLabelTrendWindow,
     setFortniteGenreScoreboardLimit,
@@ -1078,20 +1073,13 @@ function FortniteDashboardView({ context }: any) {
       <section className="mb-6 grid gap-6 lg:grid-cols-2">
         <ChartCard
           title="Most Featured Islands"
-          subtitle={`Islands appearing most often in the source Top ${fortniteVisibilityLimit}.`}
+          subtitle="Islands with the most captured days in the source Top 25."
           panel={panel}
           contentClassName="min-h-[30rem]"
-          action={
-            <FortniteLabelTrendControls
-              limit={fortniteVisibilityLimit}
-              onLimitChange={setFortniteVisibilityLimit}
-              accent={accent}
-            />
-          }
         >
           <FortniteFeaturedIslandsBar
             islands={fortniteIslands}
-            limit={fortniteVisibilityLimit}
+            limit={25}
             accent={accent}
           />
         </ChartCard>
@@ -1187,6 +1175,20 @@ function FortniteDashboardView({ context }: any) {
           title="Top Tile Colors"
           subtitle="Primary and secondary RGB colors from the top 25 islands"
           games={currentTopFortniteIslands.slice(0, 25)}
+          panel={panel}
+          accent={accent}
+        />
+      </section>
+
+      <section className="mb-6">
+        <CorrelationAnalysisCard
+          title="Metric Correlation Analysis"
+          subtitle="Compare Fortnite island-level metadata and source visibility signals to see whether two captured signals move together."
+          games={buildFortniteCorrelationItems(fortniteIslands)}
+          metrics={fortniteCorrelationMetricOptions}
+          defaultXMetricKey="sourcePopularityProxy"
+          defaultYMetricKey="topThreeLabelReach"
+          caveat="Correlation is directional market intelligence, not causation. Source ordering, rotating discovery surfaces, sparse rank history, and categorical encoding can distort the result."
           panel={panel}
           accent={accent}
         />
@@ -1292,6 +1294,7 @@ function FortniteDashboardView({ context }: any) {
           title="Design Cues"
           panel={panel}
           accent={accent}
+          readout={buildDesignCuesReadout(topTags(filteredIdeaItems), filteredIdeaItems.length)}
           tags={topTags(filteredIdeaItems)}
         />
 
@@ -2495,6 +2498,16 @@ function topTags(items: any[]) {
     .slice(0, 5);
 }
 
+function buildDesignCuesReadout(tags: any[], itemCount: number) {
+  if (!itemCount) return "Select a segment to surface recurring design cues.";
+  if (!tags.length) return "No recurring design cue is available for this segment yet.";
+
+  const leader = tags[0];
+  const share = Math.round((leader.value / Math.max(1, itemCount)) * 100);
+
+  return `${leader.name} is the strongest recurring cue, appearing in ${share}% of this segment.`;
+}
+
 function buildDataSourceHealth(
   platform: Platform,
   items: any[],
@@ -3694,6 +3707,7 @@ function OpportunityMapCard({
         selectedKey={selectedKey}
         selectedGenre={selectedGenre}
         selectedSubgenre={selectedSubgenre}
+        platform={map.platform}
       />
 
       <div className="mt-2 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -3774,15 +3788,86 @@ const correlationMetricOptions = [
   },
 ];
 
-function CorrelationAnalysisCard({ title, subtitle, games, panel, accent }: any) {
-  const [xMetricKey, setXMetricKey] = useState("latestPlayers");
-  const [yMetricKey, setYMetricKey] = useState("upVotes");
+const fortniteCorrelationMetricOptions = [
+  {
+    key: "sourcePopularityProxy",
+    label: "Source popularity proxy",
+    value: (island: any) => island.sourcePopularityProxy,
+    format: formatNumber,
+  },
+  {
+    key: "latestRank",
+    label: "Latest source rank",
+    value: (island: any) => island.latestRank,
+    format: (value: number) => `#${Math.round(value)}`,
+  },
+  {
+    key: "bestSourceRank",
+    label: "Best captured source rank",
+    value: (island: any) => island.bestSourceRank,
+    format: (value: number) => `#${Math.round(value)}`,
+  },
+  {
+    key: "topThreeLabelReach",
+    label: "Top 3 label reach",
+    value: (island: any) => island.topThreeLabelReach,
+    format: formatNumber,
+  },
+  {
+    key: "primaryLabelReach",
+    label: "Primary label reach",
+    value: (island: any) => island.primaryLabelReach,
+    format: formatNumber,
+  },
+  {
+    key: "coreLoopReach",
+    label: "Core loop reach",
+    value: (island: any) => island.coreLoopReach,
+    format: formatNumber,
+  },
+  {
+    key: "genreFormatReach",
+    label: "Genre / format reach",
+    value: (island: any) => island.genreFormatReach,
+    format: formatNumber,
+  },
+  {
+    key: "gameFormatComplexity",
+    label: "Estimated format complexity",
+    value: (island: any) => island.gameFormatComplexity,
+    format: (value: number) => `${Math.round(value * 100)}%`,
+  },
+  {
+    key: "ipSignalScore",
+    label: "IP / collab signal",
+    value: (island: any) => island.ipSignalScore,
+    format: (value: number) => (value ? "Detected" : "None"),
+  },
+  {
+    key: "top25Days",
+    label: "Captured Top 25 days",
+    value: (island: any) => island.top25Days,
+    format: formatNumber,
+  },
+];
+
+function CorrelationAnalysisCard({
+  title,
+  subtitle,
+  games,
+  panel,
+  accent,
+  metrics = correlationMetricOptions,
+  defaultXMetricKey = "latestPlayers",
+  defaultYMetricKey = "upVotes",
+  caveat = "Correlation is directional market intelligence, not causation. Outliers, missing visits, and heuristic classifications can distort the result.",
+}: any) {
+  const [xMetricKey, setXMetricKey] = useState(defaultXMetricKey);
+  const [yMetricKey, setYMetricKey] = useState(defaultYMetricKey);
   const xMetric =
-    correlationMetricOptions.find((metric) => metric.key === xMetricKey) ??
-    correlationMetricOptions[0];
+    metrics.find((metric: any) => metric.key === xMetricKey) ?? metrics[0];
   const yMetric =
-    correlationMetricOptions.find((metric) => metric.key === yMetricKey) ??
-    correlationMetricOptions[1];
+    metrics.find((metric: any) => metric.key === yMetricKey) ?? metrics[1];
   const analysis = useMemo(
     () => buildCorrelationAnalysis(games, xMetric, yMetric),
     [games, xMetric, yMetric]
@@ -3796,24 +3881,9 @@ function CorrelationAnalysisCard({ title, subtitle, games, panel, accent }: any)
 
   return (
     <div className={`rounded-3xl border p-6 ${panel}`}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          <MetricSelect
-            label="X axis"
-            value={xMetricKey}
-            onChange={setXMetricKey}
-          />
-          <MetricSelect
-            label="Y axis"
-            value={yMetricKey}
-            onChange={setYMetricKey}
-          />
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.55fr)]">
@@ -3827,18 +3897,41 @@ function CorrelationAnalysisCard({ title, subtitle, games, panel, accent }: any)
           />
         </div>
 
-        <CorrelationReadout
-          analysis={analysis}
-          xMetric={xMetric}
-          yMetric={yMetric}
-          lineColor={lineColor}
-        />
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+              Axes
+            </p>
+            <div className="mt-3 grid gap-3">
+              <MetricSelect
+                label="X axis"
+                value={xMetricKey}
+                onChange={setXMetricKey}
+                metrics={metrics}
+              />
+              <MetricSelect
+                label="Y axis"
+                value={yMetricKey}
+                onChange={setYMetricKey}
+                metrics={metrics}
+              />
+            </div>
+          </div>
+
+          <CorrelationReadout
+            analysis={analysis}
+            xMetric={xMetric}
+            yMetric={yMetric}
+            lineColor={lineColor}
+            caveat={caveat}
+          />
+        </div>
       </div>
     </div>
   );
 }
 
-function MetricSelect({ label, value, onChange }: any) {
+function MetricSelect({ label, value, onChange, metrics = correlationMetricOptions }: any) {
   return (
     <label className="block">
       <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">
@@ -3849,7 +3942,7 @@ function MetricSelect({ label, value, onChange }: any) {
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
-        {correlationMetricOptions.map((metric) => (
+        {metrics.map((metric: any) => (
           <option key={metric.key} value={metric.key}>
             {metric.label}
           </option>
@@ -3995,7 +4088,7 @@ function CorrelationScatterPlot({
   );
 }
 
-function CorrelationReadout({ analysis, xMetric, yMetric, lineColor }: any) {
+function CorrelationReadout({ analysis, xMetric, yMetric, lineColor, caveat }: any) {
   const correlationLabel =
     analysis.correlation == null
       ? "Pending"
@@ -4056,8 +4149,7 @@ function CorrelationReadout({ analysis, xMetric, yMetric, lineColor }: any) {
       </div>
 
       <p className="mt-4 text-xs leading-5 text-slate-400">
-        Correlation is directional market intelligence, not causation. Outliers,
-        missing visits, and heuristic classifications can distort the result.
+        {caveat}
       </p>
     </div>
   );
@@ -4124,6 +4216,112 @@ function buildCorrelationAnalysis(games: any[], xMetric: any, yMetric: any) {
   };
 }
 
+function buildFortniteCorrelationItems(islands: any[]) {
+  const latestDateKey = getFortniteSubstantialSnapshotDateKeys(islands).at(-1);
+  const scopedIslands = latestDateKey
+    ? islands.filter((island) =>
+        (island.snapshots ?? []).some((snapshot: any) =>
+          String(snapshot.created_at ?? "").startsWith(latestDateKey)
+        )
+      )
+    : islands;
+  const top25RowsByIsland = new Map(
+    buildFortniteFeaturedIslandRows(islands, 25).map((row: any) => [
+      getFortniteIslandKey(row),
+      row,
+    ])
+  );
+  const primaryLabelCounts = scopedIslands.reduce((counts: Record<string, number>, island) => {
+    const label = normalizeFortniteCorrelationGroup(getFortnitePrimaryLabel(island));
+    counts[label] = (counts[label] ?? 0) + 1;
+    return counts;
+  }, {});
+  const topThreeLabelCounts = scopedIslands.reduce((counts: Record<string, number>, island) => {
+    getFortniteTopLabels(island, 3).forEach((label) => {
+      counts[label] = (counts[label] ?? 0) + 1;
+    });
+    return counts;
+  }, {});
+  const coreLoopCounts = scopedIslands.reduce((counts: Record<string, number>, island) => {
+    const label = normalizeFortniteCorrelationGroup(island.core_loop);
+    counts[label] = (counts[label] ?? 0) + 1;
+    return counts;
+  }, {});
+  const genreFormatCounts = scopedIslands.reduce((counts: Record<string, number>, island) => {
+    const label = normalizeFortniteCorrelationGroup(island.inferred_genre);
+    counts[label] = (counts[label] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  return scopedIslands.map((island) => {
+    const latestSnapshot = getFortniteSnapshotForDate(island, latestDateKey);
+    const latestRank =
+      getFortniteSnapshotRank(latestSnapshot) ?? getFortniteSnapshotRank(island.snapshots?.at(-1));
+    const labels = getFortniteSourceLabels(island);
+    const primaryLabel = normalizeFortniteCorrelationGroup(getFortnitePrimaryLabel(island));
+    const topThreeLabels = getFortniteTopLabels(island, 3);
+    const top25Row = top25RowsByIsland.get(getFortniteIslandKey(island));
+    const ipSignal = getFortniteIpSignal(island);
+    const bestSourceRank = Math.min(
+      ...((island.snapshots ?? [])
+        .map((snapshot: any) => getFortniteSnapshotRank(snapshot))
+        .filter((rank: any) => typeof rank === "number") as number[])
+    );
+
+    return {
+      ...island,
+      latestRank,
+      sourcePopularityProxy:
+        typeof latestRank === "number" ? Math.max(0, 101 - latestRank) : null,
+      bestSourceRank: Number.isFinite(bestSourceRank) ? bestSourceRank : null,
+      primaryLabel,
+      primaryLabelReach: primaryLabelCounts[primaryLabel] ?? 0,
+      topThreeLabelReach: topThreeLabels.reduce(
+        (sum, label) => sum + (topThreeLabelCounts[label] ?? 0),
+        0
+      ),
+      coreLoopReach:
+        coreLoopCounts[normalizeFortniteCorrelationGroup(island.core_loop)] ?? 0,
+      genreFormatReach:
+        genreFormatCounts[normalizeFortniteCorrelationGroup(island.inferred_genre)] ?? 0,
+      tagCount: labels.length,
+      descriptionLength: String(island.description ?? "").length,
+      titleLength: String(island.title ?? "").length,
+      gameFormatComplexity: complexityScore(island.build_complexity ?? ""),
+      ipSignalScore: ipSignal?.label ? 1 : 0,
+      top25Days: top25Row?.featuredCount ?? 0,
+    };
+  });
+}
+
+function getFortniteTopLabels(island: any, limit: number) {
+  const labels = getFortniteSourceLabels(island)
+    .map((label: any) => normalizeFortniteCorrelationGroup(label))
+    .filter((label: string) => !/^unknown|general|unlabeled$/i.test(label));
+
+  return Array.from(new Set(labels)).slice(0, limit);
+}
+
+function normalizeFortniteCorrelationGroup(value: unknown) {
+  const label = String(value ?? "").trim();
+  return label && !/^unknown|general$/i.test(label) ? label : "Unlabeled";
+}
+
+function getFortniteSnapshotForDate(island: any, dateKey?: string) {
+  if (!dateKey) return island.snapshots?.at(-1) ?? null;
+
+  return (
+    [...(island.snapshots ?? [])]
+      .filter((snapshot: any) => String(snapshot.created_at ?? "").startsWith(dateKey))
+      .sort((a: any, b: any) => {
+        const aRank = getFortniteSnapshotRank(a) ?? 999999;
+        const bRank = getFortniteSnapshotRank(b) ?? 999999;
+        if (aRank !== bRank) return aRank - bRank;
+        return String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""));
+      })[0] ?? null
+  );
+}
+
 function toFiniteMetricValue(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return value;
@@ -4143,14 +4341,14 @@ function standardDeviation(values: number[], valueMean = mean(values)) {
   return Math.sqrt(variance);
 }
 
-function OpportunityGrid({ map, selectedKey, selectedGenre, selectedSubgenre }: any) {
+function OpportunityGrid({ map, selectedKey, selectedGenre, selectedSubgenre, platform }: any) {
   return (
     <div className="relative mx-auto grid max-w-xl grid-cols-4 rounded-xl border-2 border-slate-900">
       {Array.from({ length: 16 }).map((_, i) => (
         <div
           key={i}
           className="min-h-32 border border-slate-900 p-1.5"
-          style={{ backgroundColor: opportunityCellColor(i) }}
+          style={{ backgroundColor: opportunityCellColor(i, platform) }}
         >
           {map.items
             .filter((item: any) => item.cell === i)
@@ -4240,10 +4438,17 @@ function ReadOutCard({ maps, panel }: any) {
   );
 }
 
-function opportunityCellColor(index: number) {
+function opportunityCellColor(index: number, platform: Platform = "roblox") {
   const col = index % 4;
   const row = Math.floor(index / 4);
   const score = (col + (3 - row)) / 6;
+
+  if (platform === "fortnite") {
+    if (score >= 0.72) return "#7c3aed";
+    if (score >= 0.48) return "#a17cf3";
+    if (score >= 0.28) return "#d6c7fb";
+    return "#f3effe";
+  }
 
   if (score >= 0.72) return "#0d69ac";
   if (score >= 0.48) return "#4d91c4";
@@ -4323,6 +4528,7 @@ function buildOpportunityMap(items: any[], lens: string, platform: Platform) {
 
   return {
     ...activeConfig,
+    platform,
     items: grouped
       .map((item: any, index: number) => {
         const x = clamp01(activeConfig.x(item));
@@ -4378,13 +4584,18 @@ function isMonetizedItem(item: any, platform: Platform) {
   );
 }
 
-function RecommendationBlock({ title, text, bullets, tags, panel, accent }: any) {
+function RecommendationBlock({ title, text, bullets, tags, panel, accent, readout }: any) {
   const total = tags?.reduce((sum: number, tag: any) => sum + tag.value, 0) ?? 0;
   const pieColors = [accent, "#d6a06d", "#5b5d78", "#94a3b8", "#cbd5e1"];
 
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
       <h3 className="text-xl font-bold">{title}</h3>
+      {readout ? (
+        <p className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
+          {readout}
+        </p>
+      ) : null}
 
       {tags?.length ? (
         <div className="mt-4 grid grid-cols-[130px_1fr] gap-4">
@@ -5767,7 +5978,7 @@ function FortniteGenreTrend({ islands, percentile = 100, timeWindow = "7d" }: an
 function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
   const [page, setPage] = useState(0);
   const rows = useMemo(
-    () => buildFortniteFeaturedIslandRows(islands, limit).slice(0, 100),
+    () => buildFortniteFeaturedIslandRows(islands, limit).slice(0, limit),
     [islands, limit]
   );
   const hasOnlySingleDayRows = rows.every(
@@ -6302,18 +6513,28 @@ function mergeFortniteVisibilityTrends(islands: any[]) {
 }
 
 function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
-  const sourceDateKeys =
-    getFortniteSubstantialSnapshotDateKeys(islands).length > 0
-      ? getFortniteSubstantialSnapshotDateKeys(islands)
-      : getAvailableFortniteSnapshotDateKeys(islands);
+  const rankedRowsByDate = buildFortniteRankedRowsByDate(islands);
+  const sourceDateKeys = Object.keys(rankedRowsByDate)
+    .filter((dateKey) => rankedRowsByDate[dateKey].length >= limit)
+    .sort();
+  const scopedSnapshotsByIsland = new Map<string, any[]>();
+
+  sourceDateKeys.forEach((dateKey) => {
+    rankedRowsByDate[dateKey].slice(0, limit).forEach((row: any) => {
+      const islandKey = getFortniteIslandKey(row);
+      const existing = scopedSnapshotsByIsland.get(islandKey) ?? [];
+      existing.push({
+        ...row.snapshot,
+        rank: row.rank,
+      });
+      scopedSnapshotsByIsland.set(islandKey, existing);
+    });
+  });
 
   return islands
     .map((island) => {
-      const qualifyingSnapshots = getFortniteScopedSnapshotsForIsland(
-        island,
-        islands,
-        limit
-      );
+      const islandKey = getFortniteIslandKey(island);
+      const qualifyingSnapshots = scopedSnapshotsByIsland.get(islandKey) ?? [];
       const dateKeys = Array.from(
         new Set(
           qualifyingSnapshots
@@ -6362,7 +6583,7 @@ function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
         streakLatestSeenLabel: formatDateKey(topScopeStreak.latestSeen),
         allFirstSeenLabel: formatDateKey(allSeenDateKeys[0] ?? dateKeys[0]),
         allLatestSeenLabel: formatDateKey(allSeenDateKeys.at(-1) ?? dateKeys.at(-1)),
-        latestRank: latestSnapshot?.rank ?? island.latestRank ?? null,
+        latestRank: getFortniteSnapshotRank(latestSnapshot) ?? island.latestRank ?? null,
         bestRank: Math.min(
           ...qualifyingSnapshots
             .map((snapshot: any) => getFortniteSnapshotRank(snapshot))
@@ -6382,6 +6603,42 @@ function buildFortniteFeaturedIslandRows(islands: any[], limit: number) {
       }
       return String(a.firstSeen).localeCompare(String(b.firstSeen));
     });
+}
+
+function buildFortniteRankedRowsByDate(islands: any[]) {
+  const rowsByDate: Record<string, Map<string, any>> = {};
+
+  islands.forEach((island) => {
+    (island.snapshots ?? []).forEach((snapshot: any) => {
+      const dateKey = getSnapshotDateKey(snapshot.created_at);
+      const rank = getFortniteSnapshotRank(snapshot);
+
+      if (!dateKey || typeof rank !== "number") return;
+
+      const islandKey = getFortniteIslandKey(island);
+      if (!rowsByDate[dateKey]) rowsByDate[dateKey] = new Map();
+
+      const existing = rowsByDate[dateKey].get(islandKey);
+      if (existing && existing.rank <= rank) return;
+
+      rowsByDate[dateKey].set(islandKey, {
+        ...island,
+        snapshot,
+        rank,
+      });
+    });
+  });
+
+  const sortedRowsByDate: Record<string, any[]> = {};
+
+  Object.keys(rowsByDate).forEach((dateKey) => {
+    sortedRowsByDate[dateKey] = Array.from(rowsByDate[dateKey].values()).sort((a: any, b: any) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return String(a.title ?? "").localeCompare(String(b.title ?? ""));
+    });
+  });
+
+  return sortedRowsByDate;
 }
 
 function getLongestDateStreak(dateKeys: string[], sourceDateKeys: string[]) {
@@ -6457,62 +6714,6 @@ function buildFortniteIslandLifecycleRows(islands: any[], limit: number) {
   };
 }
 
-function getFortniteScopedSnapshotsForIsland(island: any, islands: any[], limit: number) {
-  const islandKey = getFortniteIslandKey(island);
-
-  return getFortniteSubstantialSnapshotDateKeys(islands)
-    .map((dateKey) => {
-      const rankedRows = getFortniteIslandsForDateRanked(islands, dateKey);
-      const scopedRow = rankedRows
-        .slice(0, limit)
-        .find((row: any) => getFortniteIslandKey(row) === islandKey);
-
-      if (!scopedRow) return null;
-
-      const snapshot = (island.snapshots ?? []).find((item: any) =>
-        String(item.created_at ?? "").startsWith(dateKey)
-      );
-
-      if (!snapshot) return null;
-
-      return {
-        ...snapshot,
-        rank:
-          getFortniteSnapshotRank(snapshot) ??
-          rankedRows.findIndex((row: any) => getFortniteIslandKey(row) === islandKey) + 1,
-      };
-    })
-    .filter(Boolean);
-}
-
-function getFortniteIslandsForDateRanked(islands: any[], dateKey: string) {
-  const rows = islands
-    .map((island, sourceIndex) => {
-      const snapshot = (island.snapshots ?? []).find((item: any) =>
-        String(item.created_at ?? "").startsWith(dateKey)
-      );
-
-      if (!snapshot) return null;
-
-      return {
-        ...island,
-        sourceIndex,
-        rank: getFortniteSnapshotRank(snapshot),
-      };
-    })
-    .filter(Boolean);
-
-  const hasRanks = rows.some((row: any) => typeof row.rank === "number");
-
-  return rows.sort((a: any, b: any) => {
-    if (hasRanks) {
-      return (a.rank ?? 999999) - (b.rank ?? 999999);
-    }
-
-    return a.sourceIndex - b.sourceIndex;
-  });
-}
-
 function getFortniteSnapshotRank(snapshot: any) {
   return parseFiniteNumber(
     snapshot?.rank ??
@@ -6528,7 +6729,9 @@ function getFortniteSnapshotRank(snapshot: any) {
 }
 
 function getFortniteIslandKey(island: any) {
-  return String(island.id ?? island.island_code ?? island.title ?? "");
+  return String(island.island_code ?? island.title ?? island.id ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function parseFiniteNumber(value: any) {
@@ -6886,6 +7089,7 @@ function formatShortDate(date: string) {
   return new Date(date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   });
 }
 
