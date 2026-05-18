@@ -25,6 +25,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+const SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS = false;
+
 const FORTNITE_ISLAND_SELECT = `
   id,
   island_code,
@@ -86,6 +88,7 @@ export default function Home() {
   const [selectedGenre, setSelectedGenre] = useState("");
   const [selectedSubgenre, setSelectedSubgenre] = useState("");
   const [topGamesTrendLimit, setTopGamesTrendLimit] = useState<25 | 50>(25);
+  const [mostPlayedMixLimit, setMostPlayedMixLimit] = useState<25 | 50>(25);
   const [topGamesTrendPercentile, setTopGamesTrendPercentile] =
     useState<25 | 50 | 75 | 100>(100);
   const [topGamesTrendWindow, setTopGamesTrendWindow] =
@@ -95,15 +98,23 @@ export default function Home() {
     useState<25 | 50 | 75 | 100>(100);
   const [genreTrendWindow, setGenreTrendWindow] =
     useState<TrendTimeWindow>("7d");
+  const [robloxArchetypeWindow, setRobloxArchetypeWindow] =
+    useState<TrendTimeWindow>("7d");
+  const [ideaTimeWindow, setIdeaTimeWindow] =
+    useState<"7d" | "30d">("7d");
+  const [landscapeTimeWindow, setLandscapeTimeWindow] =
+    useState<"7d" | "30d">("7d");
+  const [robloxExperienceView, setRobloxExperienceView] =
+    useState<"cards" | "list">("cards");
   const [fortniteLabelTrendLimit, setFortniteLabelTrendLimit] =
     useState<10 | 25>(10);
   const [fortniteLifecycleLimit, setFortniteLifecycleLimit] =
     useState<10 | 25>(25);
   const [fortniteLabelTrendWindow, setFortniteLabelTrendWindow] =
     useState<TrendTimeWindow>("7d");
-  const [fortniteGenreScoreboardLimit, setFortniteGenreScoreboardLimit] =
-    useState<10 | 25>(25);
   const [fortniteGenreScoreboardWindow, setFortniteGenreScoreboardWindow] =
+    useState<TrendTimeWindow>("7d");
+  const [fortniteArchetypeWindow, setFortniteArchetypeWindow] =
     useState<TrendTimeWindow>("7d");
   const [predictionSearch, setPredictionSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -219,7 +230,13 @@ export default function Home() {
     ).sort();
   }, [activeGenreAnalysisItems, activePlatform, selectedGenre]);
 
-  const filteredIdeaItems = activeGenreAnalysisItems.filter((item) => {
+  const activeIdeaAnalysisItems = useMemo(() => {
+    return activePlatform === "roblox"
+      ? buildCorrelationWindowGames(activeGenreAnalysisItems, ideaTimeWindow)
+      : getFortniteIslandsInWindow(activeGenreAnalysisItems, ideaTimeWindow);
+  }, [activeGenreAnalysisItems, activePlatform, ideaTimeWindow]);
+
+  const filteredIdeaItems = activeIdeaAnalysisItems.filter((item) => {
     const genreMatch = !selectedGenre || getDisplayGenre(item, activePlatform) === selectedGenre;
     const subgenreMatch =
       !selectedSubgenre || getDisplaySubgenre(item, activePlatform) === selectedSubgenre;
@@ -231,6 +248,10 @@ export default function Home() {
       (a, b) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0)
     );
   }, [robloxGames]);
+  const landscapeRobloxGames = useMemo(() => {
+    return buildCorrelationWindowGames(topRobloxGames, landscapeTimeWindow)
+      .sort((a: any, b: any) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0));
+  }, [topRobloxGames, landscapeTimeWindow]);
 
   const topFortniteIslands = useMemo(() => {
     return [...fortniteIslands].sort(compareFortniteIslands);
@@ -258,16 +279,17 @@ export default function Home() {
   );
 
   const ideaPercent =
-    activeItems.length > 0
-      ? Math.round((filteredIdeaItems.length / activeItems.length) * 100)
+    activeIdeaAnalysisItems.length > 0
+      ? Math.round((filteredIdeaItems.length / activeIdeaAnalysisItems.length) * 100)
       : 0;
 
   const topSimilar = [...filteredIdeaItems]
     .sort((a, b) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0))
     .slice(0, 3);
 
-  const topGenreScoreboard = buildTopGenreScoreboard(robloxGenreAnalysisGames);
-  const topGameScoreboard = topRobloxGames.slice(0, 3);
+  const mostPlayedClassificationPies =
+    buildRobloxMostPlayedClassificationPies(topRobloxGames, mostPlayedMixLimit);
+  const topGameScoreboard = topRobloxGames.slice(0, 5);
   const topPlayedYesterday = getTopGameByUtcDate(robloxGames, 1);
   const topPlayedLastWeek = getTopGameByUtcDate(robloxGames, 7);
   const activeAuditSnapshot = dataQualitySnapshots.find(
@@ -308,10 +330,16 @@ export default function Home() {
   const dashboardContext = {
     activePlatform,
     activeItems,
+    activeIdeaAnalysisItems,
     dataSourceHealth,
     activeGenreAnalysisItems,
     robloxGenreAnalysisGames,
     topRobloxGenreAnalysisGames,
+    ideaTimeWindow,
+    setIdeaTimeWindow,
+    landscapeTimeWindow,
+    setLandscapeTimeWindow,
+    landscapeRobloxGames,
     panel,
     accent,
     topFortniteIslands,
@@ -326,19 +354,21 @@ export default function Home() {
     genreTrendLimit,
     genreTrendPercentile,
     genreTrendWindow,
+    robloxArchetypeWindow,
     setGenreTrendLimit,
     setGenreTrendPercentile,
     setGenreTrendWindow,
+    setRobloxArchetypeWindow,
     fortniteLabelTrendLimit,
     fortniteLifecycleLimit,
     fortniteLabelTrendWindow,
-    fortniteGenreScoreboardLimit,
     fortniteGenreScoreboardWindow,
+    fortniteArchetypeWindow,
     setFortniteLabelTrendLimit,
     setFortniteLifecycleLimit,
     setFortniteLabelTrendWindow,
-    setFortniteGenreScoreboardLimit,
     setFortniteGenreScoreboardWindow,
+    setFortniteArchetypeWindow,
     selectedGenre,
     selectedSubgenre,
     setSelectedGenre,
@@ -470,20 +500,14 @@ export default function Home() {
         ) : activePlatform === "roblox" ? (
           /* Roblox dashboard branch. Keep Fortnite-specific UI changes in FortniteDashboardView. */
           <>
-            <section className="mb-6 grid gap-4 lg:grid-cols-4">
+            <section className="mb-6 grid gap-4 lg:grid-cols-3">
               <DataSourceHealthCard
                 title="Data Source & Health"
                 items={[
+                  `The data is pulled from: ${dataSourceHealth.source}.`,
+                  `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
                   `How many games are queried in the latest snapshot: ${formatNumber(
                     dataSourceHealth.queriedToday
-                  )}.`,
-                  `The data is pulled from: ${dataSourceHealth.source}.`,
-                  `Automated classification confidence is ${dataSourceHealth.confidence}%.`,
-                  `Rows included in genre-level analysis, source-confirmed or estimated: ${formatNumber(
-                    dataSourceHealth.genreEligibleCount
-                  )} of ${formatNumber(dataSourceHealth.totalRecords)}.`,
-                  `Heuristic fallback rows are labeled when Roblox source taxonomy is unavailable: ${formatNumber(
-                    robloxHeuristicCount
                   )}.`,
                 ]}
                 lastRunLabel={dataSourceHealth.lastRunLabel}
@@ -492,7 +516,7 @@ export default function Home() {
               />
 
               <ScoreboardCard
-                title="Top 3 Most Played Games"
+                title="Top 5 Most Played Games"
                 subtitle={
                   activePlatform === "roblox"
                     ? "By current players"
@@ -505,7 +529,7 @@ export default function Home() {
 	                        value: formatNumber(g.latestPlayers),
 	                        href: g.url,
 	                      }))
-	                    : topFortniteIslands.slice(0, 3).map((i) => ({
+	                    : topFortniteIslands.slice(0, 5).map((i) => ({
 	                        label: i.title,
                           subline: `${i.inferred_genre ?? "Other"} / ${
                             getDisplaySubgenre(i, activePlatform)
@@ -543,22 +567,6 @@ export default function Home() {
                 accent={accent}
               />
 
-              <GenreShareCard
-                title="Top 3 Genres / Subgenres"
-                subtitle={
-                  activePlatform === "roblox"
-                    ? "By current player pool"
-                    : "By imported island count"
-                }
-                items={
-                  activePlatform === "roblox"
-                    ? topGenreScoreboard
-                    : buildFortniteGenreScoreboard(fortniteIslands)
-                }
-                panel={panel}
-                accent={accent}
-              />
-
               <TrendingCard
                 title="Trending Games"
                 items={trendingHighlights}
@@ -567,6 +575,14 @@ export default function Home() {
                 platform={activePlatform}
               />
             </section>
+
+            <MostPlayedGenrePieRow
+              data={mostPlayedClassificationPies}
+              limit={mostPlayedMixLimit}
+              onLimitChange={setMostPlayedMixLimit}
+              panel={panel}
+              accent={accent}
+            />
 
             <section className="mb-6 grid gap-6 lg:grid-cols-2">
               <ChartCard
@@ -705,12 +721,47 @@ export default function Home() {
             </section>
 
             <section className="mb-6">
+              <div className={`rounded-3xl border p-6 ${panel}`}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold">Fictional Roblox Experience Archetypes</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Synthetic profiles built only from captured Roblox metrics and metadata in the selected window.
+                    </p>
+                  </div>
+                  <TimeWindowControls
+                    timeWindow={robloxArchetypeWindow}
+                    onTimeWindowChange={setRobloxArchetypeWindow}
+                    accent={accent}
+                  />
+                </div>
+
+                <RobloxArchetypeRow
+                  games={topRobloxGames}
+                  timeWindow={robloxArchetypeWindow}
+                  panel={panel}
+                />
+              </div>
+            </section>
+
+            <GameTemplateGeneratorRow
+              items={topRobloxGames}
+              platform="roblox"
+              timeWindow={robloxArchetypeWindow}
+              panel={panel}
+              accent={accent}
+            />
+
+            <section className="mb-6">
               <CorrelationAnalysisCard
                 title="Metric Correlation Analysis"
-                subtitle="Compare Roblox game-level metrics to see whether two signals move together."
+                subtitle="Compare Roblox metrics by genre to see where engagement or player-pool signals concentrate."
                 games={topRobloxGames}
                 panel={panel}
                 accent={accent}
+                categoricalY
+                enableTimeWindow
+                defaultYMetricKey="genre"
               />
             </section>
 
@@ -732,10 +783,19 @@ export default function Home() {
 
             <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
-                <h2 className="text-2xl font-bold">My Game Idea Is</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Use this as a reflection tool to position your concept.
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold">My Game Idea Is</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Use this as a reflection tool to position your concept.
+                    </p>
+                  </div>
+                  <TwoOptionTimeWindowControls
+                    timeWindow={ideaTimeWindow}
+                    onTimeWindowChange={setIdeaTimeWindow}
+                    accent={accent}
+                  />
+                </div>
 
                 <div className="mt-5 space-y-3">
                   <select
@@ -746,7 +806,9 @@ export default function Home() {
                       setSelectedSubgenre("");
                     }}
                   >
-                    <option value="">Select Genre</option>
+                    <option value="">
+                      {activePlatform === "roblox" ? "Select Genre" : "Select Estimated Genre"}
+                    </option>
                     {genres.map((genre) => (
                       <option key={genre} value={genre}>
                         {genre}
@@ -759,7 +821,9 @@ export default function Home() {
                     value={selectedSubgenre}
                     onChange={(e) => setSelectedSubgenre(e.target.value)}
                   >
-                    <option value="">Select Subgenre</option>
+                    <option value="">
+                      {activePlatform === "roblox" ? "Select Subgenre" : "Select Estimated Subgenre"}
+                    </option>
                     {subgenres.map((subgenre) => (
                       <option key={subgenre} value={subgenre}>
                         {subgenre}
@@ -769,17 +833,23 @@ export default function Home() {
                 </div>
 
 	                <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-	                  <ul className="list-disc space-y-2 pl-5">
-	                    <li>
-	                      This combination of genre and subgenre makes{" "}
-	                      <strong>{ideaPercent}%</strong> of the imported{" "}
-	                      {activePlatform === "roblox" ? "experiences" : "islands"}.
-	                    </li>
-	                    <li>
-	                      This represents a potential pool of{" "}
-	                      <strong>{formatNumber(totalPlayersInIdea)}</strong> current players.
-	                    </li>
-	                  </ul>
+                    <div className="grid gap-4 lg:grid-cols-[24rem_1fr] lg:items-stretch">
+                      <IdeaSunburst
+                        items={activeIdeaAnalysisItems}
+                        platform={activePlatform}
+                        selectedGenre={selectedGenre}
+                        selectedSubgenre={selectedSubgenre}
+                        accent={accent}
+                      />
+                      <IdeaPositionReadout
+                        platform={activePlatform}
+                        selectedGenre={selectedGenre}
+                        selectedSubgenre={selectedSubgenre}
+                        ideaPercent={ideaPercent}
+                        totalPlayersInIdea={totalPlayersInIdea}
+                        items={activeIdeaAnalysisItems}
+                      />
+                    </div>
                     <div className="mt-5 border-t border-slate-200 pt-4">
                       <p className="text-xs font-black uppercase tracking-wide text-slate-400">
                         Similar top games
@@ -852,55 +922,91 @@ export default function Home() {
                 <div>
                   <h2 className="text-2xl font-bold">Player Activity Landscape</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Rectangle size reflects current player activity. Color reflects stored player gain or loss.
+                    Rectangle size reflects player activity in the selected window. Color reflects stored player gain or loss.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-slate-400">
-                  <span className="h-3 w-3 rounded-sm bg-[#ef4444]" />
-                  Loss
-                  <span className="h-3 w-3 rounded-sm bg-[#334155]" />
-                  Flat
-                  <span className="h-3 w-3 rounded-sm bg-[#22c55e]" />
-                  Gain
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  <TwoOptionTimeWindowControls
+                    timeWindow={landscapeTimeWindow}
+                    onTimeWindowChange={setLandscapeTimeWindow}
+                    accent={accent}
+                  />
+                  <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-slate-400">
+                    <span className="h-3 w-3 rounded-sm bg-[#ef4444]" />
+                    Loss
+                    <span className="h-3 w-3 rounded-sm bg-[#334155]" />
+                    Flat
+                    <span className="h-3 w-3 rounded-sm bg-[#22c55e]" />
+                    Gain
+                  </div>
                 </div>
               </div>
 
               {activePlatform === "roblox" ? (
-                <PlayerActivityLandscape games={topRobloxGames.slice(0, 80)} />
+                <PlayerActivityLandscape games={landscapeRobloxGames.slice(0, 80)} />
               ) : (
                 <Unavailable text="Player activity landscape requires current-player data, which is not available from the current Fortnite source." />
               )}
             </section>
 
             <section className={`rounded-3xl border p-6 ${panel}`}>
-              <h2 className="text-2xl font-bold">
-                Top 25{" "}
-                {activePlatform === "roblox"
-                  ? "Roblox Experiences"
-                  : "Fortnite Islands"}
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {activePlatform === "roblox"
-                  ? "Ranked by latest stored current player count."
-                  : "Metadata cards for imported Fortnite islands."}
-              </p>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                {(activePlatform === "roblox"
-                  ? topRobloxGames
-                  : topFortniteIslands
-                )
-                  .slice(0, 25)
-                  .map((item: any, index: number) => (
-                    <GameMarketCard
-                      key={item.id}
-                      item={item}
-                      rank={index + 1}
-                      platform={activePlatform}
-                      panel={panel}
-                    />
-                  ))}
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    Top 25{" "}
+                    {activePlatform === "roblox"
+                      ? "Roblox Experiences"
+                      : "Fortnite Islands"}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {activePlatform === "roblox"
+                      ? "Ranked by latest stored current player count."
+                      : "Metadata cards for imported Fortnite islands."}
+                  </p>
+                </div>
+                {activePlatform === "roblox" && (
+                  <ToggleGroup>
+                    <ToggleButton
+                      active={robloxExperienceView === "cards"}
+                      onClick={() => setRobloxExperienceView("cards")}
+                      activeColor={accent}
+                    >
+                      Cards
+                    </ToggleButton>
+                    <ToggleButton
+                      active={robloxExperienceView === "list"}
+                      onClick={() => setRobloxExperienceView("list")}
+                      activeColor={accent}
+                    >
+                      List
+                    </ToggleButton>
+                  </ToggleGroup>
+                )}
               </div>
+
+              {activePlatform === "roblox" && robloxExperienceView === "list" ? (
+                <RobloxExperienceList
+                  games={topRobloxGames.slice(0, 25)}
+                  panel={panel}
+                />
+              ) : (
+                <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                  {(activePlatform === "roblox"
+                    ? topRobloxGames
+                    : topFortniteIslands
+                  )
+                    .slice(0, 25)
+                    .map((item: any, index: number) => (
+                      <GameMarketCard
+                        key={item.id}
+                        item={item}
+                        rank={index + 1}
+                        platform={activePlatform}
+                        panel={panel}
+                      />
+                    ))}
+                </div>
+              )}
             </section>
 
 	            <PredictionMarketSignalsCard
@@ -949,6 +1055,7 @@ function FortniteDashboardView({ context }: any) {
   const {
     activePlatform,
     activeItems,
+    activeIdeaAnalysisItems,
     dataSourceHealth,
     panel,
     accent,
@@ -964,19 +1071,21 @@ function FortniteDashboardView({ context }: any) {
     genreTrendLimit,
     genreTrendPercentile,
     genreTrendWindow,
+    ideaTimeWindow,
+    setIdeaTimeWindow,
     setGenreTrendLimit,
     setGenreTrendPercentile,
     setGenreTrendWindow,
     fortniteLabelTrendLimit,
     fortniteLifecycleLimit,
     fortniteLabelTrendWindow,
-    fortniteGenreScoreboardLimit,
     fortniteGenreScoreboardWindow,
+    fortniteArchetypeWindow,
     setFortniteLabelTrendLimit,
     setFortniteLifecycleLimit,
     setFortniteLabelTrendWindow,
-    setFortniteGenreScoreboardLimit,
     setFortniteGenreScoreboardWindow,
+    setFortniteArchetypeWindow,
     selectedGenre,
     selectedSubgenre,
     setSelectedGenre,
@@ -1002,54 +1111,68 @@ function FortniteDashboardView({ context }: any) {
         <DataSourceHealthCard
           title="Data Source & Health"
           items={[
+            `The data is pulled from: ${dataSourceHealth.source}.`,
+            `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
             `How many islands are queried in the latest snapshot: ${formatNumber(
               dataSourceHealth.queriedToday
             )}.`,
-            `The data is pulled from: ${dataSourceHealth.source}.`,
-            `Automated classification confidence is ${dataSourceHealth.confidence}%.`,
           ]}
           lastRunLabel={dataSourceHealth.lastRunLabel}
           panel={panel}
           accent={accent}
         />
 
-        <ScoreboardCard
-          title="Top 5 Fortnite Islands"
-          subtitle="Ranked by the latest imported source snapshot"
-          items={currentTopFortniteIslands.slice(0, 5).map((island: any, index: number) => {
-            const yesterdayIsland = getFortniteIslandBySnapshotRank(
-              fortniteIslands,
-              index + 1,
-              1
-            );
+        {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
+          <ScoreboardCard
+            title="Top 5 Fortnite Islands"
+            subtitle="Ranked by the latest imported source snapshot"
+            items={currentTopFortniteIslands.slice(0, 5).map((island: any, index: number) => {
+              const yesterdayIsland = getFortniteIslandBySnapshotRank(
+                fortniteIslands,
+                index + 1,
+                1
+              );
 
-            return {
-              label: island.title,
-              subline: `Yesterday: ${yesterdayIsland?.title ?? "placeholder"}`,
-              badge: getFortniteIpSignal(island)?.label,
-              wrap: true,
-              href: island.url,
-            };
-          })}
+              return {
+                label: island.title,
+                subline: `Yesterday: ${yesterdayIsland?.title ?? "placeholder"}`,
+                badge: getFortniteIpSignal(island)?.label,
+                wrap: true,
+                href: island.url,
+              };
+            })}
+            panel={panel}
+            accent={accent}
+          />
+        )}
+
+        <GenreShareCard
+          title="Top 3 Estimated Genres"
+          subtitle={`By imported island appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`}
+          items={buildFortniteCategoryScoreboard(
+            fortniteIslands,
+            "inferred_genre",
+            fortniteGenreScoreboardWindow
+          )}
+          footerAction={
+            <TimeWindowControls
+              timeWindow={fortniteGenreScoreboardWindow}
+              onTimeWindowChange={setFortniteGenreScoreboardWindow}
+              accent={accent}
+            />
+          }
           panel={panel}
           accent={accent}
         />
 
         <GenreShareCard
-          title="Top 3 Genres / Subgenres"
-          subtitle={`By source Top ${fortniteGenreScoreboardLimit} appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`}
-          items={buildFortniteGenreScoreboard(
+          title="Top 3 Estimated Subgenres"
+          subtitle={`By imported island appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`}
+          items={buildFortniteCategoryScoreboard(
             fortniteIslands,
-            fortniteGenreScoreboardLimit,
+            "inferred_subgenre",
             fortniteGenreScoreboardWindow
           )}
-          action={
-            <FortniteLabelTrendControls
-              limit={fortniteGenreScoreboardLimit}
-              onLimitChange={setFortniteGenreScoreboardLimit}
-              accent={accent}
-            />
-          }
           footerAction={
             <TimeWindowControls
               timeWindow={fortniteGenreScoreboardWindow}
@@ -1070,20 +1193,7 @@ function FortniteDashboardView({ context }: any) {
         />
       </section>
 
-      <section className="mb-6 grid gap-6 lg:grid-cols-2">
-        <ChartCard
-          title="Most Featured Islands"
-          subtitle="Islands with the most captured days in the source Top 25."
-          panel={panel}
-          contentClassName="min-h-[30rem]"
-        >
-          <FortniteFeaturedIslandsBar
-            islands={fortniteIslands}
-            limit={25}
-            accent={accent}
-          />
-        </ChartCard>
-
+      <section className="mb-6">
         <ChartCard
           title="Primary Label Usage Over Time"
           subtitle={`Top ${fortniteLabelTrendLimit} first-surfaced labels by island usage across stored snapshots.`}
@@ -1111,10 +1221,27 @@ function FortniteDashboardView({ context }: any) {
         </ChartCard>
       </section>
 
+      {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
+        <section className="mb-6">
+          <ChartCard
+            title="Most Featured Islands"
+            subtitle="Islands with the most captured days in the source Top 25."
+            panel={panel}
+            contentClassName="min-h-[30rem]"
+          >
+            <FortniteFeaturedIslandsBar
+              islands={fortniteIslands}
+              limit={25}
+              accent={accent}
+            />
+          </ChartCard>
+        </section>
+      )}
+
       <section className="mb-6">
         <ChartCard
-          title="Genre / Format Presence Over Time"
-          subtitle="Count of tracked islands by inferred Fortnite genre or format."
+          title="Estimated Genre / Format Presence Over Time"
+          subtitle="Count of tracked islands by estimated Fortnite genre or format."
           panel={panel}
           footerAction={
             <TimeWindowControls
@@ -1131,27 +1258,29 @@ function FortniteDashboardView({ context }: any) {
         </ChartCard>
       </section>
 
-      <section className="mb-6">
-        <ChartCard
-          title="New vs Returning Islands"
-          subtitle={`Newest and longest-standing islands in the source Top ${fortniteLifecycleLimit}.`}
-          panel={panel}
-          contentClassName="h-auto"
-          action={
-            <FortniteLabelTrendControls
+      {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
+        <section className="mb-6">
+          <ChartCard
+            title="New vs Returning Islands"
+            subtitle={`Newest and longest-standing islands in the source Top ${fortniteLifecycleLimit}.`}
+            panel={panel}
+            contentClassName="h-auto"
+            action={
+              <FortniteLabelTrendControls
+                limit={fortniteLifecycleLimit}
+                onLimitChange={setFortniteLifecycleLimit}
+                accent={accent}
+              />
+            }
+          >
+            <FortniteIslandLifecycleRankings
+              islands={fortniteIslands}
               limit={fortniteLifecycleLimit}
-              onLimitChange={setFortniteLifecycleLimit}
               accent={accent}
             />
-          }
-        >
-          <FortniteIslandLifecycleRankings
-            islands={fortniteIslands}
-            limit={fortniteLifecycleLimit}
-            accent={accent}
-          />
-        </ChartCard>
-      </section>
+          </ChartCard>
+        </section>
+      )}
 
       <section className="mb-6 grid gap-6 lg:grid-cols-3">
         <KeywordCloudCard
@@ -1181,18 +1310,52 @@ function FortniteDashboardView({ context }: any) {
       </section>
 
       <section className="mb-6">
-        <CorrelationAnalysisCard
-          title="Metric Correlation Analysis"
-          subtitle="Compare Fortnite island-level metadata and source visibility signals to see whether two captured signals move together."
-          games={buildFortniteCorrelationItems(fortniteIslands)}
-          metrics={fortniteCorrelationMetricOptions}
-          defaultXMetricKey="sourcePopularityProxy"
-          defaultYMetricKey="topThreeLabelReach"
-          caveat="Correlation is directional market intelligence, not causation. Source ordering, rotating discovery surfaces, sparse rank history, and categorical encoding can distort the result."
-          panel={panel}
-          accent={accent}
-        />
+        <div className={`rounded-3xl border p-6 ${panel}`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold">Fictional Island Archetypes</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Synthetic profiles built only from Fortnite source metadata and estimated fields derived from that metadata.
+              </p>
+            </div>
+            <TimeWindowControls
+              timeWindow={fortniteArchetypeWindow}
+              onTimeWindowChange={setFortniteArchetypeWindow}
+              accent={accent}
+            />
+          </div>
+
+          <FortniteArchetypeRow
+            islands={fortniteIslands}
+            timeWindow={fortniteArchetypeWindow}
+            panel={panel}
+          />
+        </div>
       </section>
+
+      <GameTemplateGeneratorRow
+        items={fortniteIslands}
+        platform="fortnite"
+        timeWindow={fortniteArchetypeWindow}
+        panel={panel}
+        accent={accent}
+      />
+
+      {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
+        <section className="mb-6">
+          <CorrelationAnalysisCard
+            title="Metric Correlation Analysis"
+            subtitle="Compare Fortnite island-level metadata and source visibility signals to see whether two captured signals move together."
+            games={buildFortniteCorrelationItems(fortniteIslands)}
+            metrics={fortniteCorrelationMetricOptions}
+            defaultXMetricKey="sourcePopularityProxy"
+            defaultYMetricKey="topThreeLabelReach"
+            caveat="Correlation is directional market intelligence, not causation. Source ordering, rotating discovery surfaces, sparse rank history, and categorical encoding can distort the result."
+            panel={panel}
+            accent={accent}
+          />
+        </section>
+      )}
 
       <section className="mb-6">
         <div className={`rounded-3xl border p-6 ${panel}`}>
@@ -1212,10 +1375,19 @@ function FortniteDashboardView({ context }: any) {
 
       <section className="mb-6">
         <div className={`rounded-3xl border p-6 ${panel}`}>
-          <h2 className="text-2xl font-bold">My Fortnite Island Idea Is</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Use this as a reflection tool to position your island concept.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold">My Fortnite Island Idea Is</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Use this as a reflection tool to position your island concept.
+              </p>
+            </div>
+            <TwoOptionTimeWindowControls
+              timeWindow={ideaTimeWindow}
+              onTimeWindowChange={setIdeaTimeWindow}
+              accent={accent}
+            />
+          </div>
 
           <div className="mt-5 space-y-3">
             <select
@@ -1226,7 +1398,7 @@ function FortniteDashboardView({ context }: any) {
                 setSelectedSubgenre("");
               }}
             >
-              <option value="">Select Genre</option>
+              <option value="">Select Estimated Genre</option>
               {genres.map((genre: string) => (
                 <option key={genre} value={genre}>
                   {genre}
@@ -1239,7 +1411,7 @@ function FortniteDashboardView({ context }: any) {
               value={selectedSubgenre}
               onChange={(event) => setSelectedSubgenre(event.target.value)}
             >
-              <option value="">Select Subgenre</option>
+              <option value="">Select Estimated Subgenre</option>
               {subgenres.map((subgenre: string) => (
                 <option key={subgenre} value={subgenre}>
                   {subgenre}
@@ -1249,12 +1421,23 @@ function FortniteDashboardView({ context }: any) {
           </div>
 
           <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-            <ul className="list-disc space-y-2 pl-5">
-              <li>
-                This combination of genre and subgenre makes{" "}
-                <strong>{ideaPercent}%</strong> of the imported Fortnite islands.
-              </li>
-            </ul>
+            <div className="grid gap-4 lg:grid-cols-[24rem_1fr] lg:items-stretch">
+              <IdeaSunburst
+                items={activeIdeaAnalysisItems}
+                platform={activePlatform}
+                selectedGenre={selectedGenre}
+                selectedSubgenre={selectedSubgenre}
+                accent={accent}
+              />
+              <IdeaPositionReadout
+                platform={activePlatform}
+                selectedGenre={selectedGenre}
+                selectedSubgenre={selectedSubgenre}
+                ideaPercent={ideaPercent}
+                totalPlayersInIdea={0}
+                items={activeIdeaAnalysisItems}
+              />
+            </div>
             {topSimilar.length ? (
               <div className="mt-5 border-t border-slate-200 pt-4">
                 <p className="text-xs font-black uppercase tracking-wide text-slate-400">
@@ -1591,6 +1774,7 @@ function buildTrendingHighlights(items: any[], platform: Platform) {
   }
 
   const yesterdayHighlights = buildYesterdayTrendingHighlights(items);
+  const sevenDayHighlights = buildPeriodTrendingHighlights(items, 7);
   const playerGain = [...items].sort(
     (a, b) => (b.playerGainPercent ?? 0) - (a.playerGainPercent ?? 0)
   )[0];
@@ -1609,6 +1793,7 @@ function buildTrendingHighlights(items: any[], platform: Platform) {
       direction: "up",
       href: playerGain?.url,
       subline: `Yesterday: ${yesterdayHighlights.playerGain?.title ?? "placeholder"}`,
+      secondSubline: `Past 7 days: ${sevenDayHighlights.playerGain?.title ?? "placeholder"}`,
     },
     {
       label: "Most position gain",
@@ -1617,6 +1802,7 @@ function buildTrendingHighlights(items: any[], platform: Platform) {
       direction: "up",
       href: rankGain?.url,
       subline: `Yesterday: ${yesterdayHighlights.rankGain?.title ?? "placeholder"}`,
+      secondSubline: `Past 7 days: ${sevenDayHighlights.rankGain?.title ?? "placeholder"}`,
     },
     {
       label: "Most player loss",
@@ -1631,6 +1817,7 @@ function buildTrendingHighlights(items: any[], platform: Platform) {
       direction: "down",
       href: playerLoss?.url,
       subline: `Yesterday: ${yesterdayHighlights.playerLoss?.title ?? "placeholder"}`,
+      secondSubline: `Past 7 days: ${sevenDayHighlights.playerLoss?.title ?? "placeholder"}`,
     },
   ];
 }
@@ -1749,6 +1936,74 @@ function buildYesterdayTrendingHighlights(games: any[]) {
   };
 }
 
+function buildPeriodTrendingHighlights(games: any[], days: number) {
+  const latestKey = getLatestSnapshotDateKey(games);
+  const latestDate = parseDateKey(latestKey);
+  const startDate = latestDate ? new Date(latestDate) : null;
+
+  if (!latestDate || !startDate) {
+    return { playerGain: null, rankGain: null, playerLoss: null };
+  }
+
+  startDate.setUTCDate(startDate.getUTCDate() - days + 1);
+
+  const periodRows = games
+    .map((game) => {
+      const snapshots = [...(game.snapshots ?? [])]
+        .filter((snapshot: any) => snapshot.created_at)
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      const latestSnapshot = snapshots
+        .filter((snapshot: any) => {
+          const dateKey = getSnapshotDateKey(snapshot.created_at);
+          return dateKey && dateKey <= latestKey;
+        })
+        .at(-1);
+      const startSnapshot =
+        snapshots.find((snapshot: any) => {
+          const dateKey = getSnapshotDateKey(snapshot.created_at);
+          const snapshotDate = parseDateKey(dateKey);
+          return snapshotDate && snapshotDate >= startDate && snapshotDate <= latestDate;
+        }) ?? snapshots[0];
+
+      if (!latestSnapshot || !startSnapshot || latestSnapshot === startSnapshot) {
+        return null;
+      }
+
+      const playerDeltaPercent =
+        startSnapshot.current_players && latestSnapshot.current_players
+          ? ((latestSnapshot.current_players - startSnapshot.current_players) /
+              Math.max(startSnapshot.current_players, 1)) *
+            100
+          : 0;
+      const rankGain =
+        startSnapshot.chart_rank && latestSnapshot.chart_rank
+          ? startSnapshot.chart_rank - latestSnapshot.chart_rank
+          : 0;
+
+      return {
+        title: game.title,
+        playerDeltaPercent,
+        rankGain,
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    playerGain: [...periodRows].sort(
+      (a: any, b: any) => b.playerDeltaPercent - a.playerDeltaPercent
+    )[0],
+    rankGain: [...periodRows].sort(
+      (a: any, b: any) => b.rankGain - a.rankGain
+    )[0],
+    playerLoss: [...periodRows].sort(
+      (a: any, b: any) => a.playerDeltaPercent - b.playerDeltaPercent
+    )[0],
+  };
+}
+
 function getLatestSnapshotForDate(game: any, dateKey: string) {
   return (game.snapshots ?? [])
     .filter((item: any) => String(item.created_at ?? "").startsWith(dateKey))
@@ -1836,12 +2091,56 @@ function buildTopGenreScoreboard(games: any[]) {
     .slice(0, 3);
 }
 
-function buildFortniteGenreScoreboard(
+function buildRobloxMostPlayedClassificationPies(games: any[], limit = 25) {
+  const scopedGames = games.slice(0, limit);
+  const genreMap: Record<string, number> = {};
+  const subgenreMap: Record<string, number> = {};
+  let estimatedRecords = 0;
+  let pendingRecords = 0;
+  let totalPlayers = 0;
+
+  scopedGames.forEach((game) => {
+    const players = game.latestPlayers ?? 0;
+    const genre = getDisplayGenre(game, "roblox");
+    const subgenre = getDisplaySubgenre(game, "roblox");
+    const confidence = getClassificationConfidence(game, "roblox");
+
+    genreMap[genre] = (genreMap[genre] ?? 0) + players;
+    subgenreMap[subgenre] = (subgenreMap[subgenre] ?? 0) + players;
+    totalPlayers += players;
+
+    if (confidence === "estimated") estimatedRecords += 1;
+    if (confidence === "pending") pendingRecords += 1;
+  });
+
+  return {
+    genres: toPieRows(genreMap, totalPlayers),
+    subgenres: toPieRows(subgenreMap, totalPlayers),
+    recordCount: scopedGames.length,
+    totalPlayers,
+    estimatedRecords,
+    pendingRecords,
+  };
+}
+
+function toPieRows(map: Record<string, number>, total: number) {
+  return Object.entries(map)
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 5)
+    .map(([name, value]) => ({
+      name,
+      value,
+      share: total ? Math.round((value / total) * 100) : 0,
+    }));
+}
+
+function buildFortniteCategoryScoreboard(
   islands: any[],
-  limit: 10 | 25 = 25,
+  field: "inferred_genre" | "inferred_subgenre",
   timeWindow: TrendTimeWindow = "7d"
 ) {
-  const map: Record<string, { genre: string; subgenre: string; count: number }> = {};
+  const map: Record<string, { label: string; count: number }> = {};
   const latestDateKey =
     getFortniteSubstantialSnapshotDateKeys(islands).at(-1) ??
     getAvailableFortniteSnapshotDateKeys(islands).at(-1);
@@ -1855,13 +2154,11 @@ function buildFortniteGenreScoreboard(
   let total = 0;
 
   islands.forEach((island) => {
-    const genre = island.inferred_genre ?? "Other";
-    const subgenre = island.inferred_subgenre ?? "General";
-    const key = `${genre}|||${subgenre}`;
+    const label = island[field] ?? (field === "inferred_subgenre" ? "General" : "Other");
     const seenDateKeys = new Set<string>();
 
-    if (!map[key]) {
-      map[key] = { genre, subgenre, count: 0 };
+    if (!map[label]) {
+      map[label] = { label, count: 0 };
     }
 
     (island.snapshots ?? []).forEach((snapshot: any) => {
@@ -1873,30 +2170,26 @@ function buildFortniteGenreScoreboard(
         startDate &&
         snapshotDate >= startDate &&
         snapshotDate <= latestDate;
-      const inRankScope =
-        typeof snapshot.rank === "number" && snapshot.rank <= limit;
 
-      if (!dateKey || !inWindow || !inRankScope || seenDateKeys.has(dateKey)) {
+      if (!dateKey || !inWindow || seenDateKeys.has(dateKey)) {
         return;
       }
 
       seenDateKeys.add(dateKey);
-      map[key].count += 1;
+      map[label].count += 1;
       total += 1;
     });
   });
 
   if (!total) {
-    islands.slice(0, limit).forEach((island) => {
-      const genre = island.inferred_genre ?? "Other";
-      const subgenre = island.inferred_subgenre ?? "General";
-      const key = `${genre}|||${subgenre}`;
+    islands.forEach((island) => {
+      const label = island[field] ?? (field === "inferred_subgenre" ? "General" : "Other");
 
-      if (!map[key]) {
-        map[key] = { genre, subgenre, count: 0 };
+      if (!map[label]) {
+        map[label] = { label, count: 0 };
       }
 
-      map[key].count += 1;
+      map[label].count += 1;
       total += 1;
     });
   }
@@ -1904,14 +2197,17 @@ function buildFortniteGenreScoreboard(
   return Object.values(map)
     .filter((item) => item.count > 0)
     .map((item) => ({
-      label: item.genre,
-      subline: item.subgenre,
+      label: item.label,
       value: `${formatNumber(item.count)} appearances`,
       rawValue: item.count,
       share: total ? Math.round((item.count / total) * 100) : 0,
     }))
     .sort((a, b) => b.rawValue - a.rawValue)
     .slice(0, 3);
+}
+
+function buildFortniteGenreScoreboard(islands: any[]) {
+  return buildFortniteCategoryScoreboard(islands, "inferred_genre", "7d");
 }
 
 function buildFortniteMetricCoverage(islands: any[]) {
@@ -2533,39 +2829,183 @@ function buildDataSourceHealth(
         ).length || items.length
     : items.length;
 
-  const classifiedRecords = items.filter((item) => {
-    const hasIdentity = Boolean(item.title);
-    const hasUsefulGenre =
-      Boolean(item.inferred_genre) && item.inferred_genre !== "Other";
-    const hasUsefulSubgenre =
-      Boolean(item.inferred_subgenre) && item.inferred_subgenre !== "General";
-    const hasSource =
-      platform === "roblox"
-        ? (item.snapshots ?? []).length > 0
-        : Boolean(item.raw_latest ?? item.raw);
-
-    return hasIdentity && hasUsefulGenre && hasUsefulSubgenre && hasSource;
-  }).length;
-
-  const fallbackConfidence = items.length
-    ? Math.round((classifiedRecords / items.length) * 100)
-    : 0;
-  const confidence = Math.round(
-    auditSnapshot?.confidence_percent ?? fallbackConfidence
-  );
+  const captureCoverage = calculateDataCaptureCoverage(platform, items);
   const genreEligibleCount = getGenreAnalysisItems(items, platform).length;
 
   return {
     totalRecords: items.length,
     queriedToday,
     source,
-    confidence,
+    captureCoverage,
     genreEligibleCount,
     genreExcludedCount: Math.max(0, items.length - genreEligibleCount),
     lastRunLabel: formatUtcTimestamp(
       auditSnapshot?.created_at ?? getLatestSourceTimestamp(platform, items)
     ),
   };
+}
+
+function calculateDataCaptureCoverage(platform: Platform, items: any[]) {
+  if (!items.length) return 0;
+
+  const expectedFields =
+    platform === "roblox" ? getRobloxCaptureFieldChecks() : getFortniteCaptureFieldChecks();
+  const totalExpectedFields = items.length * expectedFields.length;
+  const capturedFields = items.reduce((total, item) => {
+    return (
+      total +
+      expectedFields.filter((field) => field.isCaptured(item)).length
+    );
+  }, 0);
+
+  return Math.round((capturedFields / Math.max(1, totalExpectedFields)) * 100);
+}
+
+function getRobloxCaptureFieldChecks() {
+  return [
+    { key: "id", isCaptured: (item: any) => hasUsableValue(item.id) },
+    { key: "title", isCaptured: (item: any) => hasUsableValue(item.title) },
+    { key: "url", isCaptured: (item: any) => hasUsableValue(item.url) },
+    {
+      key: "thumbnail_url",
+      isCaptured: (item: any) => hasUsableValue(item.thumbnail_url),
+    },
+    {
+      key: "description",
+      isCaptured: (item: any) => hasUsableValue(item.description),
+    },
+    {
+      key: "source_or_estimated_genre",
+      isCaptured: (item: any) =>
+        hasUsableValue(item.genre) || hasUsableValue(item.inferred_genre),
+    },
+    {
+      key: "source_or_estimated_subgenre",
+      isCaptured: (item: any) => hasUsableValue(item.inferred_subgenre),
+    },
+    {
+      key: "core_loop",
+      isCaptured: (item: any) => hasUsableValue(item.core_loop),
+    },
+    {
+      key: "tags",
+      isCaptured: (item: any) => hasUsableArray(item.extracted_tags),
+    },
+    {
+      key: "chart_snapshot",
+      isCaptured: (item: any) => hasUsableArray(item.snapshots),
+    },
+    {
+      key: "snapshot_date",
+      isCaptured: (item: any) =>
+        (item.snapshots ?? []).some((snapshot: any) =>
+          hasUsableValue(snapshot.created_at)
+        ),
+    },
+    {
+      key: "current_players",
+      isCaptured: (item: any) =>
+        typeof item.latestPlayers === "number" && item.latestPlayers > 0,
+    },
+    {
+      key: "source_rank_or_sort",
+      isCaptured: (item: any) =>
+        hasUsableValue(item.latestRank) || hasUsableValue(item.latestSort),
+    },
+    {
+      key: "engagement_metric",
+      isCaptured: (item: any) =>
+        hasUsableValue(item.visits) ||
+        hasUsableValue(item.favorites) ||
+        hasUsableValue(item.upVotes) ||
+        hasUsableValue(item.likeRatio),
+    },
+  ];
+}
+
+function getFortniteCaptureFieldChecks() {
+  return [
+    {
+      key: "island_code",
+      isCaptured: (item: any) => hasUsableValue(item.island_code),
+    },
+    { key: "title", isCaptured: (item: any) => hasUsableValue(item.title) },
+    { key: "url", isCaptured: (item: any) => hasUsableValue(item.url) },
+    {
+      key: "thumbnail_url",
+      isCaptured: (item: any) => hasUsableValue(item.thumbnail_url),
+    },
+    {
+      key: "description",
+      isCaptured: (item: any) => hasUsableValue(item.description),
+    },
+    {
+      key: "labels",
+      isCaptured: (item: any) => hasUsableArray(item.extracted_tags),
+    },
+    {
+      key: "raw_payload",
+      isCaptured: (item: any) =>
+        hasUsableObject(item.raw_latest) || hasUsableObject(item.raw),
+    },
+    {
+      key: "snapshot",
+      isCaptured: (item: any) => hasUsableArray(item.snapshots),
+    },
+    {
+      key: "snapshot_date",
+      isCaptured: (item: any) =>
+        (item.snapshots ?? []).some((snapshot: any) =>
+          hasUsableValue(snapshot.created_at)
+        ),
+    },
+    {
+      key: "source_order_or_rank",
+      isCaptured: (item: any) =>
+        (item.snapshots ?? []).some(
+          (snapshot: any) =>
+            hasUsableValue(snapshot.source_order) ||
+            hasUsableValue(snapshot.rank)
+        ),
+    },
+    {
+      key: "estimated_genre",
+      isCaptured: (item: any) => hasUsableValue(item.inferred_genre),
+    },
+    {
+      key: "estimated_subgenre",
+      isCaptured: (item: any) => hasUsableValue(item.inferred_subgenre),
+    },
+    {
+      key: "estimated_core_loop",
+      isCaptured: (item: any) => hasUsableValue(item.core_loop),
+    },
+    {
+      key: "estimated_player_intent",
+      isCaptured: (item: any) => hasUsableValue(item.player_intent),
+    },
+  ];
+}
+
+function hasUsableValue(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value === "string") {
+    return Boolean(value.trim()) && !/^unknown|general|n\/a|null$/i.test(value.trim());
+  }
+  return Boolean(value);
+}
+
+function hasUsableArray(value: unknown) {
+  return Array.isArray(value) && value.some((item) => hasUsableValue(item));
+}
+
+function hasUsableObject(value: unknown) {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value).length
+  );
 }
 
 function getGenreAnalysisItems(items: any[], platform: Platform) {
@@ -2865,6 +3305,151 @@ function GenreShareCard({
   );
 }
 
+function MostPlayedGenrePieRow({ data, limit, onLimitChange, panel, accent }: any) {
+  const colors = [accent, "#d6a06d", "#5b5d78", "#94a3b8", "#cbd5e1"];
+  const note =
+    data.estimatedRecords || data.pendingRecords
+      ? `Genres are often missing from the source API and therefore estimated when needed. ${formatNumber(
+          data.estimatedRecords
+        )} of ${formatNumber(data.recordCount)} records use estimated classification.`
+      : "Genres are often missing from the source API and therefore estimated when needed.";
+
+  return (
+    <section className="mb-6 grid gap-4 lg:grid-cols-2">
+      <MostPlayedClassificationPieCard
+        title="Most Played Genre Mix Estimated"
+        subtitle={`Player-weighted genre share across the current Top ${limit} most played Roblox experiences.`}
+        note={note}
+        panel={panel}
+        action={
+          <MostPlayedMixControls
+            limit={limit}
+            onLimitChange={onLimitChange}
+            accent={accent}
+          />
+        }
+      >
+        <ClassificationPie
+          title="Genre"
+          rows={data.genres}
+          colors={colors}
+          emptyText="No genre data available."
+        />
+      </MostPlayedClassificationPieCard>
+
+      <MostPlayedClassificationPieCard
+        title="Most Played Subgenre Mix Estimated"
+        subtitle={`Player-weighted subgenre share across the current Top ${limit} most played Roblox experiences.`}
+        note={note}
+        panel={panel}
+        action={
+          <MostPlayedMixControls
+            limit={limit}
+            onLimitChange={onLimitChange}
+            accent={accent}
+          />
+        }
+      >
+        <ClassificationPie
+          title="Subgenre"
+          rows={data.subgenres}
+          colors={colors}
+          emptyText="No subgenre data available."
+        />
+      </MostPlayedClassificationPieCard>
+    </section>
+  );
+}
+
+function MostPlayedMixControls({ limit, onLimitChange, accent }: any) {
+  return (
+    <ToggleGroup>
+      {[25, 50].map((value) => (
+        <ToggleButton
+          key={value}
+          active={limit === value}
+          onClick={() => onLimitChange(value)}
+          activeColor={accent}
+        >
+          Top {value}
+        </ToggleButton>
+      ))}
+    </ToggleGroup>
+  );
+}
+
+function MostPlayedClassificationPieCard({ title, subtitle, note, panel, action, children }: any) {
+  return (
+    <div className={`rounded-3xl border p-5 ${panel}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">{title}</p>
+          <p className="text-xs text-slate-400">{subtitle}</p>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      <div className="mt-4">{children}</div>
+      <p className="mt-4 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-5 text-slate-500">
+        {note}
+      </p>
+    </div>
+  );
+}
+
+function ClassificationPie({ title, rows, colors, emptyText }: any) {
+  if (!rows.length) {
+    return (
+      <div className="rounded-2xl bg-slate-50 p-3">
+        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+          {title}
+        </p>
+        <p className="mt-3 text-sm text-slate-500">{emptyText}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3">
+      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+        {title}
+      </p>
+      <div className="mt-2 grid grid-cols-[104px_1fr] items-center gap-3">
+        <PieChart width={104} height={104}>
+          <Pie
+            data={rows}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={32}
+            outerRadius={50}
+            paddingAngle={2}
+          >
+            {rows.map((_: any, index: number) => (
+              <Cell key={index} fill={colors[index % colors.length]} />
+            ))}
+          </Pie>
+        </PieChart>
+
+        <div className="min-w-0 space-y-1.5">
+          {rows.map((row: any, index: number) => (
+            <div key={row.name} className="flex min-w-0 items-center gap-2">
+              <span
+                className="h-2.5 w-2.5 flex-none rounded-full"
+                style={{ backgroundColor: colors[index % colors.length] }}
+              />
+              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-600">
+                {row.name}
+              </span>
+              <span className="flex-none text-xs font-black text-slate-500">
+                {row.share}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FortniteLabelRankingsCard({ title, subtitle, items, panel, accent }: any) {
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
@@ -2993,6 +3578,11 @@ function TrendingCard({ title, items, panel }: any) {
                     {item.subline}
                   </p>
                 )}
+                {item.secondSubline && (
+                  <p className="mt-0.5 text-xs font-medium leading-snug text-slate-400">
+                    {item.secondSubline}
+                  </p>
+                )}
               </div>
               <div
                 className={`flex-none rounded-full px-2 py-1 text-xs font-black ${
@@ -3110,6 +3700,26 @@ function TimeWindowControls({ timeWindow, onTimeWindowChange, accent }: any) {
         ["7d", "7D"],
         ["30d", "Month"],
         ["3m", "3M"],
+      ].map(([value, label]) => (
+        <ToggleButton
+          key={value}
+          active={timeWindow === value}
+          onClick={() => onTimeWindowChange(value)}
+          activeColor={accent}
+        >
+          {label}
+        </ToggleButton>
+      ))}
+    </ToggleGroup>
+  );
+}
+
+function TwoOptionTimeWindowControls({ timeWindow, onTimeWindowChange, accent }: any) {
+  return (
+    <ToggleGroup>
+      {[
+        ["7d", "7D"],
+        ["30d", "Month"],
       ].map(([value, label]) => (
         <ToggleButton
           key={value}
@@ -3594,6 +4204,318 @@ function ColorBreakdownCard({
   );
 }
 
+function IdeaSunburst({
+  items,
+  platform,
+  selectedGenre,
+  selectedSubgenre,
+  accent,
+}: any) {
+  const data = buildIdeaSunburstData(items, platform, selectedGenre, selectedSubgenre);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+            Dataset position
+          </p>
+          <p className="mt-1 text-xs font-bold leading-4 text-slate-500">
+            Inner ring: genre share. Outer ring: selected genre split by subgenre.
+          </p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">
+          {formatNumber(items.length)}
+        </span>
+      </div>
+
+      <div className="mt-4 flex justify-center">
+        <svg viewBox="0 0 180 180" className="h-48 w-48">
+          <circle cx="90" cy="90" r="64" fill="#f1f5f9" />
+          {data.genreSegments.map((segment: any) => (
+            <path
+              key={segment.key}
+              d={describeDonutSegment(90, 90, 38, 66, segment.start, segment.end)}
+              fill={segment.selected ? accent : segment.color}
+              opacity={segment.selected ? 1 : 0.58}
+              stroke="#ffffff"
+              strokeWidth="2"
+            >
+              <title>
+                {segment.label}: {segment.percent}% of imported records
+              </title>
+            </path>
+          ))}
+          {data.subgenreSegments.map((segment: any) => (
+            <path
+              key={segment.key}
+              d={describeDonutSegment(90, 90, 70, 84, segment.start, segment.end)}
+              fill={segment.selected ? accent : segment.color}
+              opacity={segment.selected ? 0.95 : 0.42}
+              stroke="#ffffff"
+              strokeWidth="2"
+            >
+              <title>
+                {segment.label}: {segment.percent}% of {selectedGenre}
+              </title>
+            </path>
+          ))}
+          <circle cx="90" cy="90" r="30" fill="white" />
+          <text
+            x="90"
+            y="86"
+            textAnchor="middle"
+            className="fill-slate-700 text-[13px] font-black"
+          >
+            {data.selectedGenrePercent}%
+          </text>
+          <text
+            x="90"
+            y="101"
+            textAnchor="middle"
+            className="fill-slate-400 text-[8px] font-bold uppercase"
+          >
+            Genre
+          </text>
+        </svg>
+      </div>
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        {data.legend.map((item: any) => (
+          <span
+            key={item.label}
+            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500"
+          >
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IdeaPositionReadout({
+  platform,
+  selectedGenre,
+  selectedSubgenre,
+  ideaPercent,
+  totalPlayersInIdea,
+  items,
+}: any) {
+  const data = buildIdeaSunburstData(items, platform, selectedGenre, selectedSubgenre);
+  const noun = platform === "roblox" ? "experiences" : "islands";
+
+  return (
+    <div className="rounded-2xl border border-[#9fc7e4] bg-[#e8f2fa] p-4 text-sm leading-6 text-slate-700">
+      <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+        Readout
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5">
+        <li>
+          This combination of genre and subgenre makes <strong>{ideaPercent}%</strong> of the imported{" "}
+          {noun}.
+        </li>
+        {platform === "roblox" ? (
+          <li>
+            This represents a potential pool of{" "}
+            <strong>{formatNumber(totalPlayersInIdea)}</strong> current players.
+          </li>
+        ) : (
+          <li>
+            This represents <strong>{formatNumber(data.selectedGenreCount)}</strong> imported islands in the selected genre.
+          </li>
+        )}
+      </ul>
+      <div className="mt-4 space-y-2 border-t border-[#9fc7e4] pt-3 text-xs font-semibold text-slate-600">
+        <p>
+          {selectedGenre
+            ? `${selectedGenre} is ${data.selectedGenrePercent}% of the dataset.`
+            : "Select a genre to highlight its place in the dataset."}
+        </p>
+        <p>
+          {selectedGenre && selectedSubgenre
+            ? `${selectedSubgenre} is ${data.selectedSubgenrePercent}% of ${selectedGenre}.`
+            : selectedGenre
+              ? "Select a subgenre to highlight the outer ring."
+              : "The outer ring appears after a genre is selected."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function buildIdeaSunburstData(
+  items: any[],
+  platform: Platform,
+  selectedGenre: string,
+  selectedSubgenre: string
+) {
+  const colors = ["#0d69ac", "#33a3a9", "#7c3aed", "#16a34a", "#f59e0b", "#ef4444", "#64748b"];
+  const total = Math.max(items.length, 1);
+  const genreEntries = countEntries(
+    items.map((item) => getDisplayGenre(item, platform) || "Unclassified")
+  );
+  const visibleGenres = keepTopEntriesWithSelection(genreEntries, selectedGenre, 7);
+  const genreSegments = createSunburstSegments(visibleGenres, 0, 360, colors).map(
+    (segment: any) => ({
+      ...segment,
+      selected: segment.label === selectedGenre,
+      percent: Math.round((segment.count / total) * 100),
+    })
+  );
+  const selectedGenreSegment =
+    genreSegments.find((segment: any) => segment.label === selectedGenre) ??
+    genreSegments[0] ?? { start: 0, end: 360, count: 0 };
+  const selectedGenreItems = selectedGenre
+    ? items.filter((item) => getDisplayGenre(item, platform) === selectedGenre)
+    : [];
+  const subgenreEntries = countEntries(
+    selectedGenreItems.map((item) => getDisplaySubgenre(item, platform) || "Unclassified")
+  );
+  const visibleSubgenres = keepTopEntriesWithSelection(subgenreEntries, selectedSubgenre, 6);
+  const subgenreSegments = selectedGenre
+    ? createSunburstSegments(
+        visibleSubgenres,
+        selectedGenreSegment.start,
+        selectedGenreSegment.end,
+        colors
+      ).map((segment: any) => ({
+        ...segment,
+        selected: segment.label === selectedSubgenre,
+        percent: selectedGenreItems.length
+          ? Math.round((segment.count / selectedGenreItems.length) * 100)
+          : 0,
+      }))
+    : [];
+  const selectedSubgenreCount = selectedSubgenre
+    ? selectedGenreItems.filter(
+        (item) => getDisplaySubgenre(item, platform) === selectedSubgenre
+      ).length
+    : 0;
+
+  return {
+    genreSegments,
+    subgenreSegments,
+    selectedGenreCount: selectedGenreItems.length,
+    selectedGenrePercent: selectedGenre
+      ? Math.round((selectedGenreItems.length / total) * 100)
+      : 0,
+    selectedSubgenrePercent:
+      selectedGenre && selectedSubgenre && selectedGenreItems.length
+        ? Math.round((selectedSubgenreCount / selectedGenreItems.length) * 100)
+        : 0,
+    legend: [
+      ...genreSegments
+        .filter((segment: any) => segment.selected)
+        .map((segment: any) => ({ label: "Selected genre", color: segment.color })),
+      ...subgenreSegments
+        .filter((segment: any) => segment.selected)
+        .map((segment: any) => ({ label: "Selected subgenre", color: segment.color })),
+    ],
+  };
+}
+
+function countEntries(values: string[]) {
+  const counts = values.reduce((map: Record<string, number>, value) => {
+    map[value] = (map[value] ?? 0) + 1;
+    return map;
+  }, {});
+
+  return Object.entries(counts)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function keepTopEntriesWithSelection(entries: any[], selected: string, limit: number) {
+  const top = entries.slice(0, limit);
+  const selectedEntry = selected
+    ? entries.find((entry) => entry.label === selected)
+    : null;
+  const merged = selectedEntry && !top.some((entry) => entry.label === selected)
+    ? [...top.slice(0, Math.max(limit - 1, 0)), selectedEntry]
+    : top;
+  const represented = new Set(merged.map((entry) => entry.label));
+  const otherCount = entries
+    .filter((entry) => !represented.has(entry.label))
+    .reduce((sum, entry) => sum + entry.count, 0);
+
+  return otherCount > 0 ? [...merged, { label: "Other", count: otherCount }] : merged;
+}
+
+function createSunburstSegments(entries: any[], startAngle: number, endAngle: number, colors: string[]) {
+  const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+  const span = endAngle - startAngle;
+  let cursor = startAngle;
+
+  if (!total) return [];
+
+  return entries.map((entry, index) => {
+    const segmentSpan = (entry.count / total) * span;
+    const segment = {
+      ...entry,
+      key: `${entry.label}-${index}`,
+      start: cursor,
+      end: Math.min(cursor + segmentSpan, endAngle - 0.01),
+      color: colors[index % colors.length],
+    };
+    cursor += segmentSpan;
+    return segment;
+  });
+}
+
+function describeDonutSegment(
+  cx: number,
+  cy: number,
+  innerRadius: number,
+  outerRadius: number,
+  startAngle: number,
+  endAngle: number
+) {
+  const outerStart = polarToCartesian(cx, cy, outerRadius, endAngle);
+  const outerEnd = polarToCartesian(cx, cy, outerRadius, startAngle);
+  const innerStart = polarToCartesian(cx, cy, innerRadius, startAngle);
+  const innerEnd = polarToCartesian(cx, cy, innerRadius, endAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+
+  return [
+    "M",
+    outerStart.x,
+    outerStart.y,
+    "A",
+    outerRadius,
+    outerRadius,
+    0,
+    largeArcFlag,
+    0,
+    outerEnd.x,
+    outerEnd.y,
+    "L",
+    innerStart.x,
+    innerStart.y,
+    "A",
+    innerRadius,
+    innerRadius,
+    0,
+    largeArcFlag,
+    1,
+    innerEnd.x,
+    innerEnd.y,
+    "Z",
+  ].join(" ");
+}
+
+function polarToCartesian(cx: number, cy: number, radius: number, angleInDegrees: number) {
+  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
+
+  return {
+    x: cx + radius * Math.cos(angleInRadians),
+    y: cy + radius * Math.sin(angleInRadians),
+  };
+}
+
 function BlockHeatMap({
   items,
   selectedGenre,
@@ -3788,6 +4710,119 @@ const correlationMetricOptions = [
   },
 ];
 
+function buildGenreCorrelationMetricOptions(games: any[]) {
+  const genres = Array.from(
+    new Set(
+      games
+        .map((game) => sanitizeClassificationLabel(getDisplayGenre(game, "roblox"), ""))
+        .filter(Boolean)
+    )
+  ).sort();
+
+  return genres.map((genre) => ({
+    key: `genre:${genre}`,
+    label: genre,
+    genreLabel: genre,
+    binaryGenre: true,
+    categories: [`Not ${genre}`, genre],
+    value: (game: any) =>
+      sanitizeClassificationLabel(getDisplayGenre(game, "roblox"), "") === genre
+        ? 1
+        : 0,
+    format: (value: number) => (value ? genre : `Not ${genre}`),
+  }));
+}
+
+function buildCorrelationWindowGames(games: any[], windowKey: "7d" | "30d") {
+  const latestDateKey = getLatestSnapshotDateKey(games);
+  const latestDate = parseDateKey(latestDateKey);
+  const startDate = latestDate ? new Date(latestDate) : null;
+  const windowDays = windowKey === "7d" ? 7 : 30;
+
+  if (!latestDate || !startDate) return games;
+
+  startDate.setUTCDate(startDate.getUTCDate() - windowDays + 1);
+
+  return games
+    .map((game) => {
+      const snapshots = (game.snapshots ?? []).filter((snapshot: any) => {
+        const dateKey = getSnapshotDateKey(snapshot.created_at);
+        const snapshotDate = parseDateKey(dateKey);
+        return snapshotDate && snapshotDate >= startDate && snapshotDate <= latestDate;
+      });
+      const metrics = (game.game_metrics ?? []).filter((metric: any) => {
+        const metricDate = parseDateKey(String(metric.date ?? "").slice(0, 10));
+        return metricDate && metricDate >= startDate && metricDate <= latestDate;
+      });
+      const sortedSnapshots = [...snapshots].sort(
+        (a: any, b: any) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      const sortedMetrics = [...metrics].sort(
+        (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      const earliest = sortedSnapshots[0];
+      const latest = sortedSnapshots.at(-1);
+      const bestRankSnapshot = sortedSnapshots
+        .filter((snapshot: any) => snapshot.chart_rank)
+        .sort((a: any, b: any) => (a.chart_rank ?? 9999) - (b.chart_rank ?? 9999))[0];
+      const latestMetric = sortedMetrics.at(-1);
+      const latestEngagementMetric =
+        [...sortedMetrics]
+          .reverse()
+          .find(
+            (metric: any) =>
+              typeof metric.visits === "number" ||
+              typeof metric.favorites === "number" ||
+              typeof metric.up_votes === "number" ||
+              typeof metric.like_ratio === "number"
+          ) ?? latestMetric;
+      const elapsedDays =
+        earliest && latest
+          ? Math.max(
+              1,
+              (new Date(latest.created_at).getTime() -
+                new Date(earliest.created_at).getTime()) /
+                86400000
+            )
+          : 1;
+      const playerGain =
+        earliest?.current_players && latest?.current_players
+          ? ((latest.current_players - earliest.current_players) /
+              Math.max(earliest.current_players, 1)) *
+            100
+          : 0;
+
+      return {
+        ...game,
+        snapshots: sortedSnapshots,
+        latestPlayers: latest?.current_players ?? null,
+        playerGainPercent: playerGain,
+        periodHigh: Math.max(
+          ...sortedSnapshots.map((snapshot: any) => snapshot.current_players ?? 0),
+          0
+        ),
+        latestRank: latest?.chart_rank ?? null,
+        latestSort: latest?.sort_name ?? null,
+        bestRank: bestRankSnapshot?.chart_rank ?? null,
+        bestRankSort: bestRankSnapshot?.sort_name ?? null,
+        averagePlayerGain7Days:
+          earliest && latest
+            ? Math.round(
+                ((latest.current_players ?? 0) - (earliest.current_players ?? 0)) /
+                  elapsedDays
+              )
+            : null,
+        visits: latestEngagementMetric?.visits ?? null,
+        favorites: latestEngagementMetric?.favorites ?? null,
+        upVotes: latestEngagementMetric?.up_votes ?? null,
+        downVotes: latestEngagementMetric?.down_votes ?? null,
+        likeRatio: latestEngagementMetric?.like_ratio ?? null,
+      };
+    })
+    .filter((game) => (game.snapshots ?? []).length);
+}
+
 const fortniteCorrelationMetricOptions = [
   {
     key: "sourcePopularityProxy",
@@ -3821,13 +4856,13 @@ const fortniteCorrelationMetricOptions = [
   },
   {
     key: "coreLoopReach",
-    label: "Core loop reach",
+    label: "Estimated core loop reach",
     value: (island: any) => island.coreLoopReach,
     format: formatNumber,
   },
   {
     key: "genreFormatReach",
-    label: "Genre / format reach",
+    label: "Estimated genre / format reach",
     value: (island: any) => island.genreFormatReach,
     format: formatNumber,
   },
@@ -3861,16 +4896,36 @@ function CorrelationAnalysisCard({
   defaultXMetricKey = "latestPlayers",
   defaultYMetricKey = "upVotes",
   caveat = "Correlation is directional market intelligence, not causation. Outliers, missing visits, and heuristic classifications can distort the result.",
+  categoricalY = false,
+  enableTimeWindow = false,
 }: any) {
   const [xMetricKey, setXMetricKey] = useState(defaultXMetricKey);
   const [yMetricKey, setYMetricKey] = useState(defaultYMetricKey);
+  const [correlationWindow, setCorrelationWindow] =
+    useState<"7d" | "30d">("7d");
+  const scopedGames = useMemo(
+    () =>
+      enableTimeWindow
+        ? buildCorrelationWindowGames(games, correlationWindow)
+        : games,
+    [games, correlationWindow, enableTimeWindow]
+  );
   const xMetric =
     metrics.find((metric: any) => metric.key === xMetricKey) ?? metrics[0];
+  const yMetrics = useMemo(
+    () => (categoricalY ? buildGenreCorrelationMetricOptions(scopedGames) : metrics),
+    [categoricalY, scopedGames, metrics]
+  );
   const yMetric =
-    metrics.find((metric: any) => metric.key === yMetricKey) ?? metrics[1];
+    yMetrics.find((metric: any) => metric.key === yMetricKey) ?? yMetrics[0];
+  useEffect(() => {
+    if (yMetrics.length && !yMetrics.some((metric: any) => metric.key === yMetricKey)) {
+      setYMetricKey(yMetrics[0].key);
+    }
+  }, [yMetrics, yMetricKey]);
   const analysis = useMemo(
-    () => buildCorrelationAnalysis(games, xMetric, yMetric),
-    [games, xMetric, yMetric]
+    () => buildCorrelationAnalysis(scopedGames, xMetric, yMetric),
+    [scopedGames, xMetric, yMetric, categoricalY]
   );
   const lineColor =
     analysis.correlation == null
@@ -3886,46 +4941,65 @@ function CorrelationAnalysisCard({
         <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.55fr)]">
-        <div className="rounded-2xl bg-slate-50 p-4">
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+            Axes
+          </p>
+          {enableTimeWindow ? (
+            <ToggleGroup>
+              {[
+                ["7d", "7D"],
+                ["30d", "Month"],
+              ].map(([value, label]) => (
+                <ToggleButton
+                  key={value}
+                  active={correlationWindow === value}
+                  onClick={() => setCorrelationWindow(value as "7d" | "30d")}
+                  activeColor={accent}
+                >
+                  {label}
+                </ToggleButton>
+              ))}
+            </ToggleGroup>
+          ) : null}
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <MetricSelect
+            label="X axis"
+            value={xMetricKey}
+            onChange={setXMetricKey}
+            metrics={metrics}
+          />
+          <MetricSelect
+            label="Y axis"
+            value={yMetricKey}
+            onChange={setYMetricKey}
+            metrics={yMetrics}
+          />
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.65fr)]">
+        <div className="rounded-2xl bg-slate-50 p-2">
           <CorrelationScatterPlot
             analysis={analysis}
             xMetric={xMetric}
             yMetric={yMetric}
             lineColor={lineColor}
             accent={accent}
+            categoricalY={categoricalY}
           />
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
-              Axes
-            </p>
-            <div className="mt-3 grid gap-3">
-              <MetricSelect
-                label="X axis"
-                value={xMetricKey}
-                onChange={setXMetricKey}
-                metrics={metrics}
-              />
-              <MetricSelect
-                label="Y axis"
-                value={yMetricKey}
-                onChange={setYMetricKey}
-                metrics={metrics}
-              />
-            </div>
-          </div>
-
-          <CorrelationReadout
-            analysis={analysis}
-            xMetric={xMetric}
-            yMetric={yMetric}
-            lineColor={lineColor}
-            caveat={caveat}
-          />
-        </div>
+        <CorrelationReadout
+          analysis={analysis}
+          xMetric={xMetric}
+          yMetric={yMetric}
+          lineColor={lineColor}
+          caveat={caveat}
+          categoricalY={categoricalY}
+        />
       </div>
     </div>
   );
@@ -3958,6 +5032,7 @@ function CorrelationScatterPlot({
   yMetric,
   lineColor,
   accent,
+  categoricalY = false,
 }: any) {
   if (analysis.points.length < 3) {
     return (
@@ -3965,9 +5040,20 @@ function CorrelationScatterPlot({
     );
   }
 
-  const width = 720;
-  const height = 360;
-  const margin = { top: 18, right: 28, bottom: 56, left: 72 };
+  if (categoricalY && yMetric.binaryGenre) {
+    return (
+      <BinaryGenreComparisonPlot
+        analysis={analysis}
+        xMetric={xMetric}
+        yMetric={yMetric}
+        accent={accent}
+      />
+    );
+  }
+
+  const width = 640;
+  const height = 520;
+  const margin = { top: 18, right: 24, bottom: 24, left: categoricalY ? 116 : 58 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const xScale = (value: number) =>
@@ -3979,6 +5065,19 @@ function CorrelationScatterPlot({
     plotHeight -
     ((value - analysis.yMin) / Math.max(analysis.yMax - analysis.yMin, 1)) *
       plotHeight;
+  const yCategoryScale = (value: number) =>
+    analysis.yCategories?.length > 1
+      ? margin.top +
+        plotHeight -
+        (value / Math.max(analysis.yCategories.length - 1, 1)) * plotHeight
+      : margin.top + plotHeight / 2;
+  const yPointPosition = (point: any) => {
+    if (!categoricalY) return yScale(point.y);
+
+    const base = yCategoryScale(point.y);
+    const jitter = getStablePointJitter(point.id ?? point.title, plotHeight * 0.055);
+    return Math.max(margin.top + 8, Math.min(margin.top + plotHeight - 8, base + jitter));
+  };
   const lineStart = {
     x: xScale(analysis.xMin),
     y: yScale(analysis.slope * analysis.xMin + analysis.intercept),
@@ -3989,10 +5088,10 @@ function CorrelationScatterPlot({
   };
 
   return (
-    <div className="h-[24rem]">
+    <div className="mx-auto flex aspect-square w-full max-w-[38rem] flex-col">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="h-full w-full overflow-visible"
+        className="min-h-0 flex-1 overflow-hidden"
         role="img"
         aria-label={`${xMetric.label} versus ${yMetric.label} scatter plot`}
       >
@@ -4039,56 +5138,332 @@ function CorrelationScatterPlot({
           );
         })}
 
-        <line
-          x1={lineStart.x}
-          y1={lineStart.y}
-          x2={lineEnd.x}
-          y2={lineEnd.y}
-          stroke={lineColor}
-          strokeWidth="4"
-          strokeLinecap="round"
-          opacity="0.86"
-        />
+        {(!categoricalY || yMetric.binaryGenre) && (
+          <line
+            x1={lineStart.x}
+            y1={lineStart.y}
+            x2={lineEnd.x}
+            y2={lineEnd.y}
+            stroke={lineColor}
+            strokeWidth="4"
+            strokeLinecap="round"
+            opacity="0.86"
+          />
+        )}
 
         {analysis.points.map((point: any) => (
           <circle
             key={point.id}
             cx={xScale(point.x)}
-            cy={yScale(point.y)}
+            cy={yPointPosition(point)}
             r="5"
             fill={accent}
             opacity="0.62"
           >
             <title>
               {point.title}: {xMetric.label} {xMetric.format(point.x)},{" "}
-              {yMetric.label} {yMetric.format(point.y)}
+              {yMetric.label} {point.yLabel ?? yMetric.format(point.y)}
             </title>
           </circle>
         ))}
 
-        <text
-          x={margin.left + plotWidth / 2}
-          y={height - 16}
-          textAnchor="middle"
-          className="fill-slate-500 text-[13px] font-bold"
-        >
-          {xMetric.label}
-        </text>
-        <text
-          x={-margin.top - plotHeight / 2}
-          y={20}
-          textAnchor="middle"
-          transform="rotate(-90)"
-          className="fill-slate-500 text-[13px] font-bold"
-        >
-          {yMetric.label}
-        </text>
+        {categoricalY &&
+          analysis.yCategories?.map((category: string, index: number) => (
+            <text
+              key={category}
+              x={margin.left - 10}
+              y={yCategoryScale(index) + 4}
+              textAnchor="end"
+              className="fill-slate-500 text-[11px] font-bold"
+            >
+              {truncateAxisLabel(category)}
+            </text>
+          ))}
       </svg>
+      <div className="mt-2 grid gap-1 text-center text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        <p>X-axis: {xMetric.label}</p>
+        <p>Y-axis: {categoricalY ? yMetric.label : yMetric.label}</p>
+      </div>
     </div>
   );
 }
 
-function CorrelationReadout({ analysis, xMetric, yMetric, lineColor, caveat }: any) {
+function truncateAxisLabel(value: string) {
+  return value.length > 22 ? `${value.slice(0, 19)}...` : value;
+}
+
+function BinaryGenreComparisonPlot({ analysis, xMetric, yMetric, accent }: any) {
+  const inValues = analysis.inGroupValues ?? [];
+  const outValues = analysis.outGroupValues ?? [];
+  const allValues = [...inValues, ...outValues];
+  const minValue = Math.min(...allValues, 0);
+  const maxValue = Math.max(...allValues, 1);
+  const selectedLabel = yMetric.label;
+  const otherLabel = `Not ${yMetric.label}`;
+  const selectedMean = analysis.inGroupMean ?? 0;
+  const otherMean = analysis.outGroupMean ?? 0;
+  const difference =
+    otherMean > 0 ? Math.round(((selectedMean - otherMean) / otherMean) * 100) : null;
+  const comparisonColor =
+    difference == null ? "#64748b" : difference >= 0 ? "#16a34a" : "#ef4444";
+  const maxAbsMean = Math.max(Math.abs(selectedMean), Math.abs(otherMean), 1);
+
+  return (
+    <div className="mx-auto grid aspect-square w-full max-w-[38rem] grid-rows-[auto_1fr_auto] gap-3">
+      <div className="rounded-2xl bg-white/70 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+              Bar comparison
+            </p>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              Metric: {xMetric.label} · Groups: {selectedLabel} vs other genres
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 space-y-3">
+          {[
+            {
+              label: selectedLabel,
+              values: inValues,
+              mean: selectedMean,
+              color: accent,
+            },
+            {
+              label: otherLabel,
+              values: outValues,
+              mean: otherMean,
+              color: "#94a3b8",
+            },
+          ].map((group) => (
+            <div key={group.label} className="grid grid-cols-[7rem_1fr_4rem] items-center gap-3">
+              <p className="truncate text-xs font-black text-slate-700">
+                {group.label}
+              </p>
+              <div className="h-4 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(4, (Math.abs(group.mean) / maxAbsMean) * 100)}%`,
+                    backgroundColor: group.color,
+                  }}
+                />
+              </div>
+              <p className="text-right text-xs font-black text-slate-600">
+                {xMetric.format(group.mean)} avg
+              </p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-center text-xs font-black uppercase tracking-wide text-slate-500">
+          {difference == null
+            ? "Difference pending"
+            : `${selectedLabel} ${difference >= 0 ? "+" : ""}${difference}% vs other genres`}
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {[
+          {
+            label: selectedLabel,
+            values: inValues,
+            mean: selectedMean,
+            color: accent,
+          },
+          {
+            label: otherLabel,
+            values: outValues,
+            mean: otherMean,
+            color: "#94a3b8",
+          },
+        ].map((group) => (
+          <JitteredGroupPanel
+            key={group.label}
+            group={group}
+            minValue={minValue}
+            maxValue={maxValue}
+            xMetric={xMetric}
+            lineColor={comparisonColor}
+          />
+        ))}
+      </div>
+
+      <div className="rounded-2xl bg-white/70 p-4">
+        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+          Box plot
+        </p>
+        <p className="mt-1 text-xs font-bold text-slate-500">
+          Distribution of {xMetric.label.toLowerCase()} inside each genre group.
+        </p>
+        <div className="mt-3 grid gap-3">
+          <BoxPlotRow
+            label={selectedLabel}
+            values={inValues}
+            minValue={minValue}
+            maxValue={maxValue}
+            color={accent}
+            metric={xMetric}
+          />
+          <BoxPlotRow
+            label={otherLabel}
+            values={outValues}
+            minValue={minValue}
+            maxValue={maxValue}
+            color="#94a3b8"
+            metric={xMetric}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JitteredGroupPanel({ group, minValue, maxValue, xMetric, lineColor }: any) {
+  const range = Math.max(maxValue - minValue, 1);
+  const valuePercent = (value: number) => ((value - minValue) / range) * 100;
+  const meanPercent = valuePercent(group.mean);
+
+  return (
+    <div className="rounded-2xl bg-white/70 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-xs font-black text-slate-700">{group.label}</p>
+        <p className="text-[11px] font-bold text-slate-400">
+          Avg {xMetric.label.toLowerCase()}: {xMetric.format(group.mean)} · {formatNumber(group.values.length)} games
+        </p>
+      </div>
+      <div className="relative h-48 overflow-hidden rounded-2xl bg-slate-100">
+        {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
+          <div
+            key={tick}
+            className="absolute inset-x-0 border-t border-dashed border-slate-300/75"
+            style={{ bottom: `${tick * 100}%` }}
+          />
+        ))}
+        <div
+          className="absolute inset-x-3 border-t-4"
+          style={{
+            bottom: `${meanPercent}%`,
+            borderColor: lineColor,
+          }}
+          title={`${group.label} average ${xMetric.label.toLowerCase()}: ${xMetric.format(group.mean)}`}
+        />
+        {group.values.map((value: number, index: number) => (
+          <span
+            key={`${group.label}-${index}`}
+            className="absolute h-2.5 w-2.5 rounded-full bg-slate-700/35"
+            style={{
+              bottom: `${valuePercent(value)}%`,
+              left: `${14 + ((index * 17) % 72)}%`,
+            }}
+            title={`${group.label} ${xMetric.label.toLowerCase()}: ${xMetric.format(value)}`}
+          />
+        ))}
+      </div>
+      <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        <span>Min {xMetric.label.toLowerCase()}: {xMetric.format(minValue)}</span>
+        <span>Max {xMetric.label.toLowerCase()}: {xMetric.format(maxValue)}</span>
+      </div>
+    </div>
+  );
+}
+
+function BoxPlotRow({ label, values, minValue, maxValue, color, metric }: any) {
+  const stats = getBoxPlotStats(values);
+  const range = Math.max(maxValue - minValue, 1);
+  const position = (value: number) => `${((value - minValue) / range) * 100}%`;
+  const metricLabel = metric.label.toLowerCase();
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+        <span className="font-black text-slate-600">{label}</span>
+        <span className="font-semibold text-slate-400">
+          {stats ? `Median ${metricLabel}: ${metric.format(stats.median)}` : "No data"}
+        </span>
+      </div>
+      <div className="relative h-14 rounded-xl bg-slate-100 px-3">
+        {stats ? (
+          <>
+            <div
+              className="absolute top-1/2 h-0.5 -translate-y-1/2"
+              style={{
+                left: position(stats.min),
+                right: `${100 - Number.parseFloat(position(stats.max))}%`,
+                backgroundColor: "#94a3b8",
+              }}
+            />
+            <div
+              className="absolute top-1/2 h-8 -translate-y-1/2 rounded-lg border border-black/10"
+              style={{
+                left: position(stats.q1),
+                width: `calc(${position(stats.q3)} - ${position(stats.q1)})`,
+                minWidth: "0.5rem",
+                backgroundColor: color,
+                opacity: 0.82,
+              }}
+            />
+            {[stats.min, stats.median, stats.max].map((value, index) => (
+              <div
+                key={`${label}-${index}`}
+                className="absolute top-1/2 h-9 w-0.5 -translate-y-1/2 bg-slate-700"
+                style={{ left: position(value) }}
+                title={`${metric.label}: ${metric.format(value)}`}
+              />
+            ))}
+          </>
+        ) : null}
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        <span>Min {metricLabel}: {metric.format(minValue)}</span>
+        <span>Max {metricLabel}: {metric.format(maxValue)}</span>
+      </div>
+    </div>
+  );
+}
+
+function getBoxPlotStats(values: number[]) {
+  if (!values.length) return null;
+
+  const sorted = [...values].sort((a, b) => a - b);
+
+  return {
+    min: sorted[0],
+    q1: getQuantile(sorted, 0.25),
+    median: getQuantile(sorted, 0.5),
+    q3: getQuantile(sorted, 0.75),
+    max: sorted[sorted.length - 1],
+  };
+}
+
+function getQuantile(sortedValues: number[], quantile: number) {
+  if (!sortedValues.length) return 0;
+
+  const index = (sortedValues.length - 1) * quantile;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  const weight = index - lower;
+
+  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+}
+
+function getStablePointJitter(value: unknown, range: number) {
+  const text = String(value ?? "");
+  const hash = Array.from(text).reduce(
+    (sum, character) => sum + character.charCodeAt(0),
+    0
+  );
+
+  return ((hash % 100) / 100 - 0.5) * range * 2;
+}
+
+function CorrelationReadout({
+  analysis,
+  xMetric,
+  yMetric,
+  lineColor,
+  caveat,
+  categoricalY = false,
+}: any) {
   const correlationLabel =
     analysis.correlation == null
       ? "Pending"
@@ -4111,7 +5486,7 @@ function CorrelationReadout({ analysis, xMetric, yMetric, lineColor, caveat }: a
             : "very weak";
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+    <div className="rounded-2xl border border-[#9fc7e4] bg-[#e8f2fa] p-5">
       <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
         Readout
       </p>
@@ -4124,32 +5499,66 @@ function CorrelationReadout({ analysis, xMetric, yMetric, lineColor, caveat }: a
           label={`${xMetric.label} std dev`}
           value={xMetric.format(analysis.xStdDev)}
         />
-        <MetricStat
-          label={`${yMetric.label} mean`}
-          value={yMetric.format(analysis.yMean)}
-        />
-        <MetricStat
-          label={`${yMetric.label} std dev`}
-          value={yMetric.format(analysis.yStdDev)}
-        />
+        {categoricalY ? (
+          <>
+            <MetricStat
+              label={`${yMetric.label} avg`}
+              value={
+                analysis.inGroupMean != null
+                  ? xMetric.format(analysis.inGroupMean)
+                  : "Pending"
+              }
+            />
+            <MetricStat
+              label={`Other genres avg`}
+              value={
+                analysis.outGroupMean != null
+                  ? xMetric.format(analysis.outGroupMean)
+                  : "Pending"
+              }
+            />
+          </>
+        ) : (
+          <>
+            <MetricStat
+              label={`${yMetric.label} mean`}
+              value={yMetric.format(analysis.yMean)}
+            />
+            <MetricStat
+              label={`${yMetric.label} std dev`}
+              value={yMetric.format(analysis.yStdDev)}
+            />
+          </>
+        )}
       </div>
 
-      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+      <div className="mt-5 rounded-2xl bg-white/70 p-4">
         <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
           Correlation
         </p>
         <p className="mt-1 text-2xl font-black" style={{ color: lineColor }}>
           {correlationLabel}
         </p>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          There is a {strength} {direction} link between{" "}
-          <strong>{xMetric.label}</strong> and{" "}
-          <strong>{yMetric.label}</strong> in the rows with complete data.
-        </p>
+        {categoricalY ? (
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            There is a {strength} {direction} link between being classified as{" "}
+            <strong>{yMetric.label}</strong> and higher{" "}
+            <strong>{xMetric.label}</strong> in the rows with complete data.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            There is a {strength} {direction} link between{" "}
+            <strong>{xMetric.label}</strong> and{" "}
+            <strong>{yMetric.label}</strong> in the rows with complete data.
+          </p>
+        )}
       </div>
 
-      <p className="mt-4 text-xs leading-5 text-slate-400">
+      <p className="mt-4 text-xs font-semibold leading-5 text-slate-500">
         {caveat}
+      </p>
+      <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">
+        Mean is the average value; standard deviation shows how spread out the values are from that average.
       </p>
     </div>
   );
@@ -4173,6 +5582,9 @@ function buildCorrelationAnalysis(games: any[], xMetric: any, yMetric: any) {
       title: game.title,
       x: toFiniteMetricValue(xMetric.value(game)),
       y: toFiniteMetricValue(yMetric.value(game)),
+      yLabel: yMetric.binaryGenre
+        ? yMetric.format(toFiniteMetricValue(yMetric.value(game)) ?? 0)
+        : null,
     }))
     .filter((point) => point.x != null && point.y != null) as Array<{
       id: string;
@@ -4199,6 +5611,12 @@ function buildCorrelationAnalysis(games: any[], xMetric: any, yMetric: any) {
   const xMax = Math.max(...xValues, 1);
   const yMin = Math.min(...yValues, 0);
   const yMax = Math.max(...yValues, 1);
+  const inGroupValues = yMetric.binaryGenre
+    ? points.filter((point) => point.y === 1).map((point) => point.x)
+    : [];
+  const outGroupValues = yMetric.binaryGenre
+    ? points.filter((point) => point.y === 0).map((point) => point.x)
+    : [];
 
   return {
     points,
@@ -4213,6 +5631,85 @@ function buildCorrelationAnalysis(games: any[], xMetric: any, yMetric: any) {
     xMax,
     yMin,
     yMax,
+    yCategories: yMetric.categories,
+    inGroupMean: inGroupValues.length ? mean(inGroupValues) : null,
+    outGroupMean: outGroupValues.length ? mean(outGroupValues) : null,
+    inGroupValues,
+    outGroupValues,
+  };
+}
+
+function buildCategoricalCorrelationAnalysis(games: any[], xMetric: any, yMetric: any) {
+  const rawPoints = games
+    .map((game) => ({
+      id: game.id,
+      title: game.title,
+      x: toFiniteMetricValue(xMetric.value(game)),
+      yLabel: sanitizeClassificationLabel(yMetric.value(game), ""),
+    }))
+    .filter((point) => point.x != null && point.yLabel) as Array<{
+      id: string;
+      title: string;
+      x: number;
+      yLabel: string;
+    }>;
+  const categoryStats = Object.values(
+    rawPoints.reduce(
+      (
+        map: Record<string, { label: string; values: number[]; count: number; average: number }>,
+        point
+      ) => {
+        if (!map[point.yLabel]) {
+          map[point.yLabel] = {
+            label: point.yLabel,
+            values: [],
+            count: 0,
+            average: 0,
+          };
+        }
+
+        map[point.yLabel].values.push(point.x);
+        map[point.yLabel].count += 1;
+        return map;
+      },
+      {}
+    )
+  )
+    .map((category) => ({
+      ...category,
+      average: mean(category.values),
+    }))
+    .sort((a, b) => b.average - a.average || b.count - a.count || a.label.localeCompare(b.label));
+  const yCategories = categoryStats.map((category) => category.label).reverse();
+  const categoryIndex = new Map(
+    yCategories.map((category, index) => [category, index])
+  );
+  const points = rawPoints.map((point) => ({
+    ...point,
+    y: categoryIndex.get(point.yLabel) ?? 0,
+  }));
+  const xValues = points.map((point) => point.x);
+  const xMean = mean(xValues);
+  const xStdDev = standardDeviation(xValues, xMean);
+  const topCategory = categoryStats[0];
+
+  return {
+    points,
+    correlation: null,
+    slope: 0,
+    intercept: 0,
+    xMean,
+    yMean: 0,
+    xStdDev,
+    yStdDev: 0,
+    xMin: Math.min(...xValues, 0),
+    xMax: Math.max(...xValues, 1),
+    yMin: 0,
+    yMax: Math.max(yCategories.length - 1, 1),
+    yCategories,
+    topCategoryLabel: topCategory
+      ? `${topCategory.label} (${xMetric.format(topCategory.average)} avg)`
+      : null,
   };
 }
 
@@ -4295,6 +5792,8 @@ function buildFortniteCorrelationItems(islands: any[]) {
 }
 
 function getFortniteTopLabels(island: any, limit: number) {
+  if (!island) return [];
+
   const labels = getFortniteSourceLabels(island)
     .map((label: any) => normalizeFortniteCorrelationGroup(label))
     .filter((label: string) => !/^unknown|general|unlabeled$/i.test(label));
@@ -4644,6 +6143,607 @@ function RecommendationBlock({ title, text, bullets, tags, panel, accent, readou
   );
 }
 
+function GameTemplateGeneratorRow({ items, platform, timeWindow, panel, accent }: any) {
+  const [templateType, setTemplateType] = useState<
+    "mainstream" | "uncommon" | "top10" | null
+  >(null);
+  const [rerollIndex, setRerollIndex] = useState(0);
+  const template = useMemo(
+    () =>
+      templateType
+        ? buildGameTemplate(items, platform, timeWindow, templateType, rerollIndex)
+        : null,
+    [items, platform, timeWindow, templateType, rerollIndex]
+  );
+
+  return (
+    <section className="mb-6">
+      <div className={`rounded-3xl border p-6 ${panel}`}>
+        <div className="mb-5">
+          <h2 className="text-2xl font-bold">Game Template Generator</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Synthetic concept templates built only from the active platform dataset.
+          </p>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className={`rounded-3xl border p-5 ${panel}`}>
+            <p className="text-sm font-semibold text-slate-500">Template type</p>
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              Choose whether the template should follow the common pattern or a rarer visible pattern.
+            </p>
+            <div className="mt-5 grid gap-2">
+              {[
+                ["mainstream", "Mainstream type"],
+                ["uncommon", "Uncommon type"],
+                ["top10", "Top 10 type"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => {
+                    setTemplateType(value as "mainstream" | "uncommon" | "top10");
+                    setRerollIndex(0);
+                  }}
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-black transition hover:bg-slate-50"
+                  style={{
+                    borderColor: templateType === value ? accent : undefined,
+                    color: templateType === value ? accent : undefined,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={!templateType}
+                onClick={() => setRerollIndex((value) => value + 1)}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Reroll
+              </button>
+            </div>
+          </div>
+
+          <div className={`rounded-3xl border p-5 ${panel}`}>
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+              Fictional {platform === "roblox" ? "experience" : "island"} card
+            </p>
+            {template ? (
+              <>
+                <h3 className="mt-2 text-lg font-black leading-tight">
+                  {template.title}
+                </h3>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-slate-400">
+                      {platform === "roblox" ? "Genre" : "Estimated genre"}
+                    </p>
+                    <p className="line-clamp-1 font-black">{template.genre}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">
+                      {platform === "roblox" ? "Subgenre" : "Estimated subgenre"}
+                    </p>
+                    <p className="line-clamp-1 font-black">{template.subgenre}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-slate-400">Suggested thumbnail colors</p>
+                    <div className="mt-1 grid grid-cols-[2.75rem_1fr] items-center gap-3 rounded-2xl bg-slate-50 p-3">
+                      <div className="overflow-hidden rounded-lg border border-black/10">
+                        <div
+                          className="h-7 w-11"
+                          style={{ backgroundColor: template.color.primary.hex }}
+                        />
+                        <div
+                          className="h-3 w-11"
+                          style={{ backgroundColor: template.color.secondary.hex }}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <p
+                          className="inline-flex rounded-full px-2 py-1 text-[10px] font-black"
+                          style={{
+                            backgroundColor: `${accent}1f`,
+                            color: accent,
+                          }}
+                        >
+                          {template.color.primary.rgb}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400">
+                          Secondary: {template.color.secondary.rgb}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-slate-400">Description</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4 text-sm font-semibold leading-5 text-slate-700">
+                      {template.description.map((line: string) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-500">
+                Select Mainstream type, Uncommon type, or Top 10 type to generate a fictional template.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-[#9fc7e4] bg-[#e8f2fa] p-5">
+            <p className="text-sm font-semibold text-slate-500">Readout</p>
+            {template ? (
+              <>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  {template.readout}
+                </p>
+                {template.exampleTitle ? (
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    Similar source example:{" "}
+                    {template.exampleUrl ? (
+                      <a
+                        href={template.exampleUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-black underline"
+                      >
+                        {template.exampleTitle}
+                      </a>
+                    ) : (
+                      <strong>{template.exampleTitle}</strong>
+                    )}
+                  </p>
+                ) : null}
+                <p className="mt-4 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
+                  {template.caveat}
+                </p>
+              </>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                The readout will appear after a template type is selected.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function buildGameTemplate(
+  items: any[],
+  platform: Platform,
+  timeWindow: TrendTimeWindow,
+  templateType: "mainstream" | "uncommon" | "top10",
+  rerollIndex = 0
+) {
+  const windowed =
+    platform === "roblox"
+      ? getRobloxGamesInWindow(items, timeWindow)
+      : getFortniteIslandsInWindow(items, timeWindow);
+  const baseRecords = (windowed.length ? windowed : items).filter((item) =>
+    String(item.title ?? "").trim()
+  );
+  const records = templateType === "top10" ? baseRecords.slice(0, 10) : baseRecords;
+  const windowLabel = getTrendWindowLabel(timeWindow);
+
+  if (!records.length) {
+    return {
+      title: "Template pending",
+      genre: "N/A",
+      subgenre: "N/A",
+      color: fallbackTileColorPairs[0],
+      description: [
+        "Not enough captured records are available to generate a platform-specific template yet.",
+      ],
+      readout:
+        "The generator needs captured source records before it can synthesize a useful fictional pattern.",
+      caveat:
+        "This is a research template, not a recommendation, forecast, or guarantee of performance.",
+    };
+  }
+
+  const profile =
+    templateType === "mainstream"
+      ? getMainstreamTemplateProfile(records, platform, rerollIndex)
+      : templateType === "top10"
+        ? getTopTenTemplateProfile(records, platform, rerollIndex)
+      : getUncommonTemplateProfile(records, platform, rerollIndex);
+  const primaryCue = getTemplatePrimaryCue(profile.source, platform);
+  const title = buildTemplateTitle(profile, primaryCue, platform, templateType);
+  const description = buildTemplateDescription(
+    profile,
+    primaryCue,
+    platform,
+    templateType,
+    records
+  );
+
+  return {
+    title,
+    genre: profile.genre,
+    subgenre: profile.subgenre,
+    color: getTemplateColorPair(profile),
+    description,
+    exampleTitle: profile.source?.title,
+    exampleUrl: profile.source?.url,
+    readout:
+      templateType === "mainstream"
+        ? `This generated template is similar to the most common ${platform === "roblox" ? "Roblox" : "Fortnite"} genre and subgenre pattern captured in the ${windowLabel} window. Treat it as a baseline brief, not proof of demand.`
+        : templateType === "top10"
+          ? `This generated template is similar to the genre and subgenre patterns visible in the current Top 10 ${platform === "roblox" ? "Roblox" : "Fortnite"} records. Treat it as a top-set reference, not proof of demand.`
+        : `This generated template is similar to a less common ${platform === "roblox" ? "Roblox" : "Fortnite"} genre and subgenre pattern captured in the ${windowLabel} window. Treat it as a whitespace prompt, not proof that the uncommon format will convert.`,
+    caveat:
+      platform === "roblox"
+        ? "Generated only from captured Roblox API records and displayed dashboard metadata."
+        : "Generated only from captured Fortnite API records and estimated fields derived from those records.",
+  };
+}
+
+function getMainstreamTemplateProfile(
+  records: any[],
+  platform: Platform,
+  rerollIndex = 0
+) {
+  const profiles = buildTemplateProfiles(records, platform).sort(
+    (a, b) => b.count - a.count || b.players - a.players || a.genre.localeCompare(b.genre)
+  );
+
+  return profiles[rerollIndex % Math.max(1, profiles.length)] ?? getEmptyTemplateProfile(records);
+}
+
+function getUncommonTemplateProfile(
+  records: any[],
+  platform: Platform,
+  rerollIndex = 0
+) {
+  const profiles = buildTemplateProfiles(records, platform).sort(
+    (a, b) => a.count - b.count || b.players - a.players || a.genre.localeCompare(b.genre)
+  );
+
+  return profiles[rerollIndex % Math.max(1, profiles.length)] ?? getEmptyTemplateProfile(records);
+}
+
+function getTopTenTemplateProfile(
+  records: any[],
+  platform: Platform,
+  rerollIndex = 0
+) {
+  const profiles = buildTemplateProfiles(records, platform).sort(
+    (a, b) => b.players - a.players || b.count - a.count || a.genre.localeCompare(b.genre)
+  );
+
+  return profiles[rerollIndex % Math.max(1, profiles.length)] ?? getEmptyTemplateProfile(records);
+}
+
+function buildTemplateProfiles(records: any[], platform: Platform) {
+  const map: Record<
+    string,
+    { genre: string; subgenre: string; source: any; count: number; players: number }
+  > = {};
+
+  records.forEach((item) => {
+    const genre = getTemplateSourceGenre(item, platform);
+    const subgenre = getTemplateSourceSubgenre(item, platform);
+
+    if (!genre || !subgenre) return;
+
+    const key = `${genre}|||${subgenre}`;
+    if (!map[key]) {
+      map[key] = { genre, subgenre, source: item, count: 0, players: 0 };
+    }
+
+    map[key].count += 1;
+    map[key].players += item.latestPlayers ?? item.latestActivityValue ?? 0;
+  });
+
+  return Object.values(map);
+}
+
+function getEmptyTemplateProfile(records: any[]) {
+  return {
+    genre: "Metadata unavailable",
+    subgenre: "Metadata unavailable",
+    source: records[0] ?? {},
+    count: 0,
+    players: 0,
+  };
+}
+
+function getTemplateColorPair(profile: any) {
+  const key = `${profile.genre ?? ""}|${profile.subgenre ?? ""}`;
+  const index =
+    Array.from(key).reduce((sum, character) => sum + character.charCodeAt(0), 0) %
+    fallbackTileColorPairs.length;
+
+  return fallbackTileColorPairs[index];
+}
+
+function getMostCommonTemplateLabel(
+  records: any[],
+  platform: Platform,
+  field: "genre" | "subgenre"
+) {
+  const fallback = field === "genre" ? "Popular" : "General Play";
+  const counts = countBy(records, (item) => {
+    const value =
+      field === "genre"
+        ? getDisplayGenre(item, platform)
+        : getDisplaySubgenre(item, platform);
+    return sanitizeClassificationLabel(value, "");
+  });
+
+  const cleanCounts = Object.fromEntries(
+    Object.entries(counts).filter(([key]) => Boolean(key))
+  );
+  const label = topEntries(cleanCounts, 1)[0]?.[0];
+
+  return label || fallback;
+}
+
+function getTemplateGenre(item: any, platform: Platform, fallback: string) {
+  return sanitizeClassificationLabel(getDisplayGenre(item, platform), fallback);
+}
+
+function getTemplateSubgenre(item: any, platform: Platform, fallback: string) {
+  return sanitizeClassificationLabel(getDisplaySubgenre(item, platform), fallback);
+}
+
+function getTemplateSourceGenre(item: any, platform: Platform) {
+  return sanitizeClassificationLabel(getDisplayGenre(item, platform), "");
+}
+
+function getTemplateSourceSubgenre(item: any, platform: Platform) {
+  return sanitizeClassificationLabel(getDisplaySubgenre(item, platform), "");
+}
+
+function getTemplatePrimaryCue(source: any, platform: Platform) {
+  const labels =
+    platform === "fortnite"
+      ? getFortniteTopLabels(source, 3)
+      : (source.extracted_tags ?? []).filter(Boolean);
+  const firstLabel = labels[0];
+  const loop = cleanTemplatePhrase(source.core_loop);
+  const intent = cleanTemplatePhrase(source.player_intent);
+
+  return cleanTemplatePhrase(firstLabel) ?? loop ?? intent ?? "replayable sessions";
+}
+
+function buildTemplateTitle(
+  profile: any,
+  primaryCue: string,
+  platform: Platform,
+  templateType: "mainstream" | "uncommon" | "top10"
+) {
+  const genreToken = cleanTitleToken(profile.genre);
+  const subgenreToken = cleanTitleToken(profile.subgenre);
+  const cueToken = cleanTitleToken(primaryCue);
+
+  if (platform === "fortnite") {
+    return templateType === "mainstream"
+      ? buildUniqueTemplateTitle(["cue", cueToken], ["subgenre", subgenreToken], ["suffix", "Island"])
+      : templateType === "top10"
+        ? buildUniqueTemplateTitle(["prefix", "Top"], ["cue", cueToken], ["genre", genreToken])
+        : buildUniqueTemplateTitle(["prefix", "Hidden"], ["cue", cueToken], ["genre", genreToken]);
+  }
+
+  return templateType === "mainstream"
+    ? buildUniqueTemplateTitle(["prefix", "Ultimate"], ["subgenre", subgenreToken], ["genre", genreToken])
+    : templateType === "top10"
+      ? buildUniqueTemplateTitle(["prefix", "Top"], ["cue", cueToken], ["subgenre", subgenreToken])
+      : buildUniqueTemplateTitle(["prefix", "Hidden"], ["cue", cueToken], ["subgenre", subgenreToken]);
+}
+
+function buildUniqueTemplateTitle(...parts: Array<[string, string]>) {
+  const used = new Set<string>();
+  const words: string[] = [];
+
+  parts.forEach(([, part]) => {
+    part
+      .split(/\s+/)
+      .filter(Boolean)
+      .forEach((word) => {
+        const key = word.toLowerCase();
+        if (used.has(key)) return;
+        used.add(key);
+        words.push(word);
+      });
+  });
+
+  return words.join(" ") || "Fictional Template";
+}
+
+function buildTemplateDescription(
+  profile: any,
+  primaryCue: string,
+  platform: Platform,
+  templateType: "mainstream" | "uncommon" | "top10",
+  records?: any[]
+) {
+  const genre = cleanTemplatePhrase(profile.genre) ?? "genre";
+  const subgenre = cleanTemplatePhrase(profile.subgenre) ?? "subgenre";
+  const cue = cleanTemplatePhrase(primaryCue) ?? "repeatable play";
+  const commonTemplate = buildCommonTemplate(records?.length ? records : [profile.source]);
+  const pattern = commonTemplate.pattern.toLowerCase();
+  const hasProgression = pattern.includes("progression");
+  const hasSocial = pattern.includes("social");
+  const hasFreshness = pattern.includes("freshness");
+  const hasCta = pattern.includes("cta");
+  const progressionLine = hasProgression
+    ? "Progress through upgrades, unlocks, or rare rewards."
+    : "Keep the goal clear and easy to repeat.";
+  const socialLine = hasSocial
+    ? "Add a social or competitive reason to return."
+    : "Keep the core loop readable for solo play.";
+  const freshnessLine = hasFreshness
+    ? "Support the concept with updates, events, or limited-time goals."
+    : "Use a simple reward loop to create repeat visits.";
+  const ctaLine = hasCta
+    ? "Close with a clear join, favorite, or invite action."
+    : "End with a simple reason to try one more round.";
+
+  if (platform === "fortnite") {
+    return templateType === "mainstream"
+      ? [
+          `Become the player fantasy in a ${genre} / ${subgenre} island centered on ${cue}.`,
+          progressionLine,
+          socialLine,
+          ctaLine,
+        ]
+      : templateType === "top10"
+        ? [
+            `Build around a Top 10-inspired ${genre} / ${subgenre} island centered on ${cue}.`,
+            progressionLine,
+            socialLine,
+            freshnessLine,
+          ]
+      : [
+          `Explore an uncommon ${genre} / ${subgenre} island centered on ${cue}.`,
+          progressionLine,
+          freshnessLine,
+          ctaLine,
+        ];
+  }
+
+  return templateType === "mainstream"
+    ? [
+        `Become the player fantasy in a ${genre} / ${subgenre} experience centered on ${cue}.`,
+        progressionLine,
+        socialLine,
+        ctaLine,
+      ]
+    : templateType === "top10"
+      ? [
+          `Build around a Top 10-inspired ${genre} / ${subgenre} experience centered on ${cue}.`,
+          progressionLine,
+          socialLine,
+          freshnessLine,
+        ]
+    : [
+        `Explore an uncommon ${genre} / ${subgenre} experience centered on ${cue}.`,
+        progressionLine,
+        freshnessLine,
+        ctaLine,
+      ];
+}
+
+function cleanTemplatePhrase(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text && !/^unknown|general|classification pending|n\/a$/i.test(text)
+    ? text
+    : null;
+}
+
+function cleanTitleToken(value: unknown) {
+  const phrase = cleanTemplatePhrase(value) ?? "Concept";
+  return phrase
+    .replace(/[^\p{L}\p{N}\s&/-]/gu, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function RobloxArchetypeRow({ games, timeWindow, panel }: any) {
+  const archetypes = useMemo(
+    () => buildRobloxArchetypes(games, timeWindow),
+    [games, timeWindow]
+  );
+
+  if (!archetypes.length) {
+    return <Unavailable text="Not enough Roblox metrics to build archetypes yet." />;
+  }
+
+  return (
+    <div className="mt-5 grid gap-4 lg:grid-cols-3">
+      {archetypes.map((archetype: any, index: number) => (
+        <div key={archetype.kind} className="space-y-3">
+          <RobloxArchetypeCard item={archetype} rank={index + 1} panel={panel} />
+          <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
+            {archetype.readout}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RobloxArchetypeCard({ item, rank, panel }: any) {
+  const positive = (item.playerGainPercent ?? 0) >= 0;
+  const averageGain = item.averagePlayerGain7Days;
+  const averagePositive = (averageGain ?? 0) >= 0;
+  const likesLabel =
+    typeof item.upVotes === "number"
+      ? formatNumber(item.upVotes)
+      : typeof item.likeRatio === "number"
+        ? `${Math.round(item.likeRatio * 100)}% ratio`
+        : "N/A";
+
+  return (
+    <div className={`rounded-3xl border p-4 shadow-sm ${panel}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+            {item.kind}
+          </p>
+          <h3 className="mt-1 line-clamp-2 text-sm font-black">{item.title}</h3>
+        </div>
+        <span className="text-xs font-bold text-slate-400">#{rank}</span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-slate-400">Gain in players</p>
+          <p className={positive ? "font-black text-green-600" : "font-black text-red-500"}>
+            {Math.round(item.playerGainPercent ?? 0)}% {positive ? "▲" : "▼"}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-slate-400">Stored peak players</p>
+          <p className="font-black">{formatNumber(item.periodHigh)}</p>
+        </div>
+
+        <div className="col-span-2">
+          <p className="text-slate-400">Top measured rank</p>
+          <p className="font-black">
+            {item.bestRank ? `#${item.bestRank} in ${item.bestRankSort ?? "Chart"}` : "N/A"}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-slate-400">Genre</p>
+          <p className="line-clamp-1 font-black">{getDisplayGenre(item, "roblox")}</p>
+        </div>
+
+        <div>
+          <p className="text-slate-400">Subgenre</p>
+          <p className="line-clamp-1 font-black">{getDisplaySubgenre(item, "roblox")}</p>
+        </div>
+
+        <div>
+          <p className="text-slate-400">Avg player gain/loss, past 7 days</p>
+          <p className={averagePositive ? "font-black text-green-600" : "font-black text-red-500"}>
+            {typeof averageGain === "number"
+              ? `${averageGain > 0 ? "+" : ""}${formatNumber(Math.round(averageGain))} players/day`
+              : "N/A"}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-slate-400">Likes</p>
+          <p className="font-black">{likesLabel}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GameMarketCard({ item, rank, platform, panel }: any) {
   if (platform === "fortnite") {
     return (
@@ -4695,7 +6795,7 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
         <div>
           <p className="text-slate-400">
-            {platform === "roblox" ? "Gain in players" : "Genre"}
+            {platform === "roblox" ? "Gain in players" : "Estimated genre"}
           </p>
           <p
             className={`font-black ${
@@ -4716,7 +6816,7 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
 
         <div>
           <p className="text-slate-400">
-            {platform === "roblox" ? "Stored peak players" : "Intent"}
+            {platform === "roblox" ? "Stored peak players" : "Estimated intent"}
           </p>
           <p className="font-black">
             {platform === "roblox"
@@ -4737,14 +6837,18 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
         </div>
 
         <div>
-          <p className="text-slate-400">Genre</p>
+          <p className="text-slate-400">
+            {platform === "roblox" ? "Genre" : "Estimated genre"}
+          </p>
           <p className="line-clamp-1 font-black">
             {getDisplayGenre(item, platform)}
           </p>
         </div>
 
         <div>
-          <p className="text-slate-400">Subgenre</p>
+          <p className="text-slate-400">
+            {platform === "roblox" ? "Subgenre" : "Estimated subgenre"}
+          </p>
           <p className="line-clamp-1 font-black">
             {getDisplaySubgenre(item, platform)}
           </p>
@@ -4803,6 +6907,119 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
   );
 }
 
+function RobloxExperienceList({ games, panel }: any) {
+  if (!games.length) {
+    return <Unavailable text="No Roblox experiences available yet." />;
+  }
+
+  return (
+    <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
+      <div className="min-w-[92rem] divide-y divide-slate-200">
+        <div className="grid grid-cols-[3rem_18rem_8rem_9rem_16rem_10rem_12rem_11rem_10rem_8rem_8rem] gap-3 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wide text-slate-400">
+          <span>Rank</span>
+          <span>Experience</span>
+          <span>Gain</span>
+          <span>Peak</span>
+          <span>Top measured rank</span>
+          <span>Genre</span>
+          <span>Subgenre</span>
+          <span>Classification</span>
+          <span>Avg 7D</span>
+          <span>Likes</span>
+          <span>Visits</span>
+        </div>
+        {games.map((item: any, index: number) => (
+          <RobloxExperienceListRow
+            key={item.id}
+            item={item}
+            rank={index + 1}
+            panel={panel}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RobloxExperienceListRow({ item, rank, panel }: any) {
+  const positive = (item.playerGainPercent ?? 0) >= 0;
+  const averageGain = item.averagePlayerGain7Days;
+  const averagePositive = (averageGain ?? 0) >= 0;
+  const classificationConfidence = getClassificationConfidence(item, "roblox");
+  const classificationLabel =
+    classificationConfidence === "source"
+      ? "Roblox source"
+      : classificationConfidence === "estimated"
+        ? "Heuristic fallback"
+        : "Classification pending";
+  const likesLabel =
+    typeof item.upVotes === "number"
+      ? formatNumber(item.upVotes)
+      : typeof item.likeRatio === "number"
+        ? `${Math.round(item.likeRatio * 100)}% ratio`
+        : "N/A";
+
+  return (
+    <a
+      href={item.url ?? `https://www.roblox.com/games/${item.id}`}
+      target="_blank"
+      rel="noreferrer"
+      className={`grid grid-cols-[3rem_18rem_8rem_9rem_16rem_10rem_12rem_11rem_10rem_8rem_8rem] gap-3 px-4 py-3 text-xs transition hover:bg-slate-50 ${panel}`}
+    >
+      <span className="whitespace-nowrap font-black text-slate-400">#{rank}</span>
+      <span className="truncate whitespace-nowrap font-black text-slate-800">
+        {item.title}
+      </span>
+      <span
+        className={`whitespace-nowrap font-black ${
+          positive ? "text-green-600" : "text-red-500"
+        }`}
+      >
+        {Math.round(item.playerGainPercent ?? 0)}% {positive ? "▲" : "▼"}
+      </span>
+      <span className="whitespace-nowrap font-black text-slate-700">
+        {formatNumber(item.periodHigh)}
+      </span>
+      <span className="truncate whitespace-nowrap font-black text-slate-700">
+        #{item.bestRank ?? item.latestRank ?? "N/A"} in{" "}
+        {item.bestRankSort ?? item.latestSort ?? "Chart"}
+      </span>
+      <span className="truncate whitespace-nowrap font-black text-slate-700">
+        {getDisplayGenre(item, "roblox")}
+      </span>
+      <span className="truncate whitespace-nowrap font-black text-slate-700">
+        {getDisplaySubgenre(item, "roblox")}
+      </span>
+      <span
+        className={`truncate whitespace-nowrap font-black ${
+          classificationConfidence === "estimated"
+            ? "text-amber-600"
+            : classificationConfidence === "source"
+              ? "text-green-600"
+              : "text-slate-500"
+        }`}
+      >
+        {classificationLabel}
+      </span>
+      <span
+        className={`whitespace-nowrap font-black ${
+          averagePositive ? "text-green-600" : "text-red-500"
+        }`}
+      >
+        {typeof averageGain === "number"
+          ? `${averageGain > 0 ? "+" : ""}${formatNumber(averageGain)}/day`
+          : "N/A"}
+      </span>
+      <span className="whitespace-nowrap font-black text-slate-700">
+        {likesLabel}
+      </span>
+      <span className="whitespace-nowrap font-black text-slate-700">
+        {typeof item.visits === "number" ? formatNumber(item.visits) : "N/A"}
+      </span>
+    </a>
+  );
+}
+
 function FortniteMarketCard({ item, rank, panel }: any) {
   const href = item.url ?? `https://fortnite.gg/island?code=${item.island_code}`;
   const genre = item.inferred_genre ?? "Unclassified";
@@ -4843,28 +7060,28 @@ function FortniteMarketCard({ item, rank, panel }: any) {
 
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
         <div>
-          <p className="text-slate-400">Genre</p>
+          <p className="text-slate-400">Estimated genre</p>
           <p className="line-clamp-1 font-black">
             {genre}
           </p>
         </div>
 
         <div>
-          <p className="text-slate-400">Subgenre</p>
+          <p className="text-slate-400">Estimated subgenre</p>
           <p className="line-clamp-1 font-black">
             {subgenre}
           </p>
         </div>
 
         <div className="col-span-2">
-          <p className="text-slate-400">Player intent</p>
+          <p className="text-slate-400">Estimated player intent</p>
           <p className="line-clamp-2 font-black">
             {intent}
           </p>
         </div>
 
         <div className="col-span-2">
-          <p className="text-slate-400">Core loop</p>
+          <p className="text-slate-400">Estimated core loop</p>
           <p className="line-clamp-2 font-black">
             {loop}
           </p>
@@ -4881,6 +7098,425 @@ function FortniteMarketCard({ item, rank, panel }: any) {
       </div>
     </a>
   );
+}
+
+function FortniteArchetypeRow({ islands, timeWindow, panel }: any) {
+  const archetypes = useMemo(
+    () => buildFortniteArchetypes(islands, timeWindow),
+    [islands, timeWindow]
+  );
+
+  if (!archetypes.length) {
+    return <Unavailable text="Not enough Fortnite metadata to build archetypes yet." />;
+  }
+
+  return (
+    <div className="mt-5 grid gap-4 lg:grid-cols-3">
+      {archetypes.map((archetype: any, index: number) => (
+        <div key={archetype.kind} className="space-y-3">
+          <FortniteArchetypeCard item={archetype} rank={index + 1} panel={panel} />
+          <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
+            {archetype.readout}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FortniteArchetypeCard({ item, rank, panel }: any) {
+  const genre = item.inferred_genre ?? "Unclassified";
+  const subgenre = item.inferred_subgenre ?? "General";
+  const intent = item.player_intent ?? item.audience_signal ?? "Not classified yet";
+  const loop = item.core_loop ?? item.design_pattern ?? "Not classified yet";
+  const labels = getFortniteGameplayLabels(item)
+    .filter((label) => label !== genre && label !== subgenre && label !== intent && label !== loop)
+    .slice(0, 3);
+
+  return (
+    <div className={`rounded-3xl border p-4 shadow-sm ${panel}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+            {item.kind}
+          </p>
+          <h3 className="mt-1 line-clamp-2 text-sm font-black">{item.title}</h3>
+          {item.ipLabel && (
+            <span className="mt-1 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+              {item.ipLabel}
+            </span>
+          )}
+        </div>
+        <span className="text-xs font-bold text-slate-400">#{rank}</span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-slate-400">Estimated genre</p>
+          <p className="line-clamp-1 font-black">{genre}</p>
+        </div>
+
+        <div>
+          <p className="text-slate-400">Estimated subgenre</p>
+          <p className="line-clamp-1 font-black">{subgenre}</p>
+        </div>
+
+        <div className="col-span-2">
+          <p className="text-slate-400">Estimated player intent</p>
+          <p className="line-clamp-2 font-black">{intent}</p>
+        </div>
+
+        <div className="col-span-2">
+          <p className="text-slate-400">Estimated core loop</p>
+          <p className="line-clamp-2 font-black">{loop}</p>
+        </div>
+
+        {labels.length ? (
+          <div className="col-span-2">
+            <p className="text-slate-400">Labels</p>
+            <p className="line-clamp-2 font-black">{labels.join(" / ")}</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function buildFortniteArchetypes(islands: any[], timeWindow: TrendTimeWindow) {
+  const windowed = getFortniteIslandsInWindow(islands, timeWindow);
+
+  if (!windowed.length) return [];
+
+  const genreCounts = countBy(windowed, (island: any) => island.inferred_genre ?? "Other");
+  const subgenreCounts = countBy(windowed, (island: any) => island.inferred_subgenre ?? "General");
+  const loopCounts = countBy(windowed, (island: any) => island.core_loop ?? "Unknown");
+  const intentCounts = countBy(windowed, (island: any) => island.player_intent ?? island.audience_signal ?? "Casual play");
+  const labelCounts = countLabels(windowed);
+  const combos = windowed.map((island: any) => ({
+    island,
+    key: [
+      island.inferred_genre ?? "Other",
+      island.inferred_subgenre ?? "General",
+      island.core_loop ?? "Unknown",
+    ].join(" / "),
+  }));
+  const comboCounts = countBy(combos, (entry: any) => entry.key);
+  const sortedByTypicality = [...windowed].sort((a: any, b: any) => {
+    const aScore = getTypicalityScore(a, genreCounts, subgenreCounts, loopCounts, labelCounts);
+    const bScore = getTypicalityScore(b, genreCounts, subgenreCounts, loopCounts, labelCounts);
+    return aScore - bScore;
+  });
+  const medianSource = sortedByTypicality[Math.floor(sortedByTypicality.length / 2)] ?? windowed[0];
+  const uniqueEntry = combos
+    .map((entry: any) => ({
+      ...entry,
+      rarity: comboCounts[entry.key] ?? 0,
+      labelRarity: getAverageLabelFrequency(entry.island, labelCounts),
+    }))
+    .sort((a: any, b: any) => {
+      if (a.rarity !== b.rarity) return a.rarity - b.rarity;
+      return a.labelRarity - b.labelRarity;
+    })[0];
+
+  const averageGenre = modeFromCounts(genreCounts);
+  const averageSubgenre = modeFromCounts(subgenreCounts);
+  const averageLoop = modeFromCounts(loopCounts);
+  const averageIntent = modeFromCounts(intentCounts);
+  const averageLabels = topEntries(labelCounts, 3).map((entry) => entry[0]);
+  const medianLabels = getFortniteTopLabels(medianSource, 3);
+  const uniqueLabels = getFortniteTopLabels(uniqueEntry?.island, 3);
+
+  return [
+    makeFortniteArchetype({
+      kind: "Median game",
+      title: `Median ${medianSource.inferred_genre ?? "Fortnite"} Island`,
+      source: medianSource,
+      labels: medianLabels,
+      readout: `Middle-of-the-pack profile from ${formatNumber(windowed.length)} captured islands in the ${getTrendWindowLabel(timeWindow)} window.`,
+    }),
+    makeFortniteArchetype({
+      kind: "Average game",
+      title: `Average ${averageGenre} Island`,
+      source: {
+        inferred_genre: averageGenre,
+        inferred_subgenre: averageSubgenre,
+        core_loop: averageLoop,
+        player_intent: averageIntent,
+        extracted_tags: averageLabels,
+        build_complexity: modeFromCounts(countBy(windowed, (island: any) => island.build_complexity ?? "Medium")),
+      },
+      labels: averageLabels,
+      readout: `Composite of the most common estimated genre, subgenre, core loop, intent, and labels in this window.`,
+    }),
+    makeFortniteArchetype({
+      kind: "Most unique game",
+      title: `Outlier ${uniqueEntry?.island?.inferred_genre ?? "Fortnite"} Concept`,
+      source: uniqueEntry?.island ?? windowed[0],
+      labels: uniqueLabels,
+      readout: `Rarest detected estimated format mix in this window; useful as a novelty reference, not a success signal.`,
+    }),
+  ];
+}
+
+function makeFortniteArchetype({ kind, title, source, labels, readout }: any) {
+  return {
+    id: `fictional-${kind}`,
+    kind,
+    title,
+    inferred_genre: source.inferred_genre ?? "Other",
+    inferred_subgenre: source.inferred_subgenre ?? "General",
+    player_intent: source.player_intent ?? source.audience_signal ?? "Not classified yet",
+    core_loop: source.core_loop ?? source.design_pattern ?? "Not classified yet",
+    design_pattern: source.design_pattern,
+    audience_signal: source.audience_signal,
+    build_complexity: source.build_complexity,
+    extracted_tags: labels?.length ? labels : source.extracted_tags ?? [],
+    ipLabel: getFortniteIpSignal(source)?.label,
+    readout,
+  };
+}
+
+function buildRobloxArchetypes(games: any[], timeWindow: TrendTimeWindow) {
+  const windowed = getRobloxGamesInWindow(games, timeWindow).filter(
+    (game) => typeof game.latestPlayers === "number"
+  );
+
+  if (!windowed.length) return [];
+
+  const sortedByPlayers = [...windowed].sort(
+    (a, b) => (a.latestPlayers ?? 0) - (b.latestPlayers ?? 0)
+  );
+  const medianSource = sortedByPlayers[Math.floor(sortedByPlayers.length / 2)] ?? windowed[0];
+  const classifiedWindow = windowed.filter(
+    (game: any) => getClassificationConfidence(game, "roblox") !== "pending"
+  );
+  const classificationSource = classifiedWindow.length ? classifiedWindow : windowed;
+  const genreCounts = countBy(classificationSource, (game: any) =>
+    getSanitizedRobloxGenre(game)
+  );
+  const subgenreCounts = countBy(classificationSource, (game: any) =>
+    getSanitizedRobloxSubgenre(game)
+  );
+  const loopCounts = countBy(windowed, (game: any) => game.core_loop ?? "Unknown");
+  const fallbackGenre = modeFromCounts(genreCounts);
+  const fallbackSubgenre = modeFromCounts(subgenreCounts);
+  const comboEntries = windowed.map((game: any) => ({
+    game,
+    key: [
+      getSanitizedRobloxGenre(game, fallbackGenre),
+      getSanitizedRobloxSubgenre(game, fallbackSubgenre),
+      game.core_loop ?? "Unknown",
+    ].join(" / "),
+  }));
+  const comboCounts = countBy(comboEntries, (entry: any) => entry.key);
+  const uniqueEntry = comboEntries
+    .map((entry: any) => ({
+      ...entry,
+      rarity: comboCounts[entry.key] ?? 0,
+      playerScale: entry.game.latestPlayers ?? 0,
+    }))
+    .sort((a: any, b: any) => {
+      if (a.rarity !== b.rarity) return a.rarity - b.rarity;
+      return b.playerScale - a.playerScale;
+    })[0];
+  const averageSource = {
+    title: "Average Popular Type",
+    thumbnail_url: medianSource.thumbnail_url,
+    inferred_genre: fallbackGenre,
+    inferred_subgenre: fallbackSubgenre,
+    core_loop: modeFromCounts(loopCounts),
+    latestPlayers: mean(windowed.map((game: any) => game.latestPlayers ?? 0)),
+    playerGainPercent: mean(windowed.map((game: any) => game.playerGainPercent ?? 0)),
+    periodHigh: mean(windowed.map((game: any) => game.periodHigh ?? 0)),
+    averagePlayerGain7Days: mean(
+      windowed
+        .map((game: any) => game.averagePlayerGain7Days)
+        .filter((value: any) => typeof value === "number")
+    ),
+    upVotes: mean(
+      windowed
+        .map((game: any) => game.upVotes)
+        .filter((value: any) => typeof value === "number")
+    ),
+    likeRatio: mean(
+      windowed
+        .map((game: any) => game.likeRatio)
+        .filter((value: any) => typeof value === "number")
+    ),
+    bestRank: getMedianNumber(
+      windowed
+        .map((game: any) => game.bestRank)
+        .filter((value: any) => typeof value === "number")
+    ),
+    bestRankSort: "captured charts",
+  };
+  const uniqueSource = uniqueEntry?.game ?? windowed[0];
+
+  return [
+    makeRobloxArchetype({
+      kind: "Median game",
+      title: buildShortArchetypeTitle("Median", medianSource, fallbackGenre),
+      source: medianSource,
+      fallbackGenre,
+      fallbackSubgenre,
+      readout: `Middle player-count profile from ${formatNumber(windowed.length)} captured Roblox experiences in the ${getTrendWindowLabel(timeWindow)} window.`,
+    }),
+    makeRobloxArchetype({
+      kind: "Average game",
+      title: averageSource.title,
+      source: averageSource,
+      fallbackGenre,
+      fallbackSubgenre,
+      readout: `Composite of the most common genre, subgenre, core loop, and average player metrics in this window.`,
+    }),
+    makeRobloxArchetype({
+      kind: "Most unique game",
+      title: buildShortArchetypeTitle("Outlier", uniqueSource, fallbackGenre),
+      source: uniqueSource,
+      fallbackGenre,
+      fallbackSubgenre,
+      readout: `Rarest detected genre/subgenre/core-loop mix in this window; useful as a novelty reference, not a success signal.`,
+    }),
+  ];
+}
+
+function makeRobloxArchetype({ kind, title, source, fallbackGenre, fallbackSubgenre, readout }: any) {
+  return {
+    ...source,
+    inferred_genre: getSanitizedRobloxGenre(source, fallbackGenre),
+    inferred_subgenre: getSanitizedRobloxSubgenre(source, fallbackSubgenre),
+    id: `fictional-${kind}`,
+    kind,
+    title,
+    readout,
+  };
+}
+
+function buildShortArchetypeTitle(prefix: string, source: any, fallbackGenre: string) {
+  return cleanTitleToken(`${prefix} ${getSanitizedRobloxGenre(source, fallbackGenre)}`);
+}
+
+function getSanitizedRobloxGenre(item: any, fallback = "Popular") {
+  return sanitizeClassificationLabel(getDisplayGenre(item, "roblox"), fallback);
+}
+
+function getSanitizedRobloxSubgenre(item: any, fallback = "General Play") {
+  return sanitizeClassificationLabel(getDisplaySubgenre(item, "roblox"), fallback);
+}
+
+function sanitizeClassificationLabel(value: unknown, fallback: string) {
+  const text = String(value ?? "").trim();
+  return text && !/^classification pending|unknown|general|other|n\/a$/i.test(text)
+    ? text
+    : fallback;
+}
+
+function getRobloxGamesInWindow(games: any[], timeWindow: TrendTimeWindow) {
+  const latestDateKey = getLatestSnapshotDateKey(games);
+  const latestDate = parseDateKey(latestDateKey);
+  const startDate = latestDate ? new Date(latestDate) : null;
+
+  if (!latestDate || !startDate) return games;
+
+  startDate.setUTCDate(startDate.getUTCDate() - getTrendWindowDays(timeWindow) + 1);
+
+  return games.filter((game) =>
+    (game.snapshots ?? []).some((snapshot: any) => {
+      const dateKey = getSnapshotDateKey(snapshot.created_at);
+      const snapshotDate = parseDateKey(dateKey);
+      return snapshotDate && snapshotDate >= startDate && snapshotDate <= latestDate;
+    })
+  );
+}
+
+function getLatestSnapshotDateKey(items: any[]) {
+  return items
+    .flatMap((item) =>
+      (item.snapshots ?? [])
+        .map((snapshot: any) => getSnapshotDateKey(snapshot.created_at))
+        .filter(Boolean)
+    )
+    .sort()
+    .at(-1);
+}
+
+function getMedianNumber(values: number[]) {
+  if (!values.length) return null;
+
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+function getFortniteIslandsInWindow(islands: any[], timeWindow: TrendTimeWindow) {
+  const latestDateKey =
+    getFortniteSubstantialSnapshotDateKeys(islands).at(-1) ??
+    getAvailableFortniteSnapshotDateKeys(islands).at(-1);
+  const latestDate = parseDateKey(latestDateKey);
+  const startDate = latestDate ? new Date(latestDate) : null;
+
+  if (!latestDate || !startDate) return islands;
+
+  startDate.setUTCDate(startDate.getUTCDate() - getTrendWindowDays(timeWindow) + 1);
+
+  return islands.filter((island) =>
+    (island.snapshots ?? []).some((snapshot: any) => {
+      const dateKey = getSnapshotDateKey(snapshot.created_at);
+      const snapshotDate = parseDateKey(dateKey);
+      return snapshotDate && snapshotDate >= startDate && snapshotDate <= latestDate;
+    })
+  );
+}
+
+function countBy(items: any[], getKey: (item: any) => string) {
+  return items.reduce((counts: Record<string, number>, item) => {
+    const key = getKey(item) || "Unknown";
+    counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function countLabels(islands: any[]) {
+  return islands.reduce((counts: Record<string, number>, island) => {
+    getFortniteTopLabels(island, 3).forEach((label) => {
+      counts[label] = (counts[label] ?? 0) + 1;
+    });
+    return counts;
+  }, {});
+}
+
+function modeFromCounts(counts: Record<string, number>) {
+  return topEntries(counts, 1)[0]?.[0] ?? "Unknown";
+}
+
+function topEntries(counts: Record<string, number>, limit: number) {
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit);
+}
+
+function getTypicalityScore(
+  island: any,
+  genreCounts: Record<string, number>,
+  subgenreCounts: Record<string, number>,
+  loopCounts: Record<string, number>,
+  labelCounts: Record<string, number>
+) {
+  const labels = getFortniteTopLabels(island, 3);
+  const labelScore = labels.reduce((sum, label) => sum + (labelCounts[label] ?? 0), 0);
+
+  return (
+    (genreCounts[island.inferred_genre ?? "Other"] ?? 0) +
+    (subgenreCounts[island.inferred_subgenre ?? "General"] ?? 0) +
+    (loopCounts[island.core_loop ?? "Unknown"] ?? 0) +
+    labelScore
+  );
+}
+
+function getAverageLabelFrequency(island: any, labelCounts: Record<string, number>) {
+  const labels = getFortniteTopLabels(island, 3);
+  if (!labels.length) return 999999;
+
+  return labels.reduce((sum, label) => sum + (labelCounts[label] ?? 0), 0) / labels.length;
 }
 
 function MiniSimilarGameCard({ item, rank, platform }: any) {
@@ -4911,7 +7547,7 @@ function MiniSimilarGameCard({ item, rank, platform }: any) {
 
       <div className="mt-3 text-[11px] leading-4">
         <p className="text-slate-400">
-          {platform === "roblox" ? "Players" : "Genre"}
+          {platform === "roblox" ? "Players" : "Estimated genre"}
         </p>
         <p className="font-black">
           {platform === "roblox"
@@ -5276,16 +7912,16 @@ function buildPredictionSignals(
         detail: rankMovement.detail,
       },
       {
-        label: "Genre field share",
+        label: "Estimated genre share",
         value: `${genreShare.percent}%`,
-        detail: `${genreShare.count} of ${genreShare.total} imported islands are classified as ${
+        detail: `${genreShare.count} of ${genreShare.total} imported islands are estimated as ${
           target.inferred_genre ?? "Other"
         }.`,
       },
       {
-        label: "Subgenre field share",
+        label: "Estimated subgenre share",
         value: `${subgenreShare.percent}%`,
-        detail: `${subgenreShare.count} of ${subgenreShare.total} imported islands are classified as ${
+        detail: `${subgenreShare.count} of ${subgenreShare.total} imported islands are estimated as ${
           target.inferred_subgenre ?? "General"
         }.`,
       },
@@ -5295,9 +7931,9 @@ function buildPredictionSignals(
         detail: labelSignal.detail,
       },
       {
-        label: "Competition tier",
+        label: "Estimated competition tier",
         value: target.competition_level ?? "Unclassified",
-        detail: "Derived from the imported genre, subgenre, intent, and label mix.",
+        detail: "Estimated from the imported labels, category, title, and description cues.",
       },
       {
         label: "First tracked",
@@ -5733,9 +8369,9 @@ function GlossaryModal({ onClose }: any) {
         "A filtered view of the highest-ranked or first-surfaced entries in the imported source data for that platform.",
     },
     {
-      title: "Classification confidence",
+      title: "Data capture coverage",
       body:
-        "An internal transparency estimate based on how many rows have usable genre, subgenre, label, or taxonomy signals.",
+        "The share of expected source and dashboard fields captured across the current dataset. Missing expected fields reduce the score. This measures field completeness, not whether an interpretation or classification is correct.",
     },
     {
       title: "Heuristic fallback",
