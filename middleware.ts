@@ -28,10 +28,12 @@ export async function middleware(req: NextRequest) {
     return redirectToLogin(req);
   }
 
+  const adminPassword = process.env.DASHBOARD_ADMIN_PASSWORD ?? password;
   const expectedToken = await getDashboardAuthToken(password);
+  const expectedAdminToken = await getDashboardAuthToken(adminPassword);
   const authToken = req.cookies.get(DASHBOARD_AUTH_COOKIE)?.value;
 
-  if (authToken === expectedToken) {
+  if (authToken === expectedToken || authToken === expectedAdminToken) {
     return NextResponse.next();
   }
 

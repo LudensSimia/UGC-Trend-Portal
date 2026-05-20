@@ -64,6 +64,25 @@ const FORTNITE_ISLAND_SELECT = `
 
 type Platform = "roblox" | "fortnite";
 type TrendTimeWindow = "7d" | "30d" | "3m";
+type LandscapeTimeWindow = "today" | "7d" | "30d";
+type UserTier = "free" | "scout" | "pro" | "admin";
+type TierAssignable = Exclude<UserTier, "admin">;
+
+type AccessOption = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+type AccessItem = {
+  key: string;
+  label: string;
+  platform: Platform | "global";
+  description: string;
+  options?: AccessOption[];
+};
+
+type TierVisibilitySettings = Record<TierAssignable, Record<string, boolean>>;
 
 type DataQualitySnapshot = {
   platform: Platform;
@@ -74,12 +93,209 @@ type DataQualitySnapshot = {
   created_at: string;
 };
 
+const USER_TIERS: UserTier[] = ["free", "scout", "pro", "admin"];
+const CONFIGURABLE_TIERS: TierAssignable[] = ["free", "scout", "pro"];
+const TIME_WINDOW_OPTIONS: AccessOption[] = [
+  { key: "time_7d", label: "7D", description: "Allow the 7-day view." },
+  { key: "time_30d", label: "Month", description: "Allow the rolling 30-day view." },
+  { key: "time_3m", label: "3M", description: "Allow the rolling 3-month view." },
+];
+const TWO_TIME_WINDOW_OPTIONS = TIME_WINDOW_OPTIONS.slice(0, 2);
+const LANDSCAPE_TIME_WINDOW_OPTIONS: AccessOption[] = [
+  { key: "time_today", label: "Today", description: "Allow the latest snapshot view." },
+  ...TWO_TIME_WINDOW_OPTIONS,
+];
+const LIMIT_25_50_OPTIONS: AccessOption[] = [
+  { key: "limit_25", label: "25 records", description: "Allow the smaller source set." },
+  { key: "limit_50", label: "50 records", description: "Allow the larger source set." },
+];
+const LABEL_10_25_OPTIONS: AccessOption[] = [
+  { key: "limit_10", label: "10 labels", description: "Allow the compact label set." },
+  { key: "limit_25", label: "25 labels", description: "Allow the expanded label set." },
+];
+const TOP_3_10_OPTIONS: AccessOption[] = [
+  { key: "limit_3", label: "3 lines", description: "Allow the compact view." },
+  { key: "limit_10", label: "10 lines", description: "Allow the expanded view." },
+];
+const PERCENTILE_OPTIONS: AccessOption[] = [
+  { key: "percentiles", label: "Percentile zoom", description: "Allow chart zoom controls." },
+];
+const TEMPLATE_OPTIONS: AccessOption[] = [
+  { key: "template_mainstream", label: "Mainstream", description: "Allow mainstream template generation." },
+  { key: "template_uncommon", label: "Uncommon", description: "Allow uncommon template generation." },
+  { key: "template_source", label: "Source set", description: "Allow source-set template generation." },
+  { key: "template_reroll", label: "Reroll", description: "Allow rerolling generated templates." },
+];
+const ROBLOX_ARCHETYPE_OPTIONS: AccessOption[] = [
+  { key: "archetype_median", label: "Median", description: "Show the middle player-count profile." },
+  { key: "archetype_average", label: "Average", description: "Show the composite average profile." },
+  { key: "archetype_unique", label: "Outlier", description: "Show the rarest detected profile." },
+  ...TIME_WINDOW_OPTIONS,
+];
+
+const ACCESS_ITEMS: AccessItem[] = [
+  { key: "global_platform_toggle", label: "Platform selector", platform: "global", description: "Switch between Roblox and Fortnite views." },
+  { key: "roblox_data_source_health", label: "Data Source & Health", platform: "roblox", description: "Source, capture coverage, query count, and last snapshot." },
+  { key: "roblox_top_games", label: "Top 5 Most Played Games", platform: "roblox", description: "Current player leaderboard summary." },
+  { key: "roblox_trending_games", label: "Trending Games", platform: "roblox", description: "Player gain, position movement, and player loss signals." },
+  { key: "roblox_genre_mix", label: "Most Played Genre Mix Estimated", platform: "roblox", description: "Estimated player-weighted genre pie chart.", options: LIMIT_25_50_OPTIONS },
+  { key: "roblox_subgenre_mix", label: "Most Played Subgenre Mix Estimated", platform: "roblox", description: "Estimated player-weighted subgenre pie chart.", options: LIMIT_25_50_OPTIONS },
+  { key: "roblox_games_trend", label: "Most Played Games Over Time", platform: "roblox", description: "Game activity lines across stored snapshots.", options: [...TIME_WINDOW_OPTIONS, ...LIMIT_25_50_OPTIONS, ...PERCENTILE_OPTIONS] },
+  { key: "roblox_genres_trend", label: "Most Played Genres Over Time", platform: "roblox", description: "Genre activity lines across stored snapshots.", options: [...TIME_WINDOW_OPTIONS, ...TOP_3_10_OPTIONS] },
+  { key: "roblox_keyword_cloud", label: "Top 25 Keyword Cloud", platform: "roblox", description: "Frequent words from title and description text." },
+  { key: "roblox_common_structure", label: "Common Description Structure", platform: "roblox", description: "Description pattern summary." },
+  { key: "roblox_tile_colors", label: "Top Tile Colors", platform: "roblox", description: "Primary and secondary thumbnail colors." },
+  { key: "roblox_archetypes", label: "Fictional Experience Archetypes", platform: "roblox", description: "Median, average, and outlier fictional profiles.", options: ROBLOX_ARCHETYPE_OPTIONS },
+  { key: "roblox_template_generator", label: "Game Template Generator", platform: "roblox", description: "Synthetic concept generator.", options: TEMPLATE_OPTIONS },
+  { key: "roblox_correlation", label: "Metric Correlation Analysis", platform: "roblox", description: "Metric comparison by genre.", options: TWO_TIME_WINDOW_OPTIONS },
+  { key: "roblox_directional_map", label: "Directional Research Map", platform: "roblox", description: "Demand, velocity, saturation, and estimated format complexity maps.", options: TWO_TIME_WINDOW_OPTIONS },
+  { key: "roblox_idea_card", label: "My Game Idea Is", platform: "roblox", description: "Genre/subgenre positioning tool.", options: TWO_TIME_WINDOW_OPTIONS },
+  { key: "roblox_research_cards", label: "Research / Design / Warning Cards", platform: "roblox", description: "Research readout blocks for the selected idea." },
+  { key: "roblox_activity_landscape", label: "Player Activity Landscape", platform: "roblox", description: "Player activity treemap.", options: LANDSCAPE_TIME_WINDOW_OPTIONS },
+  { key: "roblox_experience_cards", label: "Top 25 Roblox Experiences", platform: "roblox", description: "Detailed experience cards or list view.", options: [
+    { key: "view_cards", label: "Card view", description: "Allow the card layout." },
+    { key: "view_list", label: "List view", description: "Allow the compact list layout." },
+  ] },
+  { key: "roblox_forecasting_inputs", label: "Forecasting Signal Inputs", platform: "roblox", description: "Prediction-market style research inputs.", options: [
+    { key: "search", label: "Search", description: "Allow searching for a specific game." },
+  ] },
+  { key: "fortnite_data_source_health", label: "Data Source & Health", platform: "fortnite", description: "Source, capture coverage, query count, and last snapshot." },
+  { key: "fortnite_genre_mix", label: "Estimated Genre Mix", platform: "fortnite", description: "Estimated genre appearances.", options: TIME_WINDOW_OPTIONS },
+  { key: "fortnite_subgenre_mix", label: "Estimated Subgenre Mix", platform: "fortnite", description: "Estimated subgenre appearances.", options: TIME_WINDOW_OPTIONS },
+  { key: "fortnite_primary_labels", label: "Primary Label Usage", platform: "fortnite", description: "First surfaced label usage." },
+  { key: "fortnite_label_trend", label: "Primary Label Usage Over Time", platform: "fortnite", description: "Label usage over stored snapshots.", options: [...TIME_WINDOW_OPTIONS, ...LABEL_10_25_OPTIONS] },
+  { key: "fortnite_genre_presence", label: "Estimated Genre / Format Presence", platform: "fortnite", description: "Estimated Fortnite genre or format presence.", options: TIME_WINDOW_OPTIONS },
+  { key: "fortnite_keyword_cloud", label: "Fortnite Island Keyword Cloud", platform: "fortnite", description: "Title and label keyword signals." },
+  { key: "fortnite_ip_signals", label: "IP / Collaboration Signals", platform: "fortnite", description: "Brand, IP, and collaboration cues." },
+  { key: "fortnite_tile_colors", label: "Island Tile Colors", platform: "fortnite", description: "Primary and secondary island tile colors." },
+  { key: "fortnite_archetypes", label: "Fictional Island Archetypes", platform: "fortnite", description: "Synthetic profiles from Fortnite metadata.", options: TIME_WINDOW_OPTIONS },
+  { key: "fortnite_template_generator", label: "Game Template Generator", platform: "fortnite", description: "Synthetic island concept generator.", options: TEMPLATE_OPTIONS },
+  { key: "fortnite_directional_map", label: "Directional Research Map", platform: "fortnite", description: "Research map based on Fortnite metadata.", options: TWO_TIME_WINDOW_OPTIONS },
+  { key: "fortnite_idea_card", label: "My Fortnite Island Idea Is", platform: "fortnite", description: "Estimated genre/subgenre positioning tool.", options: TWO_TIME_WINDOW_OPTIONS },
+  { key: "fortnite_research_cards", label: "Research / Design / Warning Cards", platform: "fortnite", description: "Research readout blocks for the selected idea." },
+  { key: "fortnite_island_cards", label: "Latest Imported Fortnite Islands", platform: "fortnite", description: "Detailed Fortnite island metadata cards." },
+  { key: "fortnite_forecasting_inputs", label: "Forecasting Signal Inputs", platform: "fortnite", description: "Forecasting research inputs for islands.", options: [
+    { key: "search", label: "Search", description: "Allow searching for a specific island." },
+  ] },
+];
+
+const DEFAULT_TIER_VISIBILITY: TierVisibilitySettings = buildDefaultTierVisibility();
+
+function buildDefaultTierVisibility(): TierVisibilitySettings {
+  const allKeys = getAccessSettingKeys();
+  const settings = {
+    free: Object.fromEntries(allKeys.map((key) => [key, false])),
+    scout: Object.fromEntries(allKeys.map((key) => [key, false])),
+    pro: Object.fromEntries(allKeys.map((key) => [key, false])),
+  } as TierVisibilitySettings;
+
+  [
+    "global_platform_toggle",
+    "roblox_data_source_health",
+    "roblox_top_games",
+    "roblox_trending_games",
+    "roblox_genre_mix",
+    "roblox_subgenre_mix",
+    "fortnite_data_source_health",
+    "fortnite_genre_mix",
+    "fortnite_subgenre_mix",
+    "fortnite_primary_labels",
+  ].forEach((key) => {
+    settings.free[key] = true;
+  });
+
+  ACCESS_ITEMS.forEach((item) => {
+    if (item.key !== "roblox_forecasting_inputs" && item.key !== "fortnite_forecasting_inputs") {
+      settings.scout[item.key] = true;
+      item.options?.forEach((option) => {
+        settings.scout[getAccessOptionKey(item.key, option.key)] =
+          option.key === "time_7d" ||
+          option.key === "time_today" ||
+          option.key === "limit_25" ||
+          option.key === "limit_3" ||
+          option.key === "limit_10" ||
+          option.key === "archetype_median" ||
+          option.key === "archetype_average" ||
+          option.key === "view_cards" ||
+          option.key === "template_mainstream";
+      });
+    }
+    settings.pro[item.key] = true;
+    item.options?.forEach((option) => {
+      settings.pro[getAccessOptionKey(item.key, option.key)] = true;
+    });
+  });
+
+  return settings;
+}
+
+function getAccessOptionKey(itemKey: string, optionKey: string) {
+  return `${itemKey}:${optionKey}`;
+}
+
+function getAccessSettingKeys() {
+  return ACCESS_ITEMS.flatMap((item) => [
+    item.key,
+    ...(item.options ?? []).map((option) => getAccessOptionKey(item.key, option.key)),
+  ]);
+}
+
+function normalizeDashboardTier(value: unknown): UserTier {
+  return USER_TIERS.includes(value as UserTier) ? (value as UserTier) : "free";
+}
+
+function mergeTierVisibility(value: any): TierVisibilitySettings {
+  const merged = structuredClone(DEFAULT_TIER_VISIBILITY) as TierVisibilitySettings;
+
+  CONFIGURABLE_TIERS.forEach((tier) => {
+    getAccessSettingKeys().forEach((key) => {
+      if (typeof value?.[tier]?.[key] === "boolean") {
+        merged[tier][key] = value[tier][key];
+      }
+    });
+  });
+
+  return merged;
+}
+
+function canSeeAccessOption(
+  tier: UserTier,
+  settings: TierVisibilitySettings,
+  itemKey: string,
+  optionKey: string
+) {
+  if (tier === "admin") return true;
+  return Boolean(settings[tier]?.[getAccessOptionKey(itemKey, optionKey)]);
+}
+
+function canSeeAccessItem(
+  tier: UserTier,
+  settings: TierVisibilitySettings,
+  key: string
+) {
+  if (tier === "admin") return true;
+  return Boolean(settings[tier]?.[key]);
+}
+
+function tierLabel(tier: UserTier) {
+  return tier === "admin" ? "Admin" : tier.charAt(0).toUpperCase() + tier.slice(1);
+}
+
 export default function Home() {
   const [activePlatform, setActivePlatform] = useState<Platform>("roblox");
   const [darkMode, setDarkMode] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [showTerms, setShowTerms] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [userTier, setUserTier] = useState<UserTier>(
+    process.env.NODE_ENV !== "production" ? "admin" : "free"
+  );
+  const [adminPreviewTier, setAdminPreviewTier] = useState<UserTier>("admin");
+  const [tierVisibility, setTierVisibility] = useState<TierVisibilitySettings>(
+    DEFAULT_TIER_VISIBILITY
+  );
+  const [tierVisibilityReady, setTierVisibilityReady] = useState(false);
   const [robloxGames, setRobloxGames] = useState<any[]>([]);
   const [fortniteIslands, setFortniteIslands] = useState<any[]>([]);
   const [dataQualitySnapshots, setDataQualitySnapshots] = useState<
@@ -103,7 +319,7 @@ export default function Home() {
   const [ideaTimeWindow, setIdeaTimeWindow] =
     useState<"7d" | "30d">("7d");
   const [landscapeTimeWindow, setLandscapeTimeWindow] =
-    useState<"7d" | "30d">("7d");
+    useState<LandscapeTimeWindow>("today");
   const [robloxExperienceView, setRobloxExperienceView] =
     useState<"cards" | "list">("cards");
   const [fortniteLabelTrendLimit, setFortniteLabelTrendLimit] =
@@ -130,6 +346,44 @@ export default function Home() {
       }),
     []
   );
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("snout-tier-visibility");
+
+    if (stored) {
+      try {
+        setTierVisibility(mergeTierVisibility(JSON.parse(stored)));
+      } catch (error) {
+        console.warn("Tier visibility settings could not be loaded:", error);
+      }
+    }
+    setTierVisibilityReady(true);
+
+    async function fetchSession() {
+      try {
+        const response = await fetch("/api/auth/session");
+        const session = await response.json();
+        setUserTier(
+          process.env.NODE_ENV !== "production"
+            ? "admin"
+            : normalizeDashboardTier(session?.tier)
+        );
+      } catch (error) {
+        console.warn("Dashboard session could not be loaded:", error);
+      }
+    }
+
+    fetchSession();
+  }, []);
+
+  useEffect(() => {
+    if (tierVisibilityReady) {
+      window.localStorage.setItem(
+        "snout-tier-visibility",
+        JSON.stringify(tierVisibility)
+      );
+    }
+  }, [tierVisibility, tierVisibilityReady]);
 
   useEffect(() => {
     async function fetchData() {
@@ -230,11 +484,55 @@ export default function Home() {
     ).sort();
   }, [activeGenreAnalysisItems, activePlatform, selectedGenre]);
 
+  const effectiveUserTier = userTier === "admin" ? adminPreviewTier : userTier;
+  const canAccess = (key: string) =>
+    canSeeAccessItem(effectiveUserTier, tierVisibility, key);
+  const canAccessOption = (itemKey: string, optionKey: string) =>
+    canSeeAccessOption(effectiveUserTier, tierVisibility, itemKey, optionKey);
+  const effectiveTimeWindow = (
+    itemKey: string,
+    requested: TrendTimeWindow
+  ): TrendTimeWindow => {
+    if (requested === "3m" && canAccessOption(itemKey, "time_3m")) return "3m";
+    if (requested === "30d" && canAccessOption(itemKey, "time_30d")) return "30d";
+    return "7d";
+  };
+  const allowedTimeWindows = (itemKey: string, include3m = true) => {
+    const windows: TrendTimeWindow[] = ["7d"];
+    if (canAccessOption(itemKey, "time_30d")) windows.push("30d");
+    if (include3m && canAccessOption(itemKey, "time_3m")) windows.push("3m");
+    return windows;
+  };
+  const effectiveLandscapeTimeWindow = (
+    requested: LandscapeTimeWindow
+  ): LandscapeTimeWindow => {
+    if (requested === "today" && canAccessOption("roblox_activity_landscape", "time_today")) {
+      return "today";
+    }
+    if (requested === "30d" && canAccessOption("roblox_activity_landscape", "time_30d")) {
+      return "30d";
+    }
+    return "7d";
+  };
+  const allowedLandscapeTimeWindows = () => {
+    const windows: LandscapeTimeWindow[] = [];
+    if (canAccessOption("roblox_activity_landscape", "time_today")) windows.push("today");
+    if (canAccessOption("roblox_activity_landscape", "time_7d")) windows.push("7d");
+    if (canAccessOption("roblox_activity_landscape", "time_30d")) windows.push("30d");
+    return windows.length ? windows : (["7d"] as LandscapeTimeWindow[]);
+  };
+  const activeIdeaWindow =
+    activePlatform === "roblox"
+      ? effectiveTimeWindow("roblox_idea_card", ideaTimeWindow)
+      : effectiveTimeWindow("fortnite_idea_card", ideaTimeWindow);
+  const activeLandscapeWindow = effectiveLandscapeTimeWindow(landscapeTimeWindow);
+  const activeTwoOptionIdeaWindow = activeIdeaWindow as "7d" | "30d";
+
   const activeIdeaAnalysisItems = useMemo(() => {
     return activePlatform === "roblox"
-      ? buildCorrelationWindowGames(activeGenreAnalysisItems, ideaTimeWindow)
-      : getFortniteIslandsInWindow(activeGenreAnalysisItems, ideaTimeWindow);
-  }, [activeGenreAnalysisItems, activePlatform, ideaTimeWindow]);
+      ? buildCorrelationWindowGames(activeGenreAnalysisItems, activeTwoOptionIdeaWindow)
+      : getFortniteIslandsInWindow(activeGenreAnalysisItems, activeTwoOptionIdeaWindow);
+  }, [activeGenreAnalysisItems, activePlatform, activeTwoOptionIdeaWindow]);
 
   const filteredIdeaItems = activeIdeaAnalysisItems.filter((item) => {
     const genreMatch = !selectedGenre || getDisplayGenre(item, activePlatform) === selectedGenre;
@@ -249,9 +547,9 @@ export default function Home() {
     );
   }, [robloxGames]);
   const landscapeRobloxGames = useMemo(() => {
-    return buildCorrelationWindowGames(topRobloxGames, landscapeTimeWindow)
+    return buildCorrelationWindowGames(topRobloxGames, activeLandscapeWindow)
       .sort((a: any, b: any) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0));
-  }, [topRobloxGames, landscapeTimeWindow]);
+  }, [topRobloxGames, activeLandscapeWindow]);
 
   const topFortniteIslands = useMemo(() => {
     return [...fortniteIslands].sort(compareFortniteIslands);
@@ -382,6 +680,13 @@ export default function Home() {
     setPredictionSearch,
     predictionTarget,
     predictionSignals,
+    userTier,
+    effectiveUserTier,
+    tierVisibility,
+    canAccess,
+    canAccessOption,
+    effectiveTimeWindow,
+    allowedTimeWindows,
   };
 
   return (
@@ -417,30 +722,39 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <ToggleGroup>
-              <ToggleButton
-                active={activePlatform === "roblox"}
-                onClick={() => {
-                  setActivePlatform("roblox");
-                  setSelectedGenre("");
-                  setSelectedSubgenre("");
-                }}
-                activeColor="#0d69ac"
-              >
-                Roblox
-              </ToggleButton>
-              <ToggleButton
-                active={activePlatform === "fortnite"}
-                onClick={() => {
-                  setActivePlatform("fortnite");
-                  setSelectedGenre("");
-                  setSelectedSubgenre("");
-                }}
-                activeColor="#7c3aed"
-              >
-                Fortnite
-              </ToggleButton>
-            </ToggleGroup>
+            <UserTierBadge tier={effectiveUserTier} actualTier={userTier} />
+            {userTier === "admin" && (
+              <AdminTierPreviewSelect
+                value={adminPreviewTier}
+                onChange={setAdminPreviewTier}
+              />
+            )}
+            {canAccess("global_platform_toggle") && (
+              <ToggleGroup>
+                <ToggleButton
+                  active={activePlatform === "roblox"}
+                  onClick={() => {
+                    setActivePlatform("roblox");
+                    setSelectedGenre("");
+                    setSelectedSubgenre("");
+                  }}
+                  activeColor="#0d69ac"
+                >
+                  Roblox
+                </ToggleButton>
+                <ToggleButton
+                  active={activePlatform === "fortnite"}
+                  onClick={() => {
+                    setActivePlatform("fortnite");
+                    setSelectedGenre("");
+                    setSelectedSubgenre("");
+                  }}
+                  activeColor="#7c3aed"
+                >
+                  Fortnite
+                </ToggleButton>
+              </ToggleGroup>
+            )}
 
             <DatePill date={currentDateLabel} accent={accent} />
 
@@ -488,6 +802,27 @@ export default function Home() {
           </div>
         )}
 
+        {activePlatform === "roblox" ? (
+          <nav
+            aria-label="Roblox dashboard shortcuts"
+            className="mb-4 flex flex-wrap gap-2"
+          >
+            {[
+              ["#most-played-games-over-time", "Most Played Games Over Time"],
+              ["#my-game-idea-is", "My Game Idea Is"],
+              ["#player-activity-landscape", "Player Activity Landscape"],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10 hover:text-[#0d69ac]"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+        ) : null}
+
         <section className="mb-6">
           <h2 className="text-3xl font-bold">Creator Trend Intelligence</h2>
           <p className="mt-2 text-sm text-slate-500">
@@ -501,195 +836,203 @@ export default function Home() {
           /* Roblox dashboard branch. Keep Fortnite-specific UI changes in FortniteDashboardView. */
           <>
             <section className="mb-6 grid gap-4 lg:grid-cols-3">
-              <DataSourceHealthCard
-                title="Data Source & Health"
-                items={[
-                  `The data is pulled from: ${dataSourceHealth.source}.`,
-                  `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
-                  `How many games are queried in the latest snapshot: ${formatNumber(
-                    dataSourceHealth.queriedToday
-                  )}.`,
-                ]}
-                lastRunLabel={dataSourceHealth.lastRunLabel}
-                panel={panel}
-                accent={accent}
-              />
+              {canAccess("roblox_data_source_health") ? (
+                <DataSourceHealthCard
+                  title="Data Source & Health"
+                  items={[
+                    `The data is pulled from: ${dataSourceHealth.source}.`,
+                    `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
+                    `How many games are queried in the latest snapshot: ${formatNumber(
+                      dataSourceHealth.queriedToday
+                    )}.`,
+                  ]}
+                  lastRunLabel={dataSourceHealth.lastRunLabel}
+                  panel={panel}
+                  accent={accent}
+                />
+              ) : (
+                <LockedAccessCard itemKey="roblox_data_source_health" panel={panel} />
+              )}
 
-              <ScoreboardCard
-                title="Top 5 Most Played Games"
-                subtitle={
-                  activePlatform === "roblox"
-                    ? "By current players"
-                    : "By available activity signals"
-                }
-                items={
-	                  activePlatform === "roblox"
-	                    ? topGameScoreboard.map((g) => ({
-	                        label: g.title,
-	                        value: formatNumber(g.latestPlayers),
-	                        href: g.url,
-	                      }))
-	                    : topFortniteIslands.slice(0, 5).map((i) => ({
-	                        label: i.title,
-                          subline: `${i.inferred_genre ?? "Other"} / ${
-                            getDisplaySubgenre(i, activePlatform)
-                          }`,
-	                        value: getFortniteActivityLabel(i),
-	                        href: i.url,
-	                      }))
-                }
-                references={
-                  activePlatform === "roblox"
-                    ? [
-                        {
-                          label: "Top played yesterday",
-                          value: topPlayedYesterday?.title ?? "placeholder",
-                          href: topPlayedYesterday?.url,
-                        },
-                        {
-                          label: "Top played last week",
-                          value: topPlayedLastWeek?.title ?? "placeholder",
-                          href: topPlayedLastWeek?.url,
-                        },
-                      ]
-                    : [
-                        {
-                          label: "Top played yesterday",
-                          value: "placeholder",
-                        },
-                        {
-                          label: "Top played last week",
-                          value: "placeholder",
-                        },
-                      ]
-                }
-                panel={panel}
-                accent={accent}
-              />
+              {canAccess("roblox_top_games") ? (
+                <ScoreboardCard
+                  title="Top 5 Most Played Games"
+                  subtitle="By current players"
+                  items={topGameScoreboard.map((g) => ({
+                    label: g.title,
+                    value: formatNumber(g.latestPlayers),
+                    href: g.url,
+                  }))}
+                  references={[
+                    {
+                      label: "Top played yesterday",
+                      value: topPlayedYesterday?.title ?? "placeholder",
+                      href: topPlayedYesterday?.url,
+                    },
+                    {
+                      label: "Top played last week",
+                      value: topPlayedLastWeek?.title ?? "placeholder",
+                      href: topPlayedLastWeek?.url,
+                    },
+                  ]}
+                  panel={panel}
+                  accent={accent}
+                />
+              ) : (
+                <LockedAccessCard itemKey="roblox_top_games" panel={panel} />
+              )}
 
-              <TrendingCard
-                title="Trending Games"
-                items={trendingHighlights}
-                panel={panel}
-                accent={accent}
-                platform={activePlatform}
-              />
+              {canAccess("roblox_trending_games") ? (
+                <TrendingCard
+                  title="Trending Games"
+                  items={trendingHighlights}
+                  panel={panel}
+                  accent={accent}
+                  platform={activePlatform}
+                />
+              ) : (
+                <LockedAccessCard itemKey="roblox_trending_games" panel={panel} />
+              )}
             </section>
 
-            <MostPlayedGenrePieRow
-              data={mostPlayedClassificationPies}
-              limit={mostPlayedMixLimit}
-              onLimitChange={setMostPlayedMixLimit}
-              panel={panel}
-              accent={accent}
-            />
-
-            <section className="mb-6 grid gap-6 lg:grid-cols-2">
-              <ChartCard
-                title="Most Played Games Over Time"
-                subtitle={
-                  activePlatform === "roblox"
-                    ? `Top ${topGamesTrendLimit} experiences by current players, tracked across stored snapshot dates.`
-                    : `Top ${topGamesTrendLimit} islands by available Fortnite activity metric, tracked across stored snapshots.`
-                }
+            {canAccess("roblox_genre_mix") || canAccess("roblox_subgenre_mix") ? (
+              <MostPlayedGenrePieRow
+                data={mostPlayedClassificationPies}
+                limit={mostPlayedMixLimit}
+                onLimitChange={setMostPlayedMixLimit}
                 panel={panel}
-                action={
-                  activePlatform === "roblox" ? (
-                    <TrendControls
-                      limit={topGamesTrendLimit}
-                      percentile={topGamesTrendPercentile}
-                      onLimitChange={setTopGamesTrendLimit}
-                      onPercentileChange={setTopGamesTrendPercentile}
-                      accent={accent}
-                    />
-                  ) : null
+                accent={accent}
+                showGenre={canAccess("roblox_genre_mix")}
+                showSubgenre={canAccess("roblox_subgenre_mix")}
+                showControls={
+                  canAccessOption("roblox_genre_mix", "limit_25") ||
+                  canAccessOption("roblox_genre_mix", "limit_50") ||
+                  canAccessOption("roblox_subgenre_mix", "limit_25") ||
+                  canAccessOption("roblox_subgenre_mix", "limit_50")
                 }
-                footerAction={
-                  activePlatform === "roblox" ? (
-                    <TimeWindowControls
-                      timeWindow={topGamesTrendWindow}
-                      onTimeWindowChange={setTopGamesTrendWindow}
-                      accent={accent}
-                    />
-                  ) : null
-                }
-              >
-                {activePlatform === "roblox" ? (
+                allowedLimits={[
+                  canAccessOption("roblox_genre_mix", "limit_25") ||
+                  canAccessOption("roblox_subgenre_mix", "limit_25")
+                    ? 25
+                    : null,
+                  canAccessOption("roblox_genre_mix", "limit_50") ||
+                  canAccessOption("roblox_subgenre_mix", "limit_50")
+                    ? 50
+                    : null,
+                ].filter(Boolean)}
+              />
+            ) : (
+              <section className="mb-6 grid gap-4 lg:grid-cols-2">
+                <LockedAccessCard itemKey="roblox_genre_mix" panel={panel} />
+                <LockedAccessCard itemKey="roblox_subgenre_mix" panel={panel} />
+              </section>
+            )}
+
+            <section
+              id="most-played-games-over-time"
+              className="mb-6 grid scroll-mt-6 gap-6 lg:grid-cols-2"
+            >
+              {canAccess("roblox_games_trend") ? (
+                <ChartCard
+                  title="Most Played Games Over Time"
+                  subtitle={`Top ${topGamesTrendLimit} experiences by current players, tracked across stored snapshot dates.`}
+                  panel={panel}
+                  action={
+                    true ? (
+                      <TrendControls
+                        limit={topGamesTrendLimit}
+                        percentile={topGamesTrendPercentile}
+                        onLimitChange={setTopGamesTrendLimit}
+                        onPercentileChange={setTopGamesTrendPercentile}
+                        accent={accent}
+                        showLimit={true}
+                        showPercentile={true}
+                        allowedLimits={[
+                          canAccessOption("roblox_games_trend", "limit_25") ? 25 : null,
+                          canAccessOption("roblox_games_trend", "limit_50") ? 50 : null,
+                        ].filter(Boolean)}
+                      />
+                    ) : null
+                  }
+                  footerAction={
+                    (
+                      <TimeWindowControls
+                        timeWindow={effectiveTimeWindow("roblox_games_trend", topGamesTrendWindow)}
+                        onTimeWindowChange={setTopGamesTrendWindow}
+                        accent={accent}
+                        allowedValues={allowedTimeWindows("roblox_games_trend")}
+                      />
+                    )
+                  }
+                >
                   <TopGamesTrend
                     games={topRobloxGames.slice(0, topGamesTrendLimit)}
                     percentile={topGamesTrendPercentile}
-                    timeWindow={topGamesTrendWindow}
+                    timeWindow={effectiveTimeWindow("roblox_games_trend", topGamesTrendWindow)}
                   />
-                ) : (
-                  <FortniteIslandsTrend
-                    islands={topFortniteIslands.slice(0, topGamesTrendLimit)}
-                    percentile={topGamesTrendPercentile}
-                    timeWindow={topGamesTrendWindow}
-                  />
-                )}
-              </ChartCard>
+                </ChartCard>
+              ) : (
+                <LockedAccessCard itemKey="roblox_games_trend" panel={panel} />
+              )}
 
-              <ChartCard
-                title="Most Played Genres Over Time"
-                subtitle={
-                  activePlatform === "roblox"
-                    ? "Genre-level player curves using stored Roblox snapshot dates."
-                    : "Genre-level Fortnite activity curves using peak CCU, plays, or unique-player snapshots when available."
-                }
-                panel={panel}
-                action={
-                  activePlatform === "roblox" ? (
-                    <GenreTrendControls
-                      limit={genreTrendLimit}
-                      onLimitChange={setGenreTrendLimit}
-                      accent={accent}
-                    />
-                  ) : null
-                }
-                footerAction={
-                  activePlatform === "roblox" ? (
-                    <TimeWindowControls
-                      timeWindow={genreTrendWindow}
-                      onTimeWindowChange={setGenreTrendWindow}
-                      accent={accent}
-                    />
-                  ) : null
-                }
-              >
-                {activePlatform === "roblox" ? (
-                    <GenreLinesTrend
+              {canAccess("roblox_genres_trend") ? (
+                <ChartCard
+                  title="Most Played Genres Over Time"
+                  subtitle="Genre-level player curves using stored Roblox snapshot dates."
+                  panel={panel}
+                  action={
+                    true ? (
+                      <GenreTrendControls
+                        limit={genreTrendLimit}
+                        onLimitChange={setGenreTrendLimit}
+                        accent={accent}
+                        allowedLimits={[
+                          canAccessOption("roblox_genres_trend", "limit_3") ? 3 : null,
+                          canAccessOption("roblox_genres_trend", "limit_10") ? 10 : null,
+                        ].filter(Boolean)}
+                      />
+                    ) : null
+                  }
+                  footerAction={
+                    (
+                      <TimeWindowControls
+                        timeWindow={effectiveTimeWindow("roblox_genres_trend", genreTrendWindow)}
+                        onTimeWindowChange={setGenreTrendWindow}
+                        accent={accent}
+                        allowedValues={allowedTimeWindows("roblox_genres_trend")}
+                      />
+                    )
+                  }
+                >
+                  <GenreLinesTrend
                     games={topRobloxGenreAnalysisGames}
                     limit={genreTrendLimit}
-                    timeWindow={genreTrendWindow}
+                    timeWindow={effectiveTimeWindow("roblox_genres_trend", genreTrendWindow)}
                   />
-                ) : (
-                  <FortniteGenreTrend
-                    islands={topFortniteIslands.slice(0, genreTrendLimit)}
-                    percentile={genreTrendPercentile}
-                    timeWindow={genreTrendWindow}
-                  />
-                )}
-              </ChartCard>
+                </ChartCard>
+              ) : (
+                <LockedAccessCard itemKey="roblox_genres_trend" panel={panel} />
+              )}
             </section>
 
             <section className="mb-6 grid gap-6 lg:grid-cols-3">
+              {canAccess("roblox_keyword_cloud") ? (
 	              <KeywordCloudCard
 	                title="Top 25 Keyword Cloud"
-	                subtitle="Common title and description signals by genre"
+	                subtitle="Common title and description signals across the top 25 experiences"
 	                games={
                   activePlatform === "roblox"
                     ? topRobloxGames.slice(0, 25)
                     : topFortniteIslands.slice(0, 25)
                 }
-                genreOptionsItems={
-                  activePlatform === "roblox"
-                    ? robloxGenreAnalysisGames
-                    : topFortniteIslands
-                }
 	                panel={panel}
 	                accent={accent}
 	              />
+              ) : (
+                <LockedAccessCard itemKey="roblox_keyword_cloud" panel={panel} />
+              )}
 
+              {canAccess("roblox_common_structure") ? (
 	              <TemplatePatternCard
 	                title="Common Description Structure"
 	                subtitle="Repeated description formula in the top set"
@@ -701,26 +1044,29 @@ export default function Home() {
                 panel={panel}
                 accent={accent}
               />
+              ) : (
+                <LockedAccessCard itemKey="roblox_common_structure" panel={panel} />
+              )}
 
+              {canAccess("roblox_tile_colors") ? (
 	              <ColorBreakdownCard
 	                title="Top Tile Colors"
-	                subtitle="Primary and secondary RGB colors by genre"
+	                subtitle="Primary and secondary RGB colors across the top 25 experiences"
 	                games={
                   activePlatform === "roblox"
-                    ? topRobloxGames.slice(0, 50)
-                    : topFortniteIslands.slice(0, 50)
-                }
-                genreOptionsItems={
-                  activePlatform === "roblox"
-                    ? robloxGenreAnalysisGames
-                    : topFortniteIslands
+                    ? topRobloxGames.slice(0, 25)
+                    : topFortniteIslands.slice(0, 25)
                 }
                 panel={panel}
                 accent={accent}
               />
+              ) : (
+                <LockedAccessCard itemKey="roblox_tile_colors" panel={panel} />
+              )}
             </section>
 
-            <section className="mb-6">
+            {canAccess("roblox_archetypes") ? (
+              <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -729,30 +1075,52 @@ export default function Home() {
                       Synthetic profiles built only from captured Roblox metrics and metadata in the selected window.
                     </p>
                   </div>
-                  <TimeWindowControls
-                    timeWindow={robloxArchetypeWindow}
-                    onTimeWindowChange={setRobloxArchetypeWindow}
-                    accent={accent}
-                  />
+                  {
+                    <TimeWindowControls
+                      timeWindow={effectiveTimeWindow("roblox_archetypes", robloxArchetypeWindow)}
+                      onTimeWindowChange={setRobloxArchetypeWindow}
+                      accent={accent}
+                      allowedValues={allowedTimeWindows("roblox_archetypes")}
+                    />
+                  }
                 </div>
 
                 <RobloxArchetypeRow
                   games={topRobloxGames}
-                  timeWindow={robloxArchetypeWindow}
+                  timeWindow={effectiveTimeWindow("roblox_archetypes", robloxArchetypeWindow)}
                   panel={panel}
+                  allowedKinds={{
+                    median: canAccessOption("roblox_archetypes", "archetype_median"),
+                    average: canAccessOption("roblox_archetypes", "archetype_average"),
+                    unique: canAccessOption("roblox_archetypes", "archetype_unique"),
+                  }}
                 />
               </div>
-            </section>
+              </section>
+            ) : (
+              <LockedAccessSection itemKey="roblox_archetypes" panel={panel} />
+            )}
 
-            <GameTemplateGeneratorRow
-              items={topRobloxGames}
-              platform="roblox"
-              timeWindow={robloxArchetypeWindow}
-              panel={panel}
-              accent={accent}
-            />
+            {canAccess("roblox_template_generator") ? (
+              <GameTemplateGeneratorRow
+                items={topRobloxGames}
+                platform="roblox"
+                timeWindow={robloxArchetypeWindow}
+                panel={panel}
+                accent={accent}
+                allowedTemplateOptions={{
+                  mainstream: canAccessOption("roblox_template_generator", "template_mainstream"),
+                  uncommon: canAccessOption("roblox_template_generator", "template_uncommon"),
+                  top10: canAccessOption("roblox_template_generator", "template_source"),
+                  reroll: canAccessOption("roblox_template_generator", "template_reroll"),
+                }}
+              />
+            ) : (
+              <LockedAccessSection itemKey="roblox_template_generator" panel={panel} />
+            )}
 
-            <section className="mb-6">
+            {canAccess("roblox_correlation") ? (
+              <section className="mb-6">
               <CorrelationAnalysisCard
                 title="Metric Correlation Analysis"
                 subtitle="Compare Roblox metrics by genre to see where engagement or player-pool signals concentrate."
@@ -763,9 +1131,13 @@ export default function Home() {
                 enableTimeWindow
                 defaultYMetricKey="genre"
               />
-            </section>
+              </section>
+            ) : (
+              <LockedAccessSection itemKey="roblox_correlation" panel={panel} />
+            )}
 
-            <section className="mb-6">
+            {canAccess("roblox_directional_map") ? (
+              <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
                 <h2 className="text-2xl font-bold">Directional Research Map</h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -777,11 +1149,17 @@ export default function Home() {
                   selectedSubgenre={selectedSubgenre}
                   platform={activePlatform}
                   panel={panel}
+                  accent={accent}
+                  allowedTimeWindowValues={allowedTimeWindows("roblox_directional_map", false)}
                 />
               </div>
-            </section>
+              </section>
+            ) : (
+              <LockedAccessSection itemKey="roblox_directional_map" panel={panel} />
+            )}
 
-            <section className="mb-6">
+            {canAccess("roblox_idea_card") ? (
+              <section id="my-game-idea-is" className="mb-6 scroll-mt-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -790,11 +1168,14 @@ export default function Home() {
                       Use this as a reflection tool to position your concept.
                     </p>
                   </div>
-                  <TwoOptionTimeWindowControls
-                    timeWindow={ideaTimeWindow}
-                    onTimeWindowChange={setIdeaTimeWindow}
-                    accent={accent}
-                  />
+                  {
+                    <TwoOptionTimeWindowControls
+                      timeWindow={effectiveTimeWindow("roblox_idea_card", ideaTimeWindow)}
+                      onTimeWindowChange={setIdeaTimeWindow}
+                      accent={accent}
+                      allowedValues={allowedTimeWindows("roblox_idea_card", false)}
+                    />
+                  }
                 </div>
 
                 <div className="mt-5 space-y-3">
@@ -874,9 +1255,15 @@ export default function Home() {
                     </div>
 	                </div>
 	              </div>
-            </section>
+              </section>
+            ) : (
+              <section id="my-game-idea-is" className="mb-6 scroll-mt-6">
+                <LockedAccessCard itemKey="roblox_idea_card" panel={panel} />
+              </section>
+            )}
 
-            <section className="mb-6 grid gap-4 lg:grid-cols-3">
+            {canAccess("roblox_research_cards") ? (
+              <section className="mb-6 grid gap-4 lg:grid-cols-3">
               <RecommendationBlock
                 title="Research Signal"
                 panel={panel}
@@ -915,9 +1302,16 @@ export default function Home() {
 		                  "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
 	                ]}
 	              />
-            </section>
+              </section>
+            ) : (
+              <LockedAccessSection itemKey="roblox_research_cards" panel={panel} />
+            )}
 
-            <section className={`mb-6 rounded-3xl border p-6 ${panel}`}>
+            {canAccess("roblox_activity_landscape") ? (
+              <section
+                id="player-activity-landscape"
+                className={`mb-6 scroll-mt-6 rounded-3xl border p-6 ${panel}`}
+              >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-2xl font-bold">Player Activity Landscape</h2>
@@ -926,17 +1320,20 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-3">
-                  <TwoOptionTimeWindowControls
-                    timeWindow={landscapeTimeWindow}
-                    onTimeWindowChange={setLandscapeTimeWindow}
-                    accent={accent}
-                  />
+                  {
+                    <LandscapeTimeWindowControls
+                      timeWindow={activeLandscapeWindow}
+                      onTimeWindowChange={setLandscapeTimeWindow}
+                      accent={accent}
+                      allowedValues={allowedLandscapeTimeWindows()}
+                    />
+                  }
                   <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-slate-400">
-                    <span className="h-3 w-3 rounded-sm bg-[#ef4444]" />
+                    <span className="h-3 w-3 rounded-sm bg-[#f4a6a6]" />
                     Loss
-                    <span className="h-3 w-3 rounded-sm bg-[#334155]" />
+                    <span className="h-3 w-3 rounded-sm bg-[#5b6472]" />
                     Flat
-                    <span className="h-3 w-3 rounded-sm bg-[#22c55e]" />
+                    <span className="h-3 w-3 rounded-sm bg-[#a7e3b6]" />
                     Gain
                   </div>
                 </div>
@@ -947,9 +1344,15 @@ export default function Home() {
               ) : (
                 <Unavailable text="Player activity landscape requires current-player data, which is not available from the current Fortnite source." />
               )}
-            </section>
+              </section>
+            ) : (
+              <section id="player-activity-landscape" className="mb-6 scroll-mt-6">
+                <LockedAccessCard itemKey="roblox_activity_landscape" panel={panel} />
+              </section>
+            )}
 
-            <section className={`rounded-3xl border p-6 ${panel}`}>
+            {canAccess("roblox_experience_cards") ? (
+              <section className={`rounded-3xl border p-6 ${panel}`}>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold">
@@ -964,12 +1367,15 @@ export default function Home() {
                       : "Metadata cards for imported Fortnite islands."}
                   </p>
                 </div>
-                {activePlatform === "roblox" && (
+                {activePlatform === "roblox" &&
+                  (canAccessOption("roblox_experience_cards", "view_cards") ||
+                    canAccessOption("roblox_experience_cards", "view_list")) && (
                   <ToggleGroup>
                     <ToggleButton
                       active={robloxExperienceView === "cards"}
                       onClick={() => setRobloxExperienceView("cards")}
                       activeColor={accent}
+                      disabled={!canAccessOption("roblox_experience_cards", "view_cards")}
                     >
                       Cards
                     </ToggleButton>
@@ -977,6 +1383,7 @@ export default function Home() {
                       active={robloxExperienceView === "list"}
                       onClick={() => setRobloxExperienceView("list")}
                       activeColor={accent}
+                      disabled={!canAccessOption("roblox_experience_cards", "view_list")}
                     >
                       List
                     </ToggleButton>
@@ -984,7 +1391,9 @@ export default function Home() {
                 )}
               </div>
 
-              {activePlatform === "roblox" && robloxExperienceView === "list" ? (
+              {activePlatform === "roblox" &&
+              robloxExperienceView === "list" &&
+              canAccessOption("roblox_experience_cards", "view_list") ? (
                 <RobloxExperienceList
                   games={topRobloxGames.slice(0, 25)}
                   panel={panel}
@@ -1007,8 +1416,12 @@ export default function Home() {
                     ))}
                 </div>
               )}
-            </section>
+              </section>
+            ) : (
+              <LockedAccessSection itemKey="roblox_experience_cards" panel={panel} />
+            )}
 
+            {canAccess("roblox_forecasting_inputs") ? (
 	            <PredictionMarketSignalsCard
 	              panel={panel}
 	              accent={accent}
@@ -1017,7 +1430,11 @@ export default function Home() {
 	              target={predictionTarget}
 	              signals={predictionSignals}
 	              platform={activePlatform}
+                showSearch={canAccessOption("roblox_forecasting_inputs", "search")}
 	            />
+            ) : (
+              <LockedAccessSection itemKey="roblox_forecasting_inputs" panel={panel} />
+            )}
 	          </>
         ) : (
           <FortniteDashboardView context={dashboardContext} />
@@ -1039,6 +1456,15 @@ export default function Home() {
             >
               Glossary
             </button>
+            {userTier === "admin" && (
+              <button
+                type="button"
+                onClick={() => setShowAdminPanel(true)}
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+              >
+                Admin access
+              </button>
+            )}
           </div>
           <p className="rounded-full bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-400">
             v0.01
@@ -1046,6 +1472,13 @@ export default function Home() {
         </footer>
         {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
         {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
+        {showAdminPanel && userTier === "admin" && (
+          <AdminAccessModal
+            settings={tierVisibility}
+            onChange={setTierVisibility}
+            onClose={() => setShowAdminPanel(false)}
+          />
+        )}
       </div>
     </main>
   );
@@ -1099,6 +1532,10 @@ function FortniteDashboardView({ context }: any) {
     setPredictionSearch,
     predictionTarget,
     predictionSignals,
+    canAccess,
+    canAccessOption,
+    effectiveTimeWindow,
+    allowedTimeWindows,
   } = context;
   const currentTopFortniteIslands = getFortniteIslandsBySnapshotRank(
     fortniteIslands,
@@ -1108,24 +1545,28 @@ function FortniteDashboardView({ context }: any) {
   return (
     <>
       <section className="mb-6 grid gap-4 lg:grid-cols-4">
-        <DataSourceHealthCard
-          title="Data Source & Health"
-          items={[
-            `The data is pulled from: ${dataSourceHealth.source}.`,
-            `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
-            `How many islands are queried in the latest snapshot: ${formatNumber(
-              dataSourceHealth.queriedToday
-            )}.`,
-          ]}
-          lastRunLabel={dataSourceHealth.lastRunLabel}
-          panel={panel}
-          accent={accent}
-        />
+        {canAccess("fortnite_data_source_health") ? (
+          <DataSourceHealthCard
+            title="Data Source & Health"
+            items={[
+              `The data is pulled from: ${dataSourceHealth.source}.`,
+              `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
+              `How many islands are queried in the latest snapshot: ${formatNumber(
+                dataSourceHealth.queriedToday
+              )}.`,
+            ]}
+            lastRunLabel={dataSourceHealth.lastRunLabel}
+            panel={panel}
+            accent={accent}
+          />
+        ) : (
+          <LockedAccessCard itemKey="fortnite_data_source_health" panel={panel} />
+        )}
 
         {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
           <ScoreboardCard
-            title="Top 5 Fortnite Islands"
-            subtitle="Ranked by the latest imported source snapshot"
+            title="Featured Fortnite Islands"
+            subtitle="Latest imported source collection"
             items={currentTopFortniteIslands.slice(0, 5).map((island: any, index: number) => {
               const yesterdayIsland = getFortniteIslandBySnapshotRank(
                 fortniteIslands,
@@ -1146,8 +1587,9 @@ function FortniteDashboardView({ context }: any) {
           />
         )}
 
-        <GenreShareCard
-          title="Top 3 Estimated Genres"
+        {canAccess("fortnite_genre_mix") ? (
+          <GenreShareCard
+          title="Estimated Genre Mix"
           subtitle={`By imported island appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`}
           items={buildFortniteCategoryScoreboard(
             fortniteIslands,
@@ -1155,18 +1597,25 @@ function FortniteDashboardView({ context }: any) {
             fortniteGenreScoreboardWindow
           )}
           footerAction={
-            <TimeWindowControls
-              timeWindow={fortniteGenreScoreboardWindow}
-              onTimeWindowChange={setFortniteGenreScoreboardWindow}
-              accent={accent}
-            />
+            (
+              <TimeWindowControls
+                timeWindow={effectiveTimeWindow("fortnite_genre_mix", fortniteGenreScoreboardWindow)}
+                onTimeWindowChange={setFortniteGenreScoreboardWindow}
+                accent={accent}
+                allowedValues={allowedTimeWindows("fortnite_genre_mix")}
+              />
+            )
           }
           panel={panel}
           accent={accent}
-        />
+          />
+        ) : (
+          <LockedAccessCard itemKey="fortnite_genre_mix" panel={panel} />
+        )}
 
-        <GenreShareCard
-          title="Top 3 Estimated Subgenres"
+        {canAccess("fortnite_subgenre_mix") ? (
+          <GenreShareCard
+          title="Estimated Subgenre Mix"
           subtitle={`By imported island appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`}
           items={buildFortniteCategoryScoreboard(
             fortniteIslands,
@@ -1174,58 +1623,81 @@ function FortniteDashboardView({ context }: any) {
             fortniteGenreScoreboardWindow
           )}
           footerAction={
-            <TimeWindowControls
-              timeWindow={fortniteGenreScoreboardWindow}
-              onTimeWindowChange={setFortniteGenreScoreboardWindow}
-              accent={accent}
-            />
+            (
+              <TimeWindowControls
+                timeWindow={effectiveTimeWindow("fortnite_subgenre_mix", fortniteGenreScoreboardWindow)}
+                onTimeWindowChange={setFortniteGenreScoreboardWindow}
+                accent={accent}
+                allowedValues={allowedTimeWindows("fortnite_subgenre_mix")}
+              />
+            )
           }
           panel={panel}
           accent={accent}
-        />
+          />
+        ) : (
+          <LockedAccessCard itemKey="fortnite_subgenre_mix" panel={panel} />
+        )}
 
-        <FortniteLabelRankingsCard
-          title="Top 10 Primary Labels"
-          subtitle="First surfaced label across imported islands"
-          items={buildFortniteLabelRankings(fortniteIslands)}
-          panel={panel}
-          accent={accent}
-        />
+        {canAccess("fortnite_primary_labels") ? (
+          <FortniteLabelRankingsCard
+            title="Primary Label Usage"
+            subtitle="First surfaced label across imported islands"
+            items={buildFortniteLabelRankings(fortniteIslands)}
+            panel={panel}
+            accent={accent}
+          />
+        ) : (
+          <LockedAccessCard itemKey="fortnite_primary_labels" panel={panel} />
+        )}
       </section>
 
-      <section className="mb-6">
+      {canAccess("fortnite_label_trend") ? (
+        <section className="mb-6">
         <ChartCard
           title="Primary Label Usage Over Time"
-          subtitle={`Top ${fortniteLabelTrendLimit} first-surfaced labels by island usage across stored snapshots.`}
+          subtitle={`${fortniteLabelTrendLimit} first-surfaced labels by island usage across stored snapshots.`}
           panel={panel}
           action={
-            <FortniteLabelTrendControls
-              limit={fortniteLabelTrendLimit}
-              onLimitChange={setFortniteLabelTrendLimit}
-              accent={accent}
-            />
+            true ? (
+              <FortniteLabelTrendControls
+                limit={fortniteLabelTrendLimit}
+                onLimitChange={setFortniteLabelTrendLimit}
+                accent={accent}
+                allowedLimits={[
+                  canAccessOption("fortnite_label_trend", "limit_10") ? 10 : null,
+                  canAccessOption("fortnite_label_trend", "limit_25") ? 25 : null,
+                ].filter(Boolean)}
+              />
+            ) : null
           }
           footerAction={
-            <TimeWindowControls
-              timeWindow={fortniteLabelTrendWindow}
-              onTimeWindowChange={setFortniteLabelTrendWindow}
-              accent={accent}
-            />
+            (
+              <TimeWindowControls
+                timeWindow={effectiveTimeWindow("fortnite_label_trend", fortniteLabelTrendWindow)}
+                onTimeWindowChange={setFortniteLabelTrendWindow}
+                accent={accent}
+                allowedValues={allowedTimeWindows("fortnite_label_trend")}
+              />
+            )
           }
         >
           <FortniteLabelUsageTrend
             islands={fortniteIslands}
             limit={fortniteLabelTrendLimit}
-            timeWindow={fortniteLabelTrendWindow}
+            timeWindow={effectiveTimeWindow("fortnite_label_trend", fortniteLabelTrendWindow)}
           />
         </ChartCard>
-      </section>
+        </section>
+      ) : (
+        <LockedAccessSection itemKey="fortnite_label_trend" panel={panel} />
+      )}
 
       {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
         <section className="mb-6">
           <ChartCard
             title="Most Featured Islands"
-            subtitle="Islands with the most captured days in the source Top 25."
+            subtitle="Islands with the most captured days in the imported source collection."
             panel={panel}
             contentClassName="min-h-[30rem]"
           >
@@ -1238,31 +1710,38 @@ function FortniteDashboardView({ context }: any) {
         </section>
       )}
 
-      <section className="mb-6">
+      {canAccess("fortnite_genre_presence") ? (
+        <section className="mb-6">
         <ChartCard
           title="Estimated Genre / Format Presence Over Time"
           subtitle="Count of tracked islands by estimated Fortnite genre or format."
           panel={panel}
           footerAction={
-            <TimeWindowControls
-              timeWindow={genreTrendWindow}
-              onTimeWindowChange={setGenreTrendWindow}
-              accent={accent}
-            />
+            (
+              <TimeWindowControls
+                timeWindow={effectiveTimeWindow("fortnite_genre_presence", genreTrendWindow)}
+                onTimeWindowChange={setGenreTrendWindow}
+                accent={accent}
+                allowedValues={allowedTimeWindows("fortnite_genre_presence")}
+              />
+            )
           }
         >
           <FortniteGenrePresenceTrend
             islands={fortniteIslands}
-            timeWindow={genreTrendWindow}
+            timeWindow={effectiveTimeWindow("fortnite_genre_presence", genreTrendWindow)}
           />
         </ChartCard>
-      </section>
+        </section>
+      ) : (
+        <LockedAccessSection itemKey="fortnite_genre_presence" panel={panel} />
+      )}
 
       {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
         <section className="mb-6">
           <ChartCard
             title="New vs Returning Islands"
-            subtitle={`Newest and longest-standing islands in the source Top ${fortniteLifecycleLimit}.`}
+            subtitle={`Newest and longest-standing islands in the ${fortniteLifecycleLimit}-item source collection.`}
             panel={panel}
             contentClassName="h-auto"
             action={
@@ -1283,33 +1762,46 @@ function FortniteDashboardView({ context }: any) {
       )}
 
       <section className="mb-6 grid gap-6 lg:grid-cols-3">
-        <KeywordCloudCard
-          title="Top 25 Keyword Cloud"
-          subtitle="Common title and description signals across the top 25 islands"
-          games={topFortniteIslands.slice(0, 25)}
-          panel={panel}
-          accent={accent}
-          combinedCloud={true}
-        />
+        {canAccess("fortnite_keyword_cloud") ? (
+          <KeywordCloudCard
+            title="Fortnite Island Keyword Cloud"
+            subtitle="Common title and label signals across the latest imported island collection"
+            games={buildFortniteKeywordSignalItems(topFortniteIslands.slice(0, 25))}
+            panel={panel}
+            accent={accent}
+            combinedCloud={true}
+          />
+        ) : (
+          <LockedAccessCard itemKey="fortnite_keyword_cloud" panel={panel} />
+        )}
 
-        <FortniteIpSignalsCard
-          title="IP / Collaboration Signals"
-          subtitle="Primary labels and description cues in the latest substantial island collection"
-          islands={getFortniteIslandsByLatestSubstantialSnapshot(fortniteIslands)}
-          panel={panel}
-          accent={accent}
-        />
+        {canAccess("fortnite_ip_signals") ? (
+          <FortniteIpSignalsCard
+            title="IP / Collaboration Signals"
+            subtitle="Primary labels and description cues in the latest substantial island collection"
+            islands={getFortniteIslandsByLatestSubstantialSnapshot(fortniteIslands)}
+            panel={panel}
+            accent={accent}
+          />
+        ) : (
+          <LockedAccessCard itemKey="fortnite_ip_signals" panel={panel} />
+        )}
 
-        <ColorBreakdownCard
-          title="Top Tile Colors"
-          subtitle="Primary and secondary RGB colors from the top 25 islands"
-          games={currentTopFortniteIslands.slice(0, 25)}
-          panel={panel}
-          accent={accent}
-        />
+        {canAccess("fortnite_tile_colors") ? (
+          <ColorBreakdownCard
+            title="Island Tile Colors"
+            subtitle="Primary and secondary RGB colors from the latest imported island collection"
+            games={currentTopFortniteIslands.slice(0, 25)}
+            panel={panel}
+            accent={accent}
+          />
+        ) : (
+          <LockedAccessCard itemKey="fortnite_tile_colors" panel={panel} />
+        )}
       </section>
 
-      <section className="mb-6">
+      {canAccess("fortnite_archetypes") ? (
+        <section className="mb-6">
         <div className={`rounded-3xl border p-6 ${panel}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -1318,28 +1810,44 @@ function FortniteDashboardView({ context }: any) {
                 Synthetic profiles built only from Fortnite source metadata and estimated fields derived from that metadata.
               </p>
             </div>
-            <TimeWindowControls
-              timeWindow={fortniteArchetypeWindow}
-              onTimeWindowChange={setFortniteArchetypeWindow}
-              accent={accent}
-            />
+            {
+              <TimeWindowControls
+                timeWindow={effectiveTimeWindow("fortnite_archetypes", fortniteArchetypeWindow)}
+                onTimeWindowChange={setFortniteArchetypeWindow}
+                accent={accent}
+                allowedValues={allowedTimeWindows("fortnite_archetypes")}
+              />
+            }
           </div>
 
           <FortniteArchetypeRow
             islands={fortniteIslands}
-            timeWindow={fortniteArchetypeWindow}
+            timeWindow={effectiveTimeWindow("fortnite_archetypes", fortniteArchetypeWindow)}
             panel={panel}
           />
         </div>
-      </section>
+        </section>
+      ) : (
+        <LockedAccessSection itemKey="fortnite_archetypes" panel={panel} />
+      )}
 
-      <GameTemplateGeneratorRow
-        items={fortniteIslands}
-        platform="fortnite"
-        timeWindow={fortniteArchetypeWindow}
-        panel={panel}
-        accent={accent}
-      />
+      {canAccess("fortnite_template_generator") ? (
+        <GameTemplateGeneratorRow
+          items={fortniteIslands}
+          platform="fortnite"
+          timeWindow={fortniteArchetypeWindow}
+          panel={panel}
+          accent={accent}
+          allowedTemplateOptions={{
+            mainstream: canAccessOption("fortnite_template_generator", "template_mainstream"),
+            uncommon: canAccessOption("fortnite_template_generator", "template_uncommon"),
+            top10: canAccessOption("fortnite_template_generator", "template_source"),
+            reroll: canAccessOption("fortnite_template_generator", "template_reroll"),
+          }}
+        />
+      ) : (
+        <LockedAccessSection itemKey="fortnite_template_generator" panel={panel} />
+      )}
 
       {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
         <section className="mb-6">
@@ -1357,7 +1865,8 @@ function FortniteDashboardView({ context }: any) {
         </section>
       )}
 
-      <section className="mb-6">
+      {canAccess("fortnite_directional_map") ? (
+        <section className="mb-6">
         <div className={`rounded-3xl border p-6 ${panel}`}>
           <h2 className="text-2xl font-bold">Directional Research Map</h2>
           <p className="mt-1 text-sm text-slate-500">
@@ -1369,11 +1878,17 @@ function FortniteDashboardView({ context }: any) {
             selectedSubgenre={selectedSubgenre}
             platform={activePlatform}
             panel={panel}
+            accent={accent}
+            allowedTimeWindowValues={allowedTimeWindows("fortnite_directional_map", false)}
           />
         </div>
-      </section>
+        </section>
+      ) : (
+        <LockedAccessSection itemKey="fortnite_directional_map" panel={panel} />
+      )}
 
-      <section className="mb-6">
+      {canAccess("fortnite_idea_card") ? (
+        <section className="mb-6">
         <div className={`rounded-3xl border p-6 ${panel}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -1382,11 +1897,14 @@ function FortniteDashboardView({ context }: any) {
                 Use this as a reflection tool to position your island concept.
               </p>
             </div>
-            <TwoOptionTimeWindowControls
-              timeWindow={ideaTimeWindow}
-              onTimeWindowChange={setIdeaTimeWindow}
-              accent={accent}
-            />
+            {
+              <TwoOptionTimeWindowControls
+                timeWindow={effectiveTimeWindow("fortnite_idea_card", ideaTimeWindow)}
+                onTimeWindowChange={setIdeaTimeWindow}
+                accent={accent}
+                allowedValues={allowedTimeWindows("fortnite_idea_card", false)}
+              />
+            }
           </div>
 
           <div className="mt-5 space-y-3">
@@ -1441,7 +1959,7 @@ function FortniteDashboardView({ context }: any) {
             {topSimilar.length ? (
               <div className="mt-5 border-t border-slate-200 pt-4">
                 <p className="text-xs font-black uppercase tracking-wide text-slate-400">
-                  Similar top islands
+                  Similar imported islands
                 </p>
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
                   {topSimilar.map((item: any, index: number) => (
@@ -1457,9 +1975,13 @@ function FortniteDashboardView({ context }: any) {
             ) : null}
           </div>
         </div>
-      </section>
+        </section>
+      ) : (
+        <LockedAccessSection itemKey="fortnite_idea_card" panel={panel} />
+      )}
 
-      <section className="mb-6 grid gap-4 lg:grid-cols-3">
+      {canAccess("fortnite_research_cards") ? (
+        <section className="mb-6 grid gap-4 lg:grid-cols-3">
         <RecommendationBlock
           title="Research Signal"
           panel={panel}
@@ -1493,12 +2015,16 @@ function FortniteDashboardView({ context }: any) {
             "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
           ]}
         />
-      </section>
+        </section>
+      ) : (
+        <LockedAccessSection itemKey="fortnite_research_cards" panel={panel} />
+      )}
 
-      <section className={`rounded-3xl border p-6 ${panel}`}>
-        <h2 className="text-2xl font-bold">Top 25 Fortnite Islands</h2>
+      {canAccess("fortnite_island_cards") ? (
+        <section className={`rounded-3xl border p-6 ${panel}`}>
+        <h2 className="text-2xl font-bold">Latest Imported Fortnite Islands</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Ranked by the latest imported source snapshot.
+          Metadata cards from the latest imported source collection.
         </p>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -1512,8 +2038,12 @@ function FortniteDashboardView({ context }: any) {
             />
           ))}
         </div>
-      </section>
+        </section>
+      ) : (
+        <LockedAccessSection itemKey="fortnite_island_cards" panel={panel} />
+      )}
 
+      {canAccess("fortnite_forecasting_inputs") ? (
       <PredictionMarketSignalsCard
         panel={panel}
         accent={accent}
@@ -1522,7 +2052,11 @@ function FortniteDashboardView({ context }: any) {
         target={predictionTarget}
         signals={predictionSignals}
         platform={activePlatform}
+        showSearch={canAccessOption("fortnite_forecasting_inputs", "search")}
       />
+      ) : (
+        <LockedAccessSection itemKey="fortnite_forecasting_inputs" panel={panel} />
+      )}
     </>
   );
 }
@@ -2424,6 +2958,13 @@ function getFortniteGameplayLabels(island: any) {
   return Array.from(new Set(labels));
 }
 
+function buildFortniteKeywordSignalItems(islands: any[]) {
+  return islands.map((island) => ({
+    ...island,
+    description: getFortniteGameplayLabels(island).join(" "),
+  }));
+}
+
 function getFortniteSourceLabels(island: any) {
   const raw = island.raw ?? island.raw_latest ?? {};
   const rawLabels = collectFortniteLabelValues([
@@ -3019,9 +3560,9 @@ function getClassificationConfidence(item: any, platform: Platform) {
 
   const sourceGenre = getRobloxSourceGenre(item);
   const hasEstimatedGenre =
-    Boolean(item.inferred_genre) && item.inferred_genre !== "Other";
+    Boolean(cleanClassificationLabel(item.inferred_genre));
   const hasEstimatedSubgenre =
-    Boolean(item.inferred_subgenre) && item.inferred_subgenre !== "General";
+    Boolean(cleanClassificationLabel(item.inferred_subgenre));
 
   if (sourceGenre) return "source";
   if (hasEstimatedGenre && hasEstimatedSubgenre) return "estimated";
@@ -3037,7 +3578,11 @@ function getDisplayGenre(item: any, platform: Platform) {
     return "Classification pending";
   }
 
-  return item.inferred_genre ?? "Other";
+  if (platform === "roblox") {
+    return refineRobloxDisplayTaxonomy(item).genre;
+  }
+
+  return cleanClassificationLabel(item.inferred_genre) ?? "Other";
 }
 
 function getDisplaySubgenre(item: any, platform: Platform) {
@@ -3045,13 +3590,81 @@ function getDisplaySubgenre(item: any, platform: Platform) {
     return "Classification pending";
   }
 
-  return item.inferred_subgenre ?? "General";
+  if (platform === "roblox") {
+    return refineRobloxDisplayTaxonomy(item).subgenre;
+  }
+
+  return cleanClassificationLabel(item.inferred_subgenre) ?? "General";
 }
 
 function cleanClassificationLabel(value: unknown) {
-  return typeof value === "string" && value.trim() && value !== "Other"
-    ? value.trim()
+  if (typeof value !== "string") return null;
+
+  const text = value.trim();
+  return text && !/^(all|all genres|classification pending|general|n\/a|none|other|unknown)$/i.test(text)
+    ? text
     : null;
+}
+
+function refineRobloxDisplayTaxonomy(item: any) {
+  const baseGenre = cleanClassificationLabel(item.inferred_genre);
+  const baseSubgenre = cleanClassificationLabel(item.inferred_subgenre);
+  const text = `${item.title ?? ""} ${item.description ?? ""}`.toLowerCase();
+  const refined = getObviousRobloxTaxonomy(text);
+
+  return {
+    genre: refined?.genre ?? baseGenre ?? "Classification pending",
+    subgenre: refined?.subgenre ?? baseSubgenre ?? "Classification pending",
+  };
+}
+
+function getObviousRobloxTaxonomy(text: string) {
+  if (/\b(adopt me|pet care|raise.*pet|care.*pet|pet shop|pets?|baby|family)\b/.test(text)) {
+    return { genre: "Roleplay & Avatar Sim", subgenre: "Pet Care" };
+  }
+  if (/\b(dress up|avatar|outfit|fashion|makeover|catalog|ugc outfit|dress to impress)\b/.test(text)) {
+    return { genre: "Roleplay & Avatar Sim", subgenre: "Dress Up" };
+  }
+  if (/\b(roleplay|role play|rp|life|city|town|brookhaven|bloxburg|school|hospital|police|jobs?|house|home|apartment)\b/.test(text)) {
+    return { genre: "Roleplay & Avatar Sim", subgenre: "Life" };
+  }
+  if (/\b(blue lock|chigiri|soccer|football|basketball|baseball|tennis|golf|sports|volleyball|hockey)\b/.test(text)) {
+    return { genre: "Sports & Racing", subgenre: "Sports" };
+  }
+  if (/\b(race|racing|drive|driving|car|cars|vehicle|bike|motorcycle|drift|speed|kart)\b/.test(text)) {
+    return { genre: "Sports & Racing", subgenre: "Racing" };
+  }
+  if (/\b(anime|manga|naruto|one piece|dragon ball|titan|demon slayer|jujutsu|bleach|pokemon|pokémon|shinobi|ninja|saiyan|blox fruit)\b/.test(text)) {
+    return { genre: "RPG", subgenre: "Action RPG" };
+  }
+  if (/\b(gun|guns|shooter|shoot|fps|sniper|laser|weapon|weapons|rivals)\b/.test(text)) {
+    return { genre: "Shooter", subgenre: "Deathmatch Shooter" };
+  }
+  if (/\b(fight|fighting|battle|battleground|pvp|duel|arena|sword|combat|war|military|boxing|boss fight)\b/.test(text)) {
+    return { genre: "Action", subgenre: "Battlegrounds & Fighting" };
+  }
+  if (/\b(survive|survival|hide|killer|escape|hunt|horror|scary|monster|zombie|ghost|nightmare|doors|murder|mystery|infected|infection|forest)\b/.test(text)) {
+    return { genre: "Survival", subgenre: /\bescape\b/.test(text) ? "Escape" : "1 vs All" };
+  }
+  if (/\b(obby|parkour|obstacle|tower of|climb|jump|platformer|floor is lava)\b/.test(text)) {
+    return { genre: "Obby & Platformer", subgenre: /\b(tower of|climb)\b/.test(text) ? "Tower Obby" : "Classic Obby" };
+  }
+  if (/\b(guess|quiz|trivia|puzzle|word|tiles|mahjong|memory|answer|brain|logic)\b/.test(text)) {
+    return /\b(quiz|trivia)\b/.test(text)
+      ? { genre: "Party & Casual", subgenre: "Quiz" }
+      : { genre: "Puzzle", subgenre: "Word" };
+  }
+  if (/\b(party|minigame|mini game|mini-game|rounds|round-based|quick game|challenge|challenges)\b/.test(text)) {
+    return { genre: "Party & Casual", subgenre: "Minigame" };
+  }
+  if (/\b(fish|fishing|angler|aquarium|catch fish|catching fish|fisch)\b/.test(text)) {
+    return { genre: "Simulation", subgenre: "Fishing / Collection" };
+  }
+  if (/\b(rng|spin|roll|luck|random|crate|case opening|gacha|summon|draw)\b/.test(text)) {
+    return { genre: "Simulation", subgenre: "RNG / Collection" };
+  }
+
+  return null;
 }
 
 function getLatestSourceTimestamp(platform: Platform, items: any[]) {
@@ -3305,7 +3918,17 @@ function GenreShareCard({
   );
 }
 
-function MostPlayedGenrePieRow({ data, limit, onLimitChange, panel, accent }: any) {
+function MostPlayedGenrePieRow({
+  data,
+  limit,
+  onLimitChange,
+  panel,
+  accent,
+  showControls = true,
+  allowedLimits,
+  showGenre = true,
+  showSubgenre = true,
+}: any) {
   const colors = [accent, "#d6a06d", "#5b5d78", "#94a3b8", "#cbd5e1"];
   const note =
     data.estimatedRecords || data.pendingRecords
@@ -3316,60 +3939,76 @@ function MostPlayedGenrePieRow({ data, limit, onLimitChange, panel, accent }: an
 
   return (
     <section className="mb-6 grid gap-4 lg:grid-cols-2">
-      <MostPlayedClassificationPieCard
-        title="Most Played Genre Mix Estimated"
-        subtitle={`Player-weighted genre share across the current Top ${limit} most played Roblox experiences.`}
-        note={note}
-        panel={panel}
-        action={
-          <MostPlayedMixControls
-            limit={limit}
-            onLimitChange={onLimitChange}
-            accent={accent}
+      {showGenre ? (
+        <MostPlayedClassificationPieCard
+          title="Most Played Genre Mix Estimated"
+          subtitle={`Player-weighted genre share across the current Top ${limit} most played Roblox experiences.`}
+          note={note}
+          panel={panel}
+          action={
+            showControls ? (
+            <MostPlayedMixControls
+              limit={limit}
+              onLimitChange={onLimitChange}
+              accent={accent}
+              allowedLimits={allowedLimits}
+            />
+            ) : null
+          }
+        >
+          <ClassificationPie
+            title="Genre"
+            rows={data.genres}
+            colors={colors}
+            emptyText="No genre data available."
           />
-        }
-      >
-        <ClassificationPie
-          title="Genre"
-          rows={data.genres}
-          colors={colors}
-          emptyText="No genre data available."
-        />
-      </MostPlayedClassificationPieCard>
+        </MostPlayedClassificationPieCard>
+      ) : (
+        <LockedAccessCard itemKey="roblox_genre_mix" panel={panel} />
+      )}
 
-      <MostPlayedClassificationPieCard
-        title="Most Played Subgenre Mix Estimated"
-        subtitle={`Player-weighted subgenre share across the current Top ${limit} most played Roblox experiences.`}
-        note={note}
-        panel={panel}
-        action={
-          <MostPlayedMixControls
-            limit={limit}
-            onLimitChange={onLimitChange}
-            accent={accent}
+      {showSubgenre ? (
+        <MostPlayedClassificationPieCard
+          title="Most Played Subgenre Mix Estimated"
+          subtitle={`Player-weighted subgenre share across the current Top ${limit} most played Roblox experiences.`}
+          note={note}
+          panel={panel}
+          action={
+            showControls ? (
+            <MostPlayedMixControls
+              limit={limit}
+              onLimitChange={onLimitChange}
+              accent={accent}
+              allowedLimits={allowedLimits}
+            />
+            ) : null
+          }
+        >
+          <ClassificationPie
+            title="Subgenre"
+            rows={data.subgenres}
+            colors={colors}
+            emptyText="No subgenre data available."
           />
-        }
-      >
-        <ClassificationPie
-          title="Subgenre"
-          rows={data.subgenres}
-          colors={colors}
-          emptyText="No subgenre data available."
-        />
-      </MostPlayedClassificationPieCard>
+        </MostPlayedClassificationPieCard>
+      ) : (
+        <LockedAccessCard itemKey="roblox_subgenre_mix" panel={panel} />
+      )}
     </section>
   );
 }
 
-function MostPlayedMixControls({ limit, onLimitChange, accent }: any) {
+function MostPlayedMixControls({ limit, onLimitChange, accent, allowedLimits }: any) {
+  const limits = allowedLimits ?? [25, 50];
   return (
     <ToggleGroup>
-      {[25, 50].map((value) => (
+      {[25, 50].map((value: number) => (
         <ToggleButton
           key={value}
           active={limit === value}
           onClick={() => onLimitChange(value)}
           activeColor={accent}
+          disabled={!limits.includes(value)}
         >
           Top {value}
         </ToggleButton>
@@ -3520,7 +4159,7 @@ function FortniteIpSignalsCard({ title, subtitle, islands, panel, accent }: any)
             {ipLedIslands.length}
           </span>
           <span className="text-right text-xs font-bold text-slate-400">
-            of {islands.length} top islands
+            of {islands.length} imported islands
           </span>
         </div>
       </div>
@@ -3645,46 +4284,57 @@ function TrendControls({
   onLimitChange,
   onPercentileChange,
   accent,
+  showLimit = true,
+  showPercentile = true,
+  allowedLimits,
 }: any) {
+  const limits = allowedLimits ?? [25, 50];
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <ToggleGroup>
-        {[25, 50].map((value) => (
-          <ToggleButton
-            key={value}
-            active={limit === value}
-            onClick={() => onLimitChange(value)}
-            activeColor={accent}
-          >
-            Top {value}
-          </ToggleButton>
-        ))}
-      </ToggleGroup>
-      <ToggleGroup>
-        {[25, 50, 75, 100].map((value) => (
-          <ToggleButton
-            key={value}
-            active={percentile === value}
-            onClick={() => onPercentileChange(value)}
-            activeColor={accent}
-          >
-            {value === 100 ? "All" : `${value}%`}
-          </ToggleButton>
-        ))}
-      </ToggleGroup>
+      {showLimit && (
+        <ToggleGroup>
+          {[25, 50].map((value: number) => (
+            <ToggleButton
+              key={value}
+              active={limit === value}
+              onClick={() => onLimitChange(value)}
+              activeColor={accent}
+              disabled={!limits.includes(value)}
+            >
+              Top {value}
+            </ToggleButton>
+          ))}
+        </ToggleGroup>
+      )}
+      {showPercentile && (
+        <ToggleGroup>
+          {[25, 50, 75, 100].map((value) => (
+            <ToggleButton
+              key={value}
+              active={percentile === value}
+              onClick={() => onPercentileChange(value)}
+              activeColor={accent}
+            >
+              {value === 100 ? "All" : `${value}%`}
+            </ToggleButton>
+          ))}
+        </ToggleGroup>
+      )}
     </div>
   );
 }
 
-function GenreTrendControls({ limit, onLimitChange, accent }: any) {
+function GenreTrendControls({ limit, onLimitChange, accent, allowedLimits }: any) {
+  const limits = allowedLimits ?? [3, 10];
   return (
     <ToggleGroup>
-      {[3, 10].map((value) => (
+      {[3, 10].map((value: number) => (
         <ToggleButton
           key={value}
           active={limit === value}
           onClick={() => onLimitChange(value)}
           activeColor={accent}
+          disabled={!limits.includes(value)}
         >
           Top {value}
         </ToggleButton>
@@ -3693,31 +4343,59 @@ function GenreTrendControls({ limit, onLimitChange, accent }: any) {
   );
 }
 
-function TimeWindowControls({ timeWindow, onTimeWindowChange, accent }: any) {
+function TimeWindowControls({ timeWindow, onTimeWindowChange, accent, allowedValues }: any) {
+  const allowed = allowedValues ?? ["7d", "30d", "3m"];
   return (
     <ToggleGroup>
       {[
         ["7d", "7D"],
         ["30d", "Month"],
         ["3m", "3M"],
-      ].map(([value, label]) => (
-        <ToggleButton
-          key={value}
-          active={timeWindow === value}
-          onClick={() => onTimeWindowChange(value)}
-          activeColor={accent}
-        >
-          {label}
-        </ToggleButton>
-      ))}
+      ]
+        .map(([value, label]) => (
+          <ToggleButton
+            key={value}
+            active={timeWindow === value}
+            onClick={() => onTimeWindowChange(value)}
+            activeColor={accent}
+            disabled={!allowed.includes(value)}
+          >
+            {label}
+          </ToggleButton>
+        ))}
     </ToggleGroup>
   );
 }
 
-function TwoOptionTimeWindowControls({ timeWindow, onTimeWindowChange, accent }: any) {
+function TwoOptionTimeWindowControls({ timeWindow, onTimeWindowChange, accent, allowedValues }: any) {
+  const allowed = allowedValues ?? ["7d", "30d"];
   return (
     <ToggleGroup>
       {[
+        ["7d", "7D"],
+        ["30d", "Month"],
+      ]
+        .map(([value, label]) => (
+          <ToggleButton
+            key={value}
+            active={timeWindow === value}
+            onClick={() => onTimeWindowChange(value)}
+            activeColor={accent}
+            disabled={!allowed.includes(value)}
+          >
+            {label}
+          </ToggleButton>
+        ))}
+    </ToggleGroup>
+  );
+}
+
+function LandscapeTimeWindowControls({ timeWindow, onTimeWindowChange, accent, allowedValues }: any) {
+  const allowed = allowedValues ?? ["today", "7d", "30d"];
+  return (
+    <ToggleGroup>
+      {[
+        ["today", "Today"],
         ["7d", "7D"],
         ["30d", "Month"],
       ].map(([value, label]) => (
@@ -3726,6 +4404,7 @@ function TwoOptionTimeWindowControls({ timeWindow, onTimeWindowChange, accent }:
           active={timeWindow === value}
           onClick={() => onTimeWindowChange(value)}
           activeColor={accent}
+          disabled={!allowed.includes(value)}
         >
           {label}
         </ToggleButton>
@@ -3734,18 +4413,20 @@ function TwoOptionTimeWindowControls({ timeWindow, onTimeWindowChange, accent }:
   );
 }
 
-function FortniteLabelTrendControls({ limit, onLimitChange, accent }: any) {
+function FortniteLabelTrendControls({ limit, onLimitChange, accent, allowedLimits }: any) {
+  const limits = allowedLimits ?? [10, 25];
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <ToggleGroup>
-        {[10, 25].map((value) => (
+        {[10, 25].map((value: number) => (
           <ToggleButton
             key={value}
             active={limit === value}
             onClick={() => onLimitChange(value)}
             activeColor={accent}
+            disabled={!limits.includes(value)}
           >
-            Top {value}
+            {value} labels
           </ToggleButton>
         ))}
       </ToggleGroup>
@@ -3873,32 +4554,11 @@ function KeywordCloudCard({
   title,
   subtitle,
   games,
-  genreOptionsItems,
   panel,
   accent,
-  filterByGenre = true,
   combinedCloud = false,
 }: any) {
-  const overallOption = "__overall__";
-  const genreItems = genreOptionsItems ?? games;
-  const genres = useMemo(
-    () =>
-      Array.from(
-        new Set(genreItems.map((game: any) => game.inferred_genre ?? "Other"))
-      ).sort() as string[],
-    [genreItems]
-  );
-  const [selectedGenre, setSelectedGenre] = useState(overallOption);
-  const activeGenre = selectedGenre || overallOption;
-  const selectedGames = useMemo(
-    () =>
-      filterByGenre && activeGenre !== overallOption
-        ? games.filter(
-            (game: any) => (game.inferred_genre ?? "Other") === activeGenre
-          )
-        : games,
-    [games, activeGenre, filterByGenre]
-  );
+  const selectedGames = games;
   const combinedItems = buildKeywordCloud(selectedGames, "all");
   const titleCloud = buildKeywordCloud(selectedGames, "title");
   const descriptionCloud = buildKeywordCloud(selectedGames, "description");
@@ -3910,20 +4570,6 @@ function KeywordCloudCard({
           <p className="text-sm font-semibold text-slate-500">{title}</p>
           <p className="text-xs text-slate-400">{subtitle}</p>
         </div>
-        {filterByGenre && (
-          <select
-            className="max-w-[10rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
-            value={activeGenre}
-            onChange={(event) => setSelectedGenre(event.target.value)}
-          >
-            <option value={overallOption}>Overall</option>
-            {genres.map((genre) => (
-              <option key={genre} value={genre}>
-                {genre}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
 
       {combinedCloud ? (
@@ -4022,33 +4668,12 @@ function ColorBreakdownCard({
   title,
   subtitle,
   games,
-  genreOptionsItems,
   panel,
   accent,
-  filterByGenre = true,
 }: any) {
-  const overallOption = "__overall__";
-  const genreItems = genreOptionsItems ?? games;
   const [colors, setColors] = useState<any[]>([]);
   const [colorPage, setColorPage] = useState(0);
-  const genres = useMemo(
-    () =>
-      Array.from(
-        new Set(genreItems.map((game: any) => game.inferred_genre ?? "Other"))
-      ).sort() as string[],
-    [genreItems]
-  );
-  const [selectedGenre, setSelectedGenre] = useState(overallOption);
-  const activeGenre = selectedGenre || overallOption;
-  const selectedGames = useMemo(
-    () =>
-      filterByGenre && activeGenre !== overallOption
-        ? games.filter(
-            (game: any) => (game.inferred_genre ?? "Other") === activeGenre
-          )
-        : games,
-    [games, activeGenre, filterByGenre]
-  );
+  const selectedGames = games;
   const colorPageSize = 5;
   const colorPageCount = Math.max(1, Math.ceil(selectedGames.length / colorPageSize));
   const safeColorPage = Math.min(colorPage, colorPageCount - 1);
@@ -4061,7 +4686,7 @@ function ColorBreakdownCard({
 
   useEffect(() => {
     setColorPage(0);
-  }, [activeGenre, filterByGenre, games]);
+  }, [games]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4108,20 +4733,6 @@ function ColorBreakdownCard({
           <p className="text-sm font-semibold text-slate-500">{title}</p>
           <p className="text-xs text-slate-400">{subtitle}</p>
         </div>
-        {filterByGenre && (
-          <select
-            className="max-w-[10rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
-            value={activeGenre}
-            onChange={(event) => setSelectedGenre(event.target.value)}
-          >
-            <option value={overallOption}>Overall</option>
-            {genres.map((genre) => (
-              <option key={genre} value={genre}>
-                {genre}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
 
       {selectedGames.length > colorPageSize ? (
@@ -4522,17 +5133,17 @@ function BlockHeatMap({
   selectedSubgenre,
   platform,
   panel,
+  accent,
+  allowedTimeWindowValues,
 }: any) {
-  const [monetizationFilter, setMonetizationFilter] =
-    useState<"monetized" | "unmonetized">("monetized");
-  const supportsMonetizationFilter = platform === "roblox";
-  const filteredItems = supportsMonetizationFilter
-    ? items.filter((item: any) =>
-        monetizationFilter === "monetized"
-          ? isMonetizedItem(item, platform)
-          : !isMonetizedItem(item, platform)
-      )
-    : items;
+  const [timeWindow, setTimeWindow] = useState<"7d" | "30d">("7d");
+  const effectiveWindow = allowedTimeWindowValues?.includes(timeWindow)
+    ? timeWindow
+    : "7d";
+  const filteredItems =
+    platform === "roblox"
+      ? buildCorrelationWindowGames(items, effectiveWindow)
+      : getFortniteIslandsInWindow(items, effectiveWindow);
   const maps = [
     buildOpportunityMap(filteredItems, "demand-saturation", platform),
     buildOpportunityMap(filteredItems, "velocity-saturation", platform),
@@ -4547,32 +5158,18 @@ function BlockHeatMap({
     <div className="mt-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-500">
-          {supportsMonetizationFilter
-            ? `Showing ${formatNumber(
-                filteredItems.length
-              )} ${monetizationFilter} records in the opportunity maps.`
-            : `Showing ${formatNumber(
-                filteredItems.length
-              )} imported Fortnite islands in the opportunity maps.`}
+          Showing {formatNumber(filteredItems.length)}{" "}
+          {platform === "roblox" ? "Roblox records" : "imported Fortnite islands"} from the{" "}
+          {getTrendWindowLabel(effectiveWindow)}.
         </p>
-        {supportsMonetizationFilter && (
-          <ToggleGroup>
-            <ToggleButton
-              active={monetizationFilter === "monetized"}
-              onClick={() => setMonetizationFilter("monetized")}
-              activeColor="#2fb8bd"
-            >
-              Monetized
-            </ToggleButton>
-            <ToggleButton
-              active={monetizationFilter === "unmonetized"}
-              onClick={() => setMonetizationFilter("unmonetized")}
-              activeColor="#2fb8bd"
-            >
-              Unmonetized
-            </ToggleButton>
-          </ToggleGroup>
-        )}
+        {
+          <TwoOptionTimeWindowControls
+            timeWindow={effectiveWindow}
+            onTimeWindowChange={setTimeWindow}
+            accent={accent}
+            allowedValues={allowedTimeWindowValues}
+          />
+        }
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -4600,6 +5197,7 @@ function BlockHeatMap({
         <ReadOutCard
           maps={maps}
           panel={panel}
+          platform={platform}
         />
       </div>
     </div>
@@ -4733,11 +5331,11 @@ function buildGenreCorrelationMetricOptions(games: any[]) {
   }));
 }
 
-function buildCorrelationWindowGames(games: any[], windowKey: "7d" | "30d") {
+function buildCorrelationWindowGames(games: any[], windowKey: "today" | "7d" | "30d") {
   const latestDateKey = getLatestSnapshotDateKey(games);
   const latestDate = parseDateKey(latestDateKey);
   const startDate = latestDate ? new Date(latestDate) : null;
-  const windowDays = windowKey === "7d" ? 7 : 30;
+  const windowDays = windowKey === "today" ? 1 : windowKey === "7d" ? 7 : 30;
 
   if (!latestDate || !startDate) return games;
 
@@ -5886,23 +6484,27 @@ function OpportunityGrid({ map, selectedKey, selectedGenre, selectedSubgenre, pl
   );
 }
 
-function ReadOutCard({ maps, panel }: any) {
+function ReadOutCard({ maps, panel, platform }: any) {
   const leaders = maps
     .map((map: any) => map.items[0] ? { ...map.items[0], lens: map.title } : null)
     .filter(Boolean);
   const strongest = leaders.sort((a: any, b: any) => b.score - a.score)[0];
+  const strongestExample = strongest?.examples?.[0];
 
   return (
-    <div className={`rounded-3xl border p-6 ${panel}`}>
+    <div className="rounded-3xl border border-[#9fc7e4] bg-[#e8f2fa] p-6">
       <h2 className="text-2xl font-bold">Research Readout</h2>
       <p className="mt-1 text-sm text-slate-500">
         Synthesis across demand, saturation, velocity, and estimated game format complexity.
       </p>
+      <p className="mt-4 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold leading-6 text-slate-700">
+        Use the darker blue areas as starting points for research: they point to formats with stronger player activity signals and less obvious crowding.
+      </p>
 
       {strongest ? (
         <div className="mt-5 space-y-4">
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+          <div className="rounded-2xl bg-white/70 p-4">
+            <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">
               Strongest signal
             </p>
             <h3 className="mt-2 text-xl font-black leading-tight">
@@ -5915,7 +6517,7 @@ function ReadOutCard({ maps, panel }: any) {
             </p>
           </div>
 
-          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-slate-500">
+          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600">
             {leaders.map((leader: any) => (
               <li key={leader.lens}>
                 <strong>{leader.lens}:</strong> {leader.label}
@@ -5923,12 +6525,26 @@ function ReadOutCard({ maps, panel }: any) {
             ))}
           </ul>
 
-          <div className="rounded-2xl border border-slate-200 p-4 text-sm leading-6 text-slate-600">
+          <div className="rounded-2xl border border-[#9fc7e4] bg-white/50 p-4 text-sm leading-6 text-slate-600">
             <strong>Research interpretation:</strong>{" "}
             consider investigating segments that appear as deeper blue in more
             than one lens; treat lighter areas as potentially crowded,
             slow-moving, uncertain, or expensive to build.
           </div>
+
+          {strongestExample ? (
+            <div className="border-t border-[#9fc7e4] pt-4">
+              <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">
+                Example game
+              </p>
+              <div className="mt-3">
+                <ResearchExampleSuggestion
+                  item={strongestExample}
+                  platform={platform}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <Unavailable text="Not enough classified records to generate a read out." />
@@ -6143,7 +6759,29 @@ function RecommendationBlock({ title, text, bullets, tags, panel, accent, readou
   );
 }
 
-function GameTemplateGeneratorRow({ items, platform, timeWindow, panel, accent }: any) {
+function GameTemplateGeneratorRow({
+  items,
+  platform,
+  timeWindow,
+  panel,
+  accent,
+  allowedTemplateOptions,
+}: any) {
+  const templateOptions = allowedTemplateOptions ?? {
+    mainstream: true,
+    uncommon: true,
+    top10: true,
+    reroll: true,
+  };
+  const visibleTemplateOptions = [
+    { value: "mainstream", label: "Mainstream type", enabled: templateOptions.mainstream },
+    { value: "uncommon", label: "Uncommon type", enabled: templateOptions.uncommon },
+    {
+      value: "top10",
+      label: platform === "roblox" ? "Top 10 type" : "Source set type",
+      enabled: templateOptions.top10,
+    },
+  ];
   const [templateType, setTemplateType] = useState<
     "mainstream" | "uncommon" | "top10" | null
   >(null);
@@ -6172,37 +6810,40 @@ function GameTemplateGeneratorRow({ items, platform, timeWindow, panel, accent }
             <p className="mt-1 text-xs leading-5 text-slate-400">
               Choose whether the template should follow the common pattern or a rarer visible pattern.
             </p>
-            <div className="mt-5 grid gap-2">
-              {[
-                ["mainstream", "Mainstream type"],
-                ["uncommon", "Uncommon type"],
-                ["top10", "Top 10 type"],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => {
-                    setTemplateType(value as "mainstream" | "uncommon" | "top10");
-                    setRerollIndex(0);
-                  }}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-black transition hover:bg-slate-50"
-                  style={{
-                    borderColor: templateType === value ? accent : undefined,
-                    color: templateType === value ? accent : undefined,
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-              <button
-                type="button"
-                disabled={!templateType}
-                onClick={() => setRerollIndex((value) => value + 1)}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Reroll
-              </button>
-            </div>
+            {visibleTemplateOptions.length ? (
+              <div className="mt-5 grid gap-2">
+                {visibleTemplateOptions.map(({ value, label, enabled }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={!enabled}
+                    onClick={() => {
+                      setTemplateType(value as "mainstream" | "uncommon" | "top10");
+                      setRerollIndex(0);
+                    }}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-black transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{
+                      borderColor: templateType === value && enabled ? accent : undefined,
+                      color: templateType === value && enabled ? accent : undefined,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+                  <button
+                    type="button"
+                    disabled={!templateType || !templateOptions.reroll}
+                    onClick={() => setRerollIndex((value) => value + 1)}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Reroll
+                  </button>
+              </div>
+            ) : (
+              <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-500">
+                Template controls are not enabled for this tier.
+              </p>
+            )}
           </div>
 
           <div className={`rounded-3xl border p-5 ${panel}`}>
@@ -6269,7 +6910,9 @@ function GameTemplateGeneratorRow({ items, platform, timeWindow, panel, accent }
               </>
             ) : (
               <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-500">
-                Select Mainstream type, Uncommon type, or Top 10 type to generate a fictional template.
+                {platform === "roblox"
+                  ? "Select Mainstream type, Uncommon type, or Top 10 type to generate a fictional template."
+                  : "Select Mainstream type, Uncommon type, or Source set type to generate a fictional template."}
               </div>
             )}
           </div>
@@ -6375,7 +7018,9 @@ function buildGameTemplate(
       templateType === "mainstream"
         ? `This generated template is similar to the most common ${platform === "roblox" ? "Roblox" : "Fortnite"} genre and subgenre pattern captured in the ${windowLabel} window. Treat it as a baseline brief, not proof of demand.`
         : templateType === "top10"
-          ? `This generated template is similar to the genre and subgenre patterns visible in the current Top 10 ${platform === "roblox" ? "Roblox" : "Fortnite"} records. Treat it as a top-set reference, not proof of demand.`
+          ? platform === "roblox"
+            ? "This generated template is similar to the genre and subgenre patterns visible in the current Top 10 Roblox records. Treat it as a top-set reference, not proof of demand."
+            : "This generated template is similar to the genre and subgenre patterns visible in the latest imported Fortnite records. Treat it as a source-set reference, not proof of demand."
         : `This generated template is similar to a less common ${platform === "roblox" ? "Roblox" : "Fortnite"} genre and subgenre pattern captured in the ${windowLabel} window. Treat it as a whitespace prompt, not proof that the uncommon format will convert.`,
     caveat:
       platform === "roblox"
@@ -6527,7 +7172,7 @@ function buildTemplateTitle(
     return templateType === "mainstream"
       ? buildUniqueTemplateTitle(["cue", cueToken], ["subgenre", subgenreToken], ["suffix", "Island"])
       : templateType === "top10"
-        ? buildUniqueTemplateTitle(["prefix", "Top"], ["cue", cueToken], ["genre", genreToken])
+        ? buildUniqueTemplateTitle(["prefix", "Source"], ["cue", cueToken], ["genre", genreToken])
         : buildUniqueTemplateTitle(["prefix", "Hidden"], ["cue", cueToken], ["genre", genreToken]);
   }
 
@@ -6596,7 +7241,7 @@ function buildTemplateDescription(
         ]
       : templateType === "top10"
         ? [
-            `Build around a Top 10-inspired ${genre} / ${subgenre} island centered on ${cue}.`,
+            `Build around a source-set-inspired ${genre} / ${subgenre} island centered on ${cue}.`,
             progressionLine,
             socialLine,
             freshnessLine,
@@ -6649,11 +7294,18 @@ function cleanTitleToken(value: unknown) {
     .join(" ");
 }
 
-function RobloxArchetypeRow({ games, timeWindow, panel }: any) {
+function RobloxArchetypeRow({ games, timeWindow, panel, allowedKinds }: any) {
   const archetypes = useMemo(
     () => buildRobloxArchetypes(games, timeWindow),
     [games, timeWindow]
   );
+  const allowed = allowedKinds ?? { median: true, average: true, unique: true };
+  const isAllowed = (kind: string) => {
+    if (/median/i.test(kind)) return allowed.median;
+    if (/average/i.test(kind)) return allowed.average;
+    if (/unique|outlier/i.test(kind)) return allowed.unique;
+    return true;
+  };
 
   if (!archetypes.length) {
     return <Unavailable text="Not enough Roblox metrics to build archetypes yet." />;
@@ -6663,10 +7315,22 @@ function RobloxArchetypeRow({ games, timeWindow, panel }: any) {
     <div className="mt-5 grid gap-4 lg:grid-cols-3">
       {archetypes.map((archetype: any, index: number) => (
         <div key={archetype.kind} className="space-y-3">
-          <RobloxArchetypeCard item={archetype} rank={index + 1} panel={panel} />
-          <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
-            {archetype.readout}
-          </p>
+          {isAllowed(archetype.kind) ? (
+            <>
+              <RobloxArchetypeCard item={archetype} rank={index + 1} panel={panel} />
+              <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
+                {archetype.readout}
+              </p>
+            </>
+          ) : (
+            <LockedAccessCard
+              itemKey="roblox_archetypes"
+              panel={panel}
+              title={archetype.kind}
+              description={archetype.readout}
+              previewType="singleArchetype"
+            />
+          )}
         </div>
       ))}
     </div>
@@ -6781,7 +7445,7 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="line-clamp-2 text-sm font-black">{item.title}</h3>
-        <span className="text-xs font-bold text-slate-400">#{rank}</span>
+        <span className="text-xs font-bold text-slate-400">Item {rank}</span>
       </div>
 
       {item.thumbnail_url && (
@@ -7047,7 +7711,7 @@ function FortniteMarketCard({ item, rank, panel }: any) {
             </span>
           )}
         </div>
-        <span className="text-xs font-bold text-slate-400">#{rank}</span>
+        <span className="text-xs font-bold text-slate-400">Item {rank}</span>
       </div>
 
       {item.thumbnail_url && (
@@ -7249,7 +7913,7 @@ function buildFortniteArchetypes(islands: any[], timeWindow: TrendTimeWindow) {
       readout: `Composite of the most common estimated genre, subgenre, core loop, intent, and labels in this window.`,
     }),
     makeFortniteArchetype({
-      kind: "Most unique game",
+      kind: "Outlier game",
       title: `Outlier ${uniqueEntry?.island?.inferred_genre ?? "Fortnite"} Concept`,
       source: uniqueEntry?.island ?? windowed[0],
       labels: uniqueLabels,
@@ -7370,7 +8034,7 @@ function buildRobloxArchetypes(games: any[], timeWindow: TrendTimeWindow) {
       readout: `Composite of the most common genre, subgenre, core loop, and average player metrics in this window.`,
     }),
     makeRobloxArchetype({
-      kind: "Most unique game",
+      kind: "Outlier game",
       title: buildShortArchetypeTitle("Outlier", uniqueSource, fallbackGenre),
       source: uniqueSource,
       fallbackGenre,
@@ -7534,7 +8198,9 @@ function MiniSimilarGameCard({ item, rank, platform }: any) {
         <h3 className="line-clamp-2 text-xs font-black leading-snug">
           {item.title}
         </h3>
-        <span className="text-[10px] font-bold text-slate-400">#{rank}</span>
+        <span className="text-[10px] font-bold text-slate-400">
+          {platform === "roblox" ? `#${rank}` : `Item ${rank}`}
+        </span>
       </div>
 
       {item.thumbnail_url && (
@@ -7564,6 +8230,65 @@ function MiniSimilarGameCard({ item, rank, platform }: any) {
   );
 }
 
+function ResearchExampleSuggestion({ item, platform }: any) {
+  const positive = (item.playerGainPercent ?? 0) >= 0;
+  const href = item.url ?? `https://fortnite.gg/island?code=${item.island_code}`;
+  const genre = getDisplayGenre(item, platform);
+  const subgenre = getDisplaySubgenre(item, platform);
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="block rounded-2xl border border-[#9fc7e4] bg-white/80 p-4 transition hover:bg-white"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-black leading-snug text-slate-800">
+            {item.title}
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            {genre} / {subgenre}
+          </p>
+        </div>
+        {platform === "roblox" ? (
+          <span
+            className={`rounded-full px-2 py-1 text-[10px] font-black ${
+              positive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"
+            }`}
+          >
+            {Math.round(item.playerGainPercent ?? 0)}% {positive ? "▲" : "▼"}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <p className="text-slate-400">
+            {platform === "roblox" ? "Current players" : "Estimated format"}
+          </p>
+          <p className="font-black text-slate-700">
+            {platform === "roblox"
+              ? formatNumber(item.latestPlayers)
+              : item.core_loop ?? item.design_pattern ?? "N/A"}
+          </p>
+        </div>
+        <div>
+          <p className="text-slate-400">
+            {platform === "roblox" ? "Stored peak" : "Primary label"}
+          </p>
+          <p className="font-black text-slate-700">
+            {platform === "roblox"
+              ? formatNumber(item.periodHigh)
+              : getFortnitePrimaryLabel(item) ?? "N/A"}
+          </p>
+        </div>
+      </div>
+    </a>
+  );
+}
+
 function PlayerActivityLandscape({ games }: any) {
   const groups = buildLandscapeGroups(games);
 
@@ -7572,7 +8297,7 @@ function PlayerActivityLandscape({ games }: any) {
   }
 
   return (
-    <div className="mt-6 overflow-hidden rounded-2xl bg-slate-950 p-1 shadow-inner">
+    <div className="mt-6 overflow-hidden rounded-2xl bg-[#959696] p-1 shadow-inner">
       <div
         className="grid gap-1"
         style={{
@@ -7583,18 +8308,18 @@ function PlayerActivityLandscape({ games }: any) {
         {groups.map((group: any) => (
           <div
             key={group.genre}
-            className="relative overflow-hidden rounded-xl border border-slate-950 bg-slate-900"
+            className="relative overflow-hidden rounded-xl border border-dotted border-white/70 bg-[#959696]"
             style={{
               gridColumn: `span ${group.colSpan}`,
               gridRow: `span ${group.rowSpan}`,
               minHeight: 0,
             }}
           >
-            <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 bg-slate-950/70 px-2 py-1 text-white backdrop-blur">
+            <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 bg-[#959696]/85 px-2 py-1 text-white backdrop-blur">
               <p className="truncate text-[11px] font-black uppercase tracking-wide">
                 {group.genre}
               </p>
-              <p className="shrink-0 text-[10px] font-bold text-white/70">
+              <p className="shrink-0 text-[10px] font-bold text-white/75">
                 {formatNumber(group.players)}
               </p>
             </div>
@@ -7743,13 +8468,13 @@ function getLandscapeTileLayout(index: number, groupLayout: any) {
 function getLandscapeColor(value: number | undefined) {
   const change = value ?? 0;
 
-  if (change >= 20) return "#22c55e";
-  if (change >= 8) return "#2f9e63";
-  if (change > 0) return "#376b50";
-  if (change <= -20) return "#ef4444";
-  if (change <= -8) return "#b84b57";
-  if (change < 0) return "#7f4b57";
-  return "#334155";
+  if (change >= 20) return "#a7e3b6";
+  if (change >= 8) return "#8fd1a7";
+  if (change > 0) return "#78b895";
+  if (change <= -20) return "#f4a6a6";
+  if (change <= -8) return "#dc8e94";
+  if (change < 0) return "#be7d88";
+  return "#5b6472";
 }
 
 function PredictionMarketSignalsCard({
@@ -7760,6 +8485,7 @@ function PredictionMarketSignalsCard({
   target,
   signals,
   platform,
+  showSearch = true,
 }: any) {
   return (
     <section className={`mt-6 rounded-3xl border p-6 ${panel}`}>
@@ -7776,7 +8502,8 @@ function PredictionMarketSignalsCard({
           </p>
         </div>
 
-        <div className="w-full max-w-sm">
+        {showSearch && (
+          <div className="w-full max-w-sm">
           <label className="text-[11px] font-black uppercase tracking-wide text-slate-400">
             Search game
           </label>
@@ -7791,7 +8518,8 @@ function PredictionMarketSignalsCard({
             className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-transparent focus:ring-2"
             style={{ "--tw-ring-color": accent } as any}
           />
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl bg-slate-50 p-4">
@@ -7896,15 +8624,15 @@ function buildPredictionSignals(
 
     return [
       {
-        label: "Current source rank",
+        label: "Current source order",
         value:
           typeof target.latestRank === "number"
-            ? `#${target.latestRank}`
-            : "Unranked",
-        detail: "Latest imported rank from the Fortnite island source order.",
+            ? `Position #${target.latestRank}`
+            : "Order unavailable",
+        detail: "Position in the imported source payload when available; not an official popularity measure.",
       },
       {
-        label: "Rank movement",
+        label: "Source order movement",
         value:
           rankMovement.change === null
             ? "Not enough history"
@@ -8056,7 +8784,7 @@ function getFortniteRankMovement(target: any) {
   if (rankedSnapshots.length < 2) {
     return {
       change: null,
-      detail: "Needs at least two ranked snapshots to compare position movement.",
+      detail: "Needs at least two source-order snapshots to compare position movement.",
     };
   }
 
@@ -8068,8 +8796,8 @@ function getFortniteRankMovement(target: any) {
     change,
     detail:
       change === 0
-        ? `Rank stayed at #${latest} across stored ranked snapshots.`
-        : `Moved from #${first} to #${latest}; positive means the island climbed.`,
+        ? `Source order stayed at #${latest} across stored snapshots.`
+        : `Moved from source position #${first} to #${latest}; positive means the island appeared earlier in the source order.`,
   };
 }
 
@@ -8265,6 +8993,860 @@ function DatePill({ date, accent }: any) {
   );
 }
 
+function ModalShell({ children, onClose }: any) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <button
+        type="button"
+        aria-label="Close modal"
+        className="absolute inset-0"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full max-w-6xl">{children}</div>
+    </div>
+  );
+}
+
+function UserTierBadge({ tier, actualTier }: { tier: UserTier; actualTier?: UserTier }) {
+  const styles: Record<UserTier, string> = {
+    free: "bg-slate-100 text-slate-600",
+    scout: "bg-blue-50 text-blue-700",
+    pro: "bg-violet-50 text-violet-700",
+    admin: "bg-emerald-50 text-emerald-700",
+  };
+  const isPreview = actualTier === "admin" && tier !== "admin";
+
+  return (
+    <span
+      className={`rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-wide ${styles[tier]}`}
+    >
+      {isPreview ? `Viewing ${tierLabel(tier)}` : tierLabel(tier)}
+    </span>
+  );
+}
+
+function AdminTierPreviewSelect({
+  value,
+  onChange,
+}: {
+  value: UserTier;
+  onChange: (tier: UserTier) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700">
+      <span>View as</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as UserTier)}
+        className="rounded-full border border-emerald-200 bg-white px-2 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 outline-none"
+      >
+        <option value="admin">Admin</option>
+        <option value="free">Free</option>
+        <option value="scout">Scout</option>
+        <option value="pro">Pro</option>
+      </select>
+    </label>
+  );
+}
+
+function AdminAccessModal({
+  settings,
+  onChange,
+  onClose,
+}: {
+  settings: TierVisibilitySettings;
+  onChange: (settings: TierVisibilitySettings) => void;
+  onClose: () => void;
+}) {
+  const [selectedTier, setSelectedTier] = useState<TierAssignable>("scout");
+
+  function setAccess(tier: TierAssignable, key: string, value: boolean) {
+    onChange({
+      ...settings,
+      [tier]: {
+        ...settings[tier],
+        [key]: value,
+      },
+    });
+  }
+
+  function setAll(tier: TierAssignable, value: boolean) {
+    onChange({
+      ...settings,
+      [tier]: Object.fromEntries(getAccessSettingKeys().map((key) => [key, value])),
+    } as TierVisibilitySettings);
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="max-h-[85vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-600">
+              Admin only
+            </p>
+            <h2 className="mt-1 text-2xl font-black">Tier Visibility Panel</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+              Choose which cards are visible to Free, Scout, and Pro users.
+              Each card can also expose its own dedicated options, such as 7D,
+              Month, 3M, list views, search, or template rerolls. Admin always
+              sees every card and option.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <ToggleGroup>
+            {CONFIGURABLE_TIERS.map((tier) => (
+              <ToggleButton
+                key={tier}
+                active={selectedTier === tier}
+                onClick={() => setSelectedTier(tier)}
+                activeColor="#059669"
+              >
+                {tierLabel(tier)}
+              </ToggleButton>
+            ))}
+          </ToggleGroup>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAll(selectedTier, true)}
+              className="rounded-full bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => setAll(selectedTier, false)}
+              className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500"
+            >
+              Clear all
+            </button>
+          </div>
+        </div>
+
+        <AdminAccessSection
+          title="Cards"
+          items={ACCESS_ITEMS}
+          selectedTier={selectedTier}
+          settings={settings}
+          onToggle={setAccess}
+        />
+      </div>
+    </ModalShell>
+  );
+}
+
+function AdminAccessSection({
+  title,
+  items,
+  selectedTier,
+  settings,
+  onToggle,
+}: {
+  title: string;
+  items: AccessItem[];
+  selectedTier: TierAssignable;
+  settings: TierVisibilitySettings;
+  onToggle: (tier: TierAssignable, key: string, value: boolean) => void;
+}) {
+  return (
+    <section className="mt-6">
+      <h3 className="text-sm font-black uppercase tracking-wide text-slate-400">
+        {title}
+      </h3>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <label
+            key={item.key}
+            className="flex cursor-pointer gap-3 rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
+          >
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-emerald-600"
+              checked={Boolean(settings[selectedTier][item.key])}
+              onChange={(event) =>
+                onToggle(selectedTier, item.key, event.target.checked)
+              }
+            />
+            <span>
+              <span className="flex flex-wrap items-center gap-2 text-sm font-black text-slate-800">
+                {item.label}
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-500">
+                  {item.platform}
+                </span>
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-slate-500">
+                {item.description}
+              </span>
+              {item.options?.length ? (
+                <span className="mt-3 grid gap-2">
+                  {item.options.map((option) => {
+                    const optionSettingKey = getAccessOptionKey(item.key, option.key);
+                    return (
+                      <span
+                        key={option.key}
+                        className="flex gap-2 rounded-xl bg-slate-50 px-3 py-2"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-3.5 w-3.5 accent-emerald-600"
+                          checked={Boolean(settings[selectedTier][optionSettingKey])}
+                          disabled={!settings[selectedTier][item.key]}
+                          onChange={(event) =>
+                            onToggle(selectedTier, optionSettingKey, event.target.checked)
+                          }
+                        />
+                        <span>
+                          <span className="block text-xs font-black text-slate-700">
+                            {option.label}
+                          </span>
+                          <span className="block text-[11px] leading-4 text-slate-400">
+                            {option.description}
+                          </span>
+                        </span>
+                      </span>
+                    );
+                  })}
+                </span>
+              ) : null}
+            </span>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LockedAccessCard({
+  itemKey,
+  panel,
+  title,
+  description,
+  previewType,
+}: {
+  itemKey: string;
+  panel: string;
+  title?: string;
+  description?: string;
+  previewType?: LockedPreviewType | "chart";
+}) {
+  const item = ACCESS_ITEMS.find((entry) => entry.key === itemKey);
+  const label = title ?? item?.label ?? "Premium feature";
+  const summary =
+    description ??
+    item?.description ??
+    "This widget displays deeper research signals when enabled for your tier.";
+  const type =
+    previewType ??
+    getLockedPreviewType(itemKey, label);
+
+  return (
+    <div
+      className={`group/locked-card relative rounded-3xl border border-dashed p-5 opacity-75 grayscale ${panel}`}
+      title="Upgrade to unlock"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">
+            {label}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-400">
+            {summary}
+          </p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+          Upgrade to unlock
+        </span>
+      </div>
+      <span className="pointer-events-none absolute right-4 top-12 z-30 rounded-full bg-slate-900 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white opacity-0 shadow-lg transition group-hover/locked-card:opacity-100">
+        Upgrade to unlock
+      </span>
+      <LockedPreview type={type} />
+    </div>
+  );
+}
+
+type LockedPreviewType =
+  | "bar"
+  | "cardGrid"
+  | "commonStructure"
+  | "correlation"
+  | "directionalMap"
+  | "gameTemplate"
+  | "genreTrend"
+  | "heatmap"
+  | "keyword"
+  | "keywordCloud"
+  | "line"
+  | "pie"
+  | "ringPie"
+  | "researchCards"
+  | "robloxArchetypes"
+  | "singleArchetype"
+  | "smallHeatmap"
+  | "text"
+  | "tileColors";
+
+function getLockedPreviewType(itemKey: string, label: string): LockedPreviewType {
+  if (/roblox_genres_trend/i.test(itemKey)) return "genreTrend";
+  if (/roblox_keyword_cloud/i.test(itemKey)) return "keywordCloud";
+  if (/roblox_common_structure/i.test(itemKey)) return "commonStructure";
+  if (/roblox_archetypes/i.test(itemKey)) return "robloxArchetypes";
+  if (/roblox_template_generator/i.test(itemKey)) return "gameTemplate";
+  if (/roblox_correlation/i.test(itemKey)) return "correlation";
+  if (/roblox_directional_map/i.test(itemKey)) return "directionalMap";
+  if (/research_cards/i.test(itemKey)) return "researchCards";
+  if (/roblox_subgenre_mix/i.test(itemKey)) return "ringPie";
+  if (/tile_colors/i.test(itemKey)) return "tileColors";
+  if (/keyword/i.test(itemKey)) return "keyword";
+  if (/genre_mix|subgenre_mix|pie|mix/i.test(itemKey) || /genre mix|subgenre mix/i.test(label)) return "pie";
+  if (/trend|over_time|label_trend|genre_presence/i.test(itemKey)) return "line";
+  if (/directional_map/i.test(itemKey)) return "smallHeatmap";
+  if (/activity_landscape/i.test(itemKey)) return "heatmap";
+  if (/experience_cards|island_cards|top_games|trending_games/i.test(itemKey)) return "cardGrid";
+  if (/structure|template|idea|signal|archetype|forecasting|data_source/i.test(itemKey)) return "text";
+  return "bar";
+}
+
+function LockedPreview({ type }: { type: LockedPreviewType | "chart" }) {
+  if (type === "genreTrend") {
+    return (
+      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex rounded-full bg-slate-200 p-1">
+            {["Top 25", "Top 50"].map((label) => (
+              <span
+                key={label}
+                className="rounded-full px-4 py-2 text-xs font-black text-slate-400"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+          <div className="inline-flex rounded-full bg-slate-200 p-1">
+            {["7D", "Month", "3M"].map((label) => (
+              <span
+                key={label}
+                className="rounded-full px-4 py-2 text-xs font-black text-slate-400"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <svg className="h-44 w-full" viewBox="0 0 360 170" role="img" aria-label="Locked genre trend preview">
+          <line x1="34" x2="344" y1="136" y2="136" stroke="#94a3b8" strokeWidth="2" />
+          <line x1="34" x2="34" y1="16" y2="136" stroke="#94a3b8" strokeWidth="2" />
+          {[44, 76, 108].map((y) => (
+            <line key={y} x1="34" x2="344" y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="5 6" />
+          ))}
+          {[92, 150, 208, 266, 324].map((x) => (
+            <line key={x} x1={x} x2={x} y1="16" y2="136" stroke="#e2e8f0" strokeDasharray="5 6" />
+          ))}
+          {[
+            "42,118 94,96 146,104 198,62 250,78 336,38",
+            "42,130 94,124 146,86 198,98 250,58 336,88",
+            "42,102 94,112 146,68 198,74 250,112 336,52",
+          ].map((points, index) => (
+            <polyline
+              key={points}
+              points={points}
+              fill="none"
+              stroke={["#94a3b8", "#cbd5e1", "#64748b"][index]}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="6"
+              opacity={index === 2 ? 0.45 : 0.8}
+            />
+          ))}
+          <text x="4" y="20" fill="#94a3b8" fontSize="11" fontWeight="800">Y</text>
+          <text x="326" y="160" fill="#94a3b8" fontSize="11" fontWeight="800">X</text>
+        </svg>
+      </div>
+    );
+  }
+
+  if (type === "keywordCloud") {
+    return (
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        {["Title", "Description"].map((title) => (
+          <div key={title} className="min-h-36 rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+              {title}
+            </p>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              {[
+                ["Example", "text-2xl"],
+                ["Signal", "text-xl"],
+                ["Theme", "text-lg"],
+                ["Keyword", "text-base"],
+                ["Example", "text-sm"],
+              ].map(([word, size], index) => (
+                <span key={`${title}-${word}-${index}`} className={`${size} font-black text-slate-300`}>
+                  {word}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "commonStructure") {
+    return (
+      <div className="mt-5 rounded-2xl bg-slate-50 p-5">
+        <p className="text-sm font-bold leading-6 text-slate-400">
+          A breakdown of the top 25 featured game descriptions to help you
+          structure yours.
+        </p>
+        <div className="mt-4 space-y-2">
+          <div className="h-3 w-5/6 rounded-full bg-slate-200" />
+          <div className="h-3 w-2/3 rounded-full bg-slate-100" />
+          <div className="h-3 w-3/4 rounded-full bg-slate-100" />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "robloxArchetypes") {
+    return (
+      <div className="mt-5 grid gap-3 lg:grid-cols-3">
+        {[
+          ["Median game", "Median Popular Type"],
+          ["Average game", "Average Popular Type"],
+          ["Outlier game", "Outlier Popular Type"],
+        ].map(([kind, title]) => (
+          <div key={kind} className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+              {kind}
+            </p>
+            <h3 className="mt-2 text-sm font-black text-slate-400">{title}</h3>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="h-11 rounded-xl bg-slate-100" />
+              <div className="h-11 rounded-xl bg-slate-100" />
+              <div className="col-span-2 h-9 rounded-xl bg-slate-100" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "singleArchetype") {
+    return (
+      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+        <div className="h-3 w-3/4 rounded-full bg-slate-200" />
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="h-11 rounded-xl bg-slate-100" />
+          <div className="h-11 rounded-xl bg-slate-100" />
+          <div className="col-span-2 h-9 rounded-xl bg-slate-100" />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "gameTemplate") {
+    return (
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl bg-slate-50 p-4">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+            Template type
+          </p>
+          <div className="mt-4 grid gap-2">
+            {["Mainstream type", "Uncommon type", "Top 10 type", "Reroll"].map((label) => (
+              <span key={label} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-400">
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl bg-slate-50 p-4">
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+            Fictional experience card
+          </p>
+          <div className="mt-3 h-4 w-3/4 rounded-full bg-slate-200" />
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="h-10 rounded-xl bg-slate-100" />
+            <div className="h-10 rounded-xl bg-slate-100" />
+            <div className="col-span-2 rounded-xl bg-slate-100 p-3">
+              <div className="h-2.5 w-5/6 rounded-full bg-slate-200" />
+              <div className="mt-2 h-2.5 w-2/3 rounded-full bg-slate-200" />
+              <div className="mt-2 h-2.5 w-3/4 rounded-full bg-slate-200" />
+            </div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-100 p-4">
+          <p className="text-xs font-black text-slate-400">Readout</p>
+          <div className="mt-4 space-y-2">
+            <div className="h-3 w-5/6 rounded-full bg-slate-200" />
+            <div className="h-3 w-2/3 rounded-full bg-slate-200" />
+            <div className="h-12 rounded-xl bg-white/60" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "correlation") {
+    return (
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-2xl bg-slate-50 p-4">
+          <div className="mb-4 flex flex-wrap gap-2">
+            <span className="h-9 w-32 rounded-full bg-slate-200" />
+            <span className="h-9 w-32 rounded-full bg-slate-100" />
+            <span className="h-9 w-24 rounded-full bg-slate-200" />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {["Example genre", "Other genres"].map((label) => (
+              <div key={label} className="rounded-2xl bg-white/70 p-3">
+                <div className="mb-2 flex justify-between text-[10px] font-black uppercase tracking-wide text-slate-400">
+                  <span>{label}</span>
+                  <span>Avg</span>
+                </div>
+                <div className="relative h-28 rounded-xl bg-slate-100">
+                  <div className="absolute inset-x-3 bottom-5 border-t-4 border-slate-300" />
+                  {[20, 34, 52, 68, 82].map((left, index) => (
+                    <span
+                      key={left}
+                      className="absolute h-2.5 w-2.5 rounded-full bg-slate-400/50"
+                      style={{ left: `${left}%`, bottom: `${18 + index * 9}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-100 p-4">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+            Readout
+          </p>
+          <div className="mt-4 space-y-2">
+            <div className="h-3 w-5/6 rounded-full bg-slate-200" />
+            <div className="h-3 w-2/3 rounded-full bg-slate-200" />
+            <div className="h-16 rounded-xl bg-white/60" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "directionalMap") {
+    return (
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid gap-3 md:grid-cols-2">
+          {["Demand vs Saturation", "Velocity vs Saturation", "Demand vs Format"].map((title) => (
+            <div key={title} className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                {title}
+              </p>
+              <div className="mt-3 grid w-[40%] min-w-28 grid-cols-4 gap-1.5">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((item) => (
+                  <div
+                    key={item}
+                    className="aspect-square rounded-lg"
+                    style={{ backgroundColor: ["#e2e8f0", "#cbd5e1", "#94a3b8"][item % 3] }}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-100 p-4">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+            Research readout
+          </p>
+          <div className="mt-4 space-y-2">
+            <div className="h-3 w-5/6 rounded-full bg-slate-200" />
+            <div className="h-3 w-2/3 rounded-full bg-slate-200" />
+            <div className="h-20 rounded-xl bg-white/60" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "researchCards") {
+    return (
+      <div className="mt-5">
+        <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold leading-6 text-slate-400">
+          Unlock segment-specific research signals, recurring design cues, and
+          caution notes for the selected game idea.
+        </p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <h3 className="text-xl font-bold text-slate-400">Research Signal</h3>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-400">
+              <li>Example dataset share for this idea profile.</li>
+              <li>Example player activity mapped to the segment.</li>
+              <li>Example signal strength for repeatable patterns.</li>
+            </ul>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <h3 className="text-xl font-bold text-slate-400">Design Cues</h3>
+            <p className="mt-2 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold leading-5 text-slate-400">
+              Example cue readout appears here after unlock.
+            </p>
+            <div className="mt-4 grid grid-cols-[110px_1fr] items-center gap-4">
+              <div className="relative h-24 w-24 rounded-full bg-[conic-gradient(#94a3b8_0_38%,#cbd5e1_38%_66%,#e2e8f0_66%_100%)]">
+                <div className="absolute inset-8 rounded-full bg-slate-50" />
+              </div>
+              <div className="space-y-2">
+                {[
+                  ["Example", "38%"],
+                  ["Signal", "28%"],
+                  ["Theme", "34%"],
+                ].map(([name, value]) => (
+                  <div key={name} className="flex items-center justify-between gap-3 text-sm text-slate-400">
+                    <span>{name}</span>
+                    <span className="font-bold">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <h3 className="text-xl font-bold text-slate-400">Warnings</h3>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-400">
+              <li>Example competition or low-signal caution.</li>
+              <li>Example data limitation reminder.</li>
+              <li>Example informational-use note.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "pie") {
+    return (
+      <div className="mt-5 flex items-center gap-4 rounded-2xl bg-slate-50 p-4">
+        <div className="h-24 w-24 shrink-0 rounded-full bg-[conic-gradient(#94a3b8_0_42%,#cbd5e1_42%_73%,#e2e8f0_73%_100%)]" />
+        <div className="flex-1 space-y-2">
+          {[
+            ["Example A", "42%"],
+            ["Example B", "31%"],
+            ["Example C", "27%"],
+          ].map(([name, value]) => (
+            <div key={name} className="flex items-center justify-between gap-3 text-xs font-bold text-slate-400">
+              <span className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                {name}
+              </span>
+              <span>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "ringPie") {
+    return (
+      <div className="mt-5 flex items-center gap-4 rounded-2xl bg-slate-50 p-4">
+        <div className="relative h-28 w-28 shrink-0 rounded-full bg-[conic-gradient(#94a3b8_0_34%,#cbd5e1_34%_58%,#e2e8f0_58%_82%,#f1f5f9_82%_100%)]">
+          <div className="absolute inset-6 rounded-full bg-slate-50" />
+        </div>
+        <div className="flex-1 space-y-2">
+          {[
+            ["Example A", "34%"],
+            ["Example B", "24%"],
+            ["Example C", "24%"],
+            ["Example D", "18%"],
+          ].map(([name, value]) => (
+            <div key={name} className="flex items-center justify-between gap-3 text-xs font-bold text-slate-400">
+              <span className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                {name}
+              </span>
+              <span>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "line") {
+    return (
+      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+        <svg className="h-36 w-full" viewBox="0 0 340 140" role="img" aria-label="Locked trend preview">
+          <line x1="34" x2="324" y1="112" y2="112" stroke="#94a3b8" strokeWidth="2" />
+          <line x1="34" x2="34" y1="12" y2="112" stroke="#94a3b8" strokeWidth="2" />
+          {[24, 48, 72, 96].map((y) => (
+            <line key={y} x1="34" x2="324" y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="5 6" />
+          ))}
+          {[54, 108, 162, 216, 270].map((x) => (
+            <line key={x} x1={x + 28} x2={x + 28} y1="12" y2="112" stroke="#e2e8f0" strokeDasharray="5 6" />
+          ))}
+          <polyline
+            points="42,92 96,76 150,84 204,54 258,64 318,34"
+            fill="none"
+            stroke="#94a3b8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="7"
+          />
+          {[42, 96, 150, 204, 258, 318].map((x, index) => {
+            const y = [92, 76, 84, 54, 64, 34][index];
+            return <circle key={x} cx={x} cy={y} r="5" fill="#cbd5e1" />;
+          })}
+          <text x="6" y="18" fill="#94a3b8" fontSize="11" fontWeight="800">Y</text>
+          <text x="318" y="134" fill="#94a3b8" fontSize="11" fontWeight="800">X</text>
+        </svg>
+        <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+          Example trend unlocked with this tier
+        </p>
+      </div>
+    );
+  }
+
+  if (type === "tileColors") {
+    return (
+      <div className="mt-5 space-y-3 rounded-2xl bg-slate-50 p-4">
+        {[1, 2, 3, 4, 5].map((item) => (
+          <div key={item} className="grid grid-cols-[3rem_1fr] items-center gap-3">
+            <div className="h-10 overflow-hidden rounded-xl border border-slate-200">
+              <div className="h-1/2 bg-slate-400" />
+              <div className="h-1/2 bg-slate-300" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-400">Example Tile {item}</p>
+              <p className="text-[11px] font-bold text-slate-400">Primary RGB 148, 163, 184</p>
+              <p className="text-[11px] font-bold text-slate-300">Secondary RGB 203, 213, 225</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "keyword") {
+    return (
+      <div className="mt-5 flex min-h-32 flex-wrap items-center justify-center gap-3 rounded-2xl bg-slate-50 p-4">
+        {[
+          ["Example A", "text-2xl"],
+          ["Signal", "text-xl"],
+          ["Theme", "text-lg"],
+          ["Example B", "text-base"],
+          ["Format", "text-sm"],
+          ["Example C", "text-sm"],
+        ].map(([word, size]) => (
+          <span key={word} className={`${size} font-black text-slate-300`}>
+            {word}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "cardGrid") {
+    return (
+      <div className="mt-5 grid grid-cols-3 gap-3">
+        {[1, 2, 3].map((item) => (
+          <div key={item} className="rounded-2xl bg-slate-50 p-3">
+            <div className="h-10 rounded-xl bg-slate-200" />
+            <div className="mt-3 h-3 w-4/5 rounded-full bg-slate-200" />
+            <div className="mt-2 h-3 w-2/3 rounded-full bg-slate-100" />
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="h-8 rounded-lg bg-slate-100" />
+              <div className="h-8 rounded-lg bg-slate-100" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "heatmap") {
+    return (
+      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+        <div className="grid grid-cols-4 gap-2">
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((item) => (
+            <div
+              key={item}
+              className="aspect-square rounded-xl"
+              style={{ backgroundColor: ["#e2e8f0", "#cbd5e1", "#94a3b8"][item % 3] }}
+            />
+          ))}
+        </div>
+        <div className="mt-3 h-3 w-2/3 rounded-full bg-slate-200" />
+      </div>
+    );
+  }
+
+  if (type === "smallHeatmap") {
+    return (
+      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+        <div className="grid w-[40%] min-w-32 grid-cols-4 gap-1.5">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((item) => (
+            <div
+              key={item}
+              className="aspect-square rounded-lg"
+              style={{ backgroundColor: ["#e2e8f0", "#cbd5e1", "#94a3b8"][item % 3] }}
+            />
+          ))}
+        </div>
+        <div className="mt-3 h-3 w-2/5 rounded-full bg-slate-200" />
+      </div>
+    );
+  }
+
+  if (type === "text") {
+    return (
+      <div className="mt-5 space-y-3 rounded-2xl bg-slate-50 p-4">
+        <div className="h-3 w-5/6 rounded-full bg-slate-200" />
+        <div className="h-3 w-2/3 rounded-full bg-slate-100" />
+        <div className="h-3 w-3/4 rounded-full bg-slate-100" />
+        <div className="grid grid-cols-2 gap-2 pt-2">
+          <div className="rounded-xl bg-slate-100 p-3 text-[11px] font-black uppercase tracking-wide text-slate-300">
+            Example A
+          </div>
+          <div className="rounded-xl bg-slate-100 p-3 text-[11px] font-black uppercase tracking-wide text-slate-300">
+            Example B
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 space-y-3">
+      <div className="h-3 w-2/3 rounded-full bg-slate-200" />
+      <div className="flex h-28 items-end gap-2 rounded-2xl bg-slate-50 p-4">
+        {[42, 68, 35, 84, 55, 73].map((height, index) => (
+          <div
+            key={index}
+            className="flex-1 rounded-t bg-slate-200"
+            style={{ height: `${height}%` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LockedAccessSection({ itemKey, panel }: { itemKey: string; panel: string }) {
+  return (
+    <section className="mb-6">
+      <LockedAccessCard itemKey={itemKey} panel={panel} />
+    </section>
+  );
+}
+
 function TermsModal({ onClose }: any) {
   const sections = [
     {
@@ -8359,14 +9941,14 @@ function GlossaryModal({ onClose }: any) {
         "The latest stored concurrent player count for a Roblox experience when that metric is available.",
     },
     {
-      title: "Source rank",
+      title: "Source position",
       body:
-        "The position captured from the source list or the imported source order when an explicit rank is unavailable.",
+        "The position captured from a source list or from the imported source order.",
     },
     {
-      title: "Top 10 / Top 25",
+      title: "Focused source set",
       body:
-        "A filtered view of the highest-ranked or first-surfaced entries in the imported source data for that platform.",
+        "A filtered view of the entries selected from the imported source data for that platform.",
     },
     {
       title: "Data capture coverage",
@@ -8457,18 +10039,29 @@ function GlossaryModal({ onClose }: any) {
   );
 }
 
-function ToggleButton({ active, onClick, children, activeColor }: any) {
+function ToggleButton({ active, onClick, children, activeColor, disabled = false }: any) {
   return (
-    <button
-      onClick={onClick}
-      className="rounded-full px-4 py-2 text-sm font-bold transition"
-      style={{
-        backgroundColor: active ? activeColor : "transparent",
-        color: active ? "white" : "#64748b",
-      }}
+    <span
+      className="group/locked-toggle relative inline-flex"
+      title={disabled ? "Upgrade to unlock" : undefined}
     >
-      {children}
-    </button>
+      <button
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
+        className="rounded-full px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40"
+        style={{
+          backgroundColor: active && !disabled ? activeColor : "transparent",
+          color: active && !disabled ? "white" : "#64748b",
+        }}
+      >
+        {children}
+      </button>
+      {disabled ? (
+        <span className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-900 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white opacity-0 shadow-lg transition group-hover/locked-toggle:opacity-100">
+          Upgrade to unlock
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -9589,6 +11182,7 @@ function buildHeatMapItems(items: any[]) {
         velocityTotal: 0,
         complexityTotal: 0,
         patterns: new Set(),
+        examples: [],
       };
     }
 
@@ -9597,6 +11191,7 @@ function buildHeatMapItems(items: any[]) {
     map[key].velocityTotal += item.playerGainPercent ?? 0;
     map[key].complexityTotal += complexityScore(item.build_complexity ?? "Medium");
     if (item.design_pattern) map[key].patterns.add(item.design_pattern);
+    map[key].examples.push(item);
   });
 
   const values = Object.values(map);
@@ -9604,6 +11199,9 @@ function buildHeatMapItems(items: any[]) {
   return values.map((item: any) => {
     return {
       ...item,
+      examples: [...item.examples].sort(
+        (a: any, b: any) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0)
+      ),
       velocity: item.count ? item.velocityTotal / item.count : 0,
       complexity: item.count ? item.complexityTotal / item.count : 0.55,
     };

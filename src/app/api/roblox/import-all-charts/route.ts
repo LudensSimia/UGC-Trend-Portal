@@ -51,7 +51,8 @@ function has(text: string, pattern: RegExp) {
 
 function pickText(...values: any[]) {
   for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value.trim()
+    const text = cleanTaxonomyText(value)
+    if (text && !isLegacyTaxonomyNoise(text)) return text
   }
 
   return null
@@ -254,35 +255,10 @@ function classifyGame(game: any, category: string) {
     inferred_genre = 'Sports & Racing'
     inferred_subgenre = 'Racing'
   } else if (
-    has(text, /fish|fishing|angler|aquarium|catch fish|catching fish/)
-  ) {
-    inferred_genre = 'Simulation'
-    inferred_subgenre = 'Incremental Simulator'
-  } else if (
     has(text, /anime|manga|naruto|one piece|dragon ball|dragon|titan|demon slayer|jujutsu|bleach|pokemon|pokémon|roria|shinobi|ninja|saiyan|hero academy|blox fruit|fruit battleground/)
   ) {
     inferred_genre = 'RPG'
     inferred_subgenre = 'Action RPG'
-  } else if (
-    has(text, /idle/)
-  ) {
-    inferred_genre = 'Simulation'
-    inferred_subgenre = 'Idle'
-  } else if (
-    has(text, /simulator|clicker|incremental|upgrade|rebirth|re-birth|prestige|earn|cash|money|coins|gems|profit|sell|farm|grind|level up|leveling|xp|boost|multiplier|pet simulator/)
-  ) {
-    inferred_genre = 'Simulation'
-    inferred_subgenre = 'Incremental Simulator'
-  } else if (
-    has(text, /tycoon|factory|build|builder|base|empire|business|store|shop|restaurant|cafe|hotel|city builder|tower|colony|manage|management/)
-  ) {
-    inferred_genre = 'Simulation'
-    inferred_subgenre = 'Tycoon'
-  } else if (
-    has(text, /obby|parkour|obstacle|tower of|climb|jump|platformer|escape room|lava|floor is lava/)
-  ) {
-    inferred_genre = 'Obby & Platformer'
-    inferred_subgenre = has(text, /tower of|climb/) ? 'Tower Obby' : 'Classic Obby'
   } else if (
     has(text, /gun|guns|shooter|shoot|fps|sniper|laser|weapon|weapons/)
   ) {
@@ -299,20 +275,45 @@ function classifyGame(game: any, category: string) {
     inferred_genre = 'Survival'
     inferred_subgenre = has(text, /escape/) ? 'Escape' : '1 vs All'
   } else if (
+    has(text, /obby|parkour|obstacle|tower of|climb|jump|platformer|escape room|lava|floor is lava/)
+  ) {
+    inferred_genre = 'Obby & Platformer'
+    inferred_subgenre = has(text, /tower of|climb/) ? 'Tower Obby' : 'Classic Obby'
+  } else if (
     has(text, /guess|quiz|trivia|puzzle|word|tiles|mahjong|memory|answer|brain|logic/)
   ) {
     inferred_genre = has(text, /quiz|trivia/) ? 'Party & Casual' : 'Puzzle'
     inferred_subgenre = has(text, /quiz|trivia/) ? 'Quiz' : 'Word'
   } else if (
-    has(text, /rng|spin|roll|luck|random|crate|case opening|gacha|summon|draw/)
-  ) {
-    inferred_genre = 'Simulation'
-    inferred_subgenre = 'Incremental Simulator'
-  } else if (
     has(text, /party|minigame|mini game|mini-game|rounds|round-based|quick game|challenge|challenges|race against|obby but|friends/)
   ) {
     inferred_genre = 'Party & Casual'
     inferred_subgenre = 'Minigame'
+  } else if (
+    has(text, /fish|fishing|angler|aquarium|catch fish|catching fish/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Fishing / Collection'
+  } else if (
+    has(text, /idle/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Idle'
+  } else if (
+    has(text, /simulator|clicker|incremental|upgrade|rebirth|re-birth|prestige|earn|cash|money|coins|gems|profit|sell|farm|grind|level up|leveling|xp|boost|multiplier|pet simulator/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Incremental Simulator'
+  } else if (
+    has(text, /tycoon|factory|build|builder|base|empire|business|store|shop|restaurant|cafe|hotel|city builder|tower|colony|manage|management/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'Tycoon'
+  } else if (
+    has(text, /rng|spin|roll|luck|random|crate|case opening|gacha|summon|draw/)
+  ) {
+    inferred_genre = 'Simulation'
+    inferred_subgenre = 'RNG / Collection'
   } else if (
     has(text, /food|cook|cooking|restaurant|cafe|bakery|pizza|burger|sushi|korean|convenience store|store|asmr|cozy|cute/)
   ) {

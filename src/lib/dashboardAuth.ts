@@ -1,4 +1,5 @@
 export const DASHBOARD_AUTH_COOKIE = "ugc_dashboard_auth";
+export const DASHBOARD_TIER_COOKIE = "ugc_dashboard_tier";
 
 export async function getDashboardAuthToken(password: string) {
   const secret = process.env.DASHBOARD_AUTH_SECRET ?? process.env.CRON_SECRET;
