@@ -65,6 +65,7 @@ const FORTNITE_ISLAND_SELECT = `
 type Platform = "roblox" | "fortnite";
 type TrendTimeWindow = "7d" | "30d" | "3m";
 type LandscapeTimeWindow = "today" | "7d" | "30d";
+type TrendRankBand = "top" | "mid" | "bottom";
 type UserTier = "free" | "scout" | "pro" | "admin";
 type TierAssignable = Exclude<UserTier, "admin">;
 
@@ -118,7 +119,7 @@ const TOP_3_10_OPTIONS: AccessOption[] = [
   { key: "limit_10", label: "10 lines", description: "Allow the expanded view." },
 ];
 const PERCENTILE_OPTIONS: AccessOption[] = [
-  { key: "percentiles", label: "Percentile zoom", description: "Allow chart zoom controls." },
+  { key: "percentiles", label: "Rank band selector", description: "Allow Top 10, Mid 10, and Bottom 10 views." },
 ];
 const TEMPLATE_OPTIONS: AccessOption[] = [
   { key: "template_mainstream", label: "Mainstream", description: "Allow mainstream template generation." },
@@ -305,8 +306,8 @@ export default function Home() {
   const [selectedSubgenre, setSelectedSubgenre] = useState("");
   const [topGamesTrendLimit, setTopGamesTrendLimit] = useState<25 | 50>(25);
   const [mostPlayedMixLimit, setMostPlayedMixLimit] = useState<25 | 50>(25);
-  const [topGamesTrendPercentile, setTopGamesTrendPercentile] =
-    useState<25 | 50 | 75 | 100>(100);
+  const [topGamesTrendBand, setTopGamesTrendBand] =
+    useState<TrendRankBand>("top");
   const [topGamesTrendWindow, setTopGamesTrendWindow] =
     useState<TrendTimeWindow>("7d");
   const [genreTrendLimit, setGenreTrendLimit] = useState<3 | 10>(3);
@@ -398,6 +399,7 @@ export default function Home() {
           thumbnail_url,
           description,
           genre,
+          raw_game_details,
           inferred_genre,
           inferred_subgenre,
           core_loop,
@@ -580,9 +582,12 @@ export default function Home() {
       ? Math.round((filteredIdeaItems.length / activeIdeaAnalysisItems.length) * 100)
       : 0;
 
-  const topSimilar = [...filteredIdeaItems]
-    .sort((a, b) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0))
-    .slice(0, 3);
+  const topSimilar = buildIdeaSuggestions(
+    activeIdeaAnalysisItems,
+    activePlatform,
+    selectedGenre,
+    selectedSubgenre
+  );
 
   const mostPlayedClassificationPies =
     buildRobloxMostPlayedClassificationPies(topRobloxGames, mostPlayedMixLimit);
@@ -643,10 +648,10 @@ export default function Home() {
     fortniteIslands,
     trendingHighlights,
     topGamesTrendLimit,
-    topGamesTrendPercentile,
+    topGamesTrendBand,
     topGamesTrendWindow,
     setTopGamesTrendLimit,
-    setTopGamesTrendPercentile,
+    setTopGamesTrendBand,
     setTopGamesTrendWindow,
     genreTrendLimit,
     genreTrendPercentile,
@@ -974,12 +979,12 @@ export default function Home() {
                     true ? (
                       <TrendControls
                         limit={topGamesTrendLimit}
-                        percentile={topGamesTrendPercentile}
+                        rankBand={topGamesTrendBand}
                         onLimitChange={setTopGamesTrendLimit}
-                        onPercentileChange={setTopGamesTrendPercentile}
+                        onRankBandChange={setTopGamesTrendBand}
                         accent={accent}
                         showLimit={true}
-                        showPercentile={true}
+                        showRankBand={true}
                         allowedLimits={[
                           canAccessOption("roblox_games_trend", "limit_25") ? 25 : null,
                           canAccessOption("roblox_games_trend", "limit_50") ? 50 : null,
@@ -1000,7 +1005,7 @@ export default function Home() {
                 >
                   <TopGamesTrend
                     games={topRobloxGames.slice(0, topGamesTrendLimit)}
-                    percentile={topGamesTrendPercentile}
+                    rankBand={topGamesTrendBand}
                     timeWindow={effectiveTimeWindow("roblox_games_trend", topGamesTrendWindow)}
                   />
                 </ChartCard>
@@ -1266,10 +1271,13 @@ export default function Home() {
                     </div>
                     <div className="mt-5 border-t border-slate-200 pt-4">
                       <p className="text-xs font-black uppercase tracking-wide text-slate-400">
-                        Similar top games
+                        Source-confirmed similar games
                       </p>
                       {topSimilar.length ? (
                         <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                          <p className="sr-only">
+                            Roblox suggestions use source-confirmed genre and subgenre matches.
+                          </p>
                           {topSimilar.slice(0, 5).map((item: any, index: number) => (
                             <GameMarketCard
                               key={item.id}
@@ -1282,7 +1290,11 @@ export default function Home() {
                         </div>
                       ) : (
                         <p className="mt-3 text-sm text-slate-500">
-                          Select a genre to populate suggestions.
+                          {getIdeaSuggestionEmptyText(
+                            activePlatform,
+                            selectedGenre,
+                            selectedSubgenre
+                          )}
                         </p>
                       )}
                     </div>
@@ -1534,10 +1546,10 @@ function FortniteDashboardView({ context }: any) {
     fortniteIslands,
     trendingHighlights,
     topGamesTrendLimit,
-    topGamesTrendPercentile,
+    topGamesTrendBand,
     topGamesTrendWindow,
     setTopGamesTrendLimit,
-    setTopGamesTrendPercentile,
+    setTopGamesTrendBand,
     setTopGamesTrendWindow,
     genreTrendLimit,
     genreTrendPercentile,
@@ -2010,7 +2022,15 @@ function FortniteDashboardView({ context }: any) {
                   ))}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <p className="mt-5 border-t border-slate-200 pt-4 text-sm text-slate-500">
+                {getIdeaSuggestionEmptyText(
+                  activePlatform,
+                  selectedGenre,
+                  selectedSubgenre
+                )}
+              </p>
+            )}
           </div>
         </div>
         </section>
@@ -3615,18 +3635,37 @@ function getClassificationConfidence(item: any, platform: Platform) {
   if (platform !== "roblox") return "medium";
 
   const sourceGenre = getRobloxSourceGenre(item);
+  const sourceSubgenre = getRobloxSourceSubgenre(item);
   const hasEstimatedGenre =
     Boolean(cleanClassificationLabel(item.inferred_genre));
   const hasEstimatedSubgenre =
     Boolean(cleanClassificationLabel(item.inferred_subgenre));
 
-  if (sourceGenre) return "source";
+  if (sourceGenre || sourceSubgenre) return "source";
   if (hasEstimatedGenre && hasEstimatedSubgenre) return "estimated";
   return "pending";
 }
 
 function getRobloxSourceGenre(item: any) {
-  return cleanClassificationLabel(item.genre);
+  return pickCleanClassificationLabel(
+    item.raw_game_details?.page_taxonomy?.genre,
+    item.raw_game_details?.genre,
+    item.raw_game_details?.genreName,
+    item.raw_game_details?.genre_l1,
+    item.raw_game_details?.genreL1,
+    item.genre
+  );
+}
+
+function getRobloxSourceSubgenre(item: any) {
+  return pickCleanClassificationLabel(
+    item.raw_game_details?.page_taxonomy?.subgenre,
+    item.raw_game_details?.subgenre,
+    item.raw_game_details?.subGenre,
+    item.raw_game_details?.subgenreName,
+    item.raw_game_details?.genre_l2,
+    item.raw_game_details?.genreL2
+  );
 }
 
 function getDisplayGenre(item: any, platform: Platform) {
@@ -3662,15 +3701,26 @@ function cleanClassificationLabel(value: unknown) {
     : null;
 }
 
+function pickCleanClassificationLabel(...values: unknown[]) {
+  for (const value of values) {
+    const label = cleanClassificationLabel(value);
+    if (label) return label;
+  }
+
+  return null;
+}
+
 function refineRobloxDisplayTaxonomy(item: any) {
+  const sourceGenre = getRobloxSourceGenre(item);
+  const sourceSubgenre = getRobloxSourceSubgenre(item);
   const baseGenre = cleanClassificationLabel(item.inferred_genre);
   const baseSubgenre = cleanClassificationLabel(item.inferred_subgenre);
   const text = `${item.title ?? ""} ${item.description ?? ""}`.toLowerCase();
   const refined = getObviousRobloxTaxonomy(text);
 
   return {
-    genre: refined?.genre ?? baseGenre ?? "Classification pending",
-    subgenre: refined?.subgenre ?? baseSubgenre ?? "Classification pending",
+    genre: sourceGenre ?? baseGenre ?? refined?.genre ?? "Classification pending",
+    subgenre: sourceSubgenre ?? baseSubgenre ?? refined?.subgenre ?? "Classification pending",
   };
 }
 
@@ -3748,6 +3798,12 @@ function getLatestSourceTimestamp(platform: Platform, items: any[]) {
 function getLatestSourceDate(platform: Platform, items: any[]) {
   const timestamp = getLatestSourceTimestamp(platform, items);
   return timestamp ? new Date(timestamp).toISOString().slice(0, 10) : "";
+}
+
+function getDateKey(value?: string | null) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
 }
 
 function formatUtcTimestamp(value?: string) {
@@ -4336,15 +4392,20 @@ function ChartCard({
 
 function TrendControls({
   limit,
-  percentile,
+  rankBand,
   onLimitChange,
-  onPercentileChange,
+  onRankBandChange,
   accent,
   showLimit = true,
-  showPercentile = true,
+  showRankBand = true,
   allowedLimits,
 }: any) {
   const limits = allowedLimits ?? [25, 50];
+  const rankBands: Array<{ value: TrendRankBand; label: string }> = [
+    { value: "top", label: "Top 10" },
+    { value: "mid", label: "Mid 10" },
+    { value: "bottom", label: "Bottom 10" },
+  ];
   return (
     <div className="flex flex-wrap justify-end gap-2">
       {showLimit && (
@@ -4362,16 +4423,16 @@ function TrendControls({
           ))}
         </ToggleGroup>
       )}
-      {showPercentile && (
+      {showRankBand && (
         <ToggleGroup>
-          {[25, 50, 75, 100].map((value) => (
+          {rankBands.map(({ value, label }) => (
             <ToggleButton
               key={value}
-              active={percentile === value}
-              onClick={() => onPercentileChange(value)}
+              active={rankBand === value}
+              onClick={() => onRankBandChange(value)}
               activeColor={accent}
             >
-              {value === 100 ? "All" : `${value}%`}
+              {label}
             </ToggleButton>
           ))}
         </ToggleGroup>
@@ -4974,6 +5035,65 @@ function IdeaPositionReadout({
 }: any) {
   const data = buildIdeaSunburstData(items, platform, selectedGenre, selectedSubgenre);
   const noun = platform === "roblox" ? "experiences" : "islands";
+  const selectedGenreItems = selectedGenre
+    ? items.filter((item: any) => getDisplayGenre(item, platform) === selectedGenre)
+    : items;
+  const selectedSubgenreItems =
+    selectedGenre && selectedSubgenre
+      ? selectedGenreItems.filter(
+          (item: any) => getDisplaySubgenre(item, platform) === selectedSubgenre
+        )
+      : selectedGenreItems;
+  const segmentItems = selectedSubgenre ? selectedSubgenreItems : selectedGenreItems;
+  const totalPlayers = items.reduce(
+    (sum: number, item: any) => sum + (item.latestPlayers ?? 0),
+    0
+  );
+  const segmentPlayers =
+    platform === "roblox"
+      ? segmentItems.reduce(
+          (sum: number, item: any) => sum + (item.latestPlayers ?? 0),
+          0
+        )
+      : totalPlayersInIdea;
+  const playerShare =
+    platform === "roblox" && totalPlayers
+      ? Math.round((segmentPlayers / Math.max(1, totalPlayers)) * 100)
+      : 0;
+  const topExample = [...segmentItems].sort(
+    (a: any, b: any) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0)
+  )[0];
+  const averageGain = getAverageMetric(
+    segmentItems
+      .map((item: any) => item.averagePlayerGain7Days)
+      .filter((value: any) => typeof value === "number")
+  );
+  const subgenreEntries = selectedGenre
+    ? countEntries(
+        selectedGenreItems.map(
+          (item: any) => getDisplaySubgenre(item, platform) || "Unclassified"
+        )
+      ).filter((entry) => !/classification pending|unclassified/i.test(entry.label))
+    : [];
+  const dominantSubgenre = subgenreEntries[0];
+  const dominantSubgenreShare =
+    dominantSubgenre && selectedGenreItems.length
+      ? Math.round((dominantSubgenre.count / selectedGenreItems.length) * 100)
+      : 0;
+  const estimatedClassifications = segmentItems.filter(
+    (item: any) => getClassificationConfidence(item, platform) === "estimated"
+  ).length;
+  const estimatedShare = segmentItems.length
+    ? Math.round((estimatedClassifications / segmentItems.length) * 100)
+    : 0;
+  const sourceConfirmedMatches =
+    platform === "roblox" && selectedGenre
+      ? getSourceConfirmedIdeaMatches(items, selectedGenre, selectedSubgenre).length
+      : 0;
+  const averageGainText =
+    averageGain == null
+      ? "movement is not available yet"
+      : `${averageGain > 0 ? "+" : ""}${formatNumber(Math.round(averageGain))} players/day average movement`;
 
   return (
     <div className="rounded-2xl border border-[#9fc7e4] bg-[#e8f2fa] p-4 text-sm leading-6 text-slate-700">
@@ -4982,13 +5102,19 @@ function IdeaPositionReadout({
       </p>
       <ul className="mt-3 list-disc space-y-2 pl-5">
         <li>
-          This combination of genre and subgenre makes <strong>{ideaPercent}%</strong> of the imported{" "}
-          {noun}.
+          This segment represents <strong>{formatNumber(segmentItems.length)}</strong>{" "}
+          {noun} ({ideaPercent}% of the selected window)
+          {platform === "roblox"
+            ? ` and ${formatNumber(segmentPlayers)} tracked players (${playerShare}% of the player pool).`
+            : "."}
         </li>
         {platform === "roblox" ? (
           <li>
-            This represents a potential pool of{" "}
-            <strong>{formatNumber(totalPlayersInIdea)}</strong> current players.
+            Comparable high-activity example:{" "}
+            <strong>{topExample?.title ?? "not enough matching data yet"}</strong>
+            {topExample
+              ? `, with ${formatNumber(topExample.latestPlayers)} players and ${averageGainText}.`
+              : "."}
           </li>
         ) : (
           <li>
@@ -5009,9 +5135,90 @@ function IdeaPositionReadout({
               ? "Select a subgenre to highlight the outer ring."
               : "The outer ring appears after a genre is selected."}
         </p>
+        {selectedGenre && (
+          <p>
+            Subgenre depth: {subgenreEntries.length || 0} detected under {selectedGenre}
+            {dominantSubgenre
+              ? `; ${dominantSubgenre.label} currently covers ${dominantSubgenreShare}% of that genre.`
+              : ". More source taxonomy is needed before this genre can be broken down cleanly."}
+          </p>
+        )}
+        {platform === "roblox" && segmentItems.length > 0 && (
+          <p>
+            Classification note: {sourceConfirmedMatches} source-confirmed matches; {estimatedShare}% of this segment uses estimated taxonomy.
+          </p>
+        )}
       </div>
     </div>
   );
+}
+
+function getSourceConfirmedIdeaMatches(
+  items: any[],
+  selectedGenre: string,
+  selectedSubgenre: string
+) {
+  return items.filter((item) => {
+    const sourceGenre = getRobloxSourceGenre(item);
+    const sourceSubgenre = getRobloxSourceSubgenre(item);
+    const genreMatch = sourceGenre === selectedGenre;
+    const subgenreMatch = selectedSubgenre
+      ? sourceSubgenre === selectedSubgenre
+      : true;
+
+    return genreMatch && subgenreMatch;
+  });
+}
+
+function buildIdeaSuggestions(
+  items: any[],
+  platform: Platform,
+  selectedGenre: string,
+  selectedSubgenre: string
+) {
+  if (!selectedGenre) return [];
+
+  if (platform === "roblox") {
+    return getSourceConfirmedIdeaMatches(items, selectedGenre, selectedSubgenre)
+      .sort(compareIdeaSuggestionStrength)
+      .slice(0, 5);
+  }
+
+  return items
+    .filter((item) => {
+      const genreMatch = getDisplayGenre(item, platform) === selectedGenre;
+      const subgenreMatch = selectedSubgenre
+        ? getDisplaySubgenre(item, platform) === selectedSubgenre
+        : true;
+      return genreMatch && subgenreMatch;
+    })
+    .sort(compareIdeaSuggestionStrength)
+    .slice(0, 5);
+}
+
+function compareIdeaSuggestionStrength(a: any, b: any) {
+  return (
+    (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0) ||
+    (b.periodHigh ?? 0) - (a.periodHigh ?? 0) ||
+    String(a.title ?? "").localeCompare(String(b.title ?? ""))
+  );
+}
+
+function getIdeaSuggestionEmptyText(
+  platform: Platform,
+  selectedGenre: string,
+  selectedSubgenre: string
+) {
+  if (!selectedGenre) return "Select a genre to populate suggestions.";
+
+  if (platform === "roblox") {
+    const label = selectedSubgenre
+      ? `${selectedGenre} / ${selectedSubgenre}`
+      : selectedGenre;
+    return `Not enough source-confirmed Roblox examples for ${label} in this window. Try the Month view or a broader genre.`;
+  }
+
+  return "Not enough matching imported islands in this window.";
 }
 
 function buildIdeaSunburstData(
@@ -5094,6 +5301,11 @@ function countEntries(values: string[]) {
   return Object.entries(counts)
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function getAverageMetric(values: number[]) {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function keepTopEntriesWithSelection(entries: any[], selected: string, limit: number) {
@@ -10169,8 +10381,8 @@ function TrendChartFrame({ note, children }: any) {
   );
 }
 
-function TopGamesTrend({ games, percentile = 100, timeWindow = "7d" }: any) {
-  const visibleGames = applyPercentileBand(games, percentile);
+function TopGamesTrend({ games, rankBand = "top", timeWindow = "7d" }: any) {
+  const visibleGames = applyRankBand(games, rankBand);
   const trendWindow = applyTrendTimeWindow(mergeGameTrends(visibleGames), timeWindow);
   const data = trendWindow.data;
   const domain = getLineChartDomain(data, visibleGames.map((game: any) => game.title));
@@ -10621,6 +10833,18 @@ function applyPercentileBand(items: any[], percentile: number) {
 
   const bandSize = Math.max(1, Math.ceil(items.length * 0.25));
   const start = percentile === 25 ? 0 : percentile === 50 ? bandSize : bandSize * 2;
+
+  return items.slice(start, start + bandSize);
+}
+
+function applyRankBand(items: any[], band: TrendRankBand) {
+  const bandSize = Math.min(10, items.length);
+  if (band === "top") return items.slice(0, bandSize);
+
+  const start =
+    band === "mid"
+      ? Math.max(0, Math.floor((items.length - bandSize) / 2))
+      : Math.max(0, items.length - bandSize);
 
   return items.slice(start, start + bandSize);
 }
