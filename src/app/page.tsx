@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import {
   Area,
   AreaChart,
@@ -20,47 +19,7 @@ import {
   Cell,
 } from "recharts";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 const SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS = false;
-
-const FORTNITE_ISLAND_SELECT = `
-  id,
-  island_code,
-  title,
-  url,
-  thumbnail_url,
-  description,
-  inferred_genre,
-  inferred_subgenre,
-  core_loop,
-  player_intent,
-  competition_level,
-  build_complexity,
-  extracted_tags,
-  design_pattern,
-  audience_signal,
-  raw_latest,
-  fortnite_island_snapshots (
-    created_at,
-    rank,
-    source_order,
-    rank_source,
-    minutes_played,
-    minutes_per_player,
-    plays,
-    favorites,
-    recommends,
-    peak_ccu,
-    unique_players,
-    retention_d1,
-    retention_d7,
-    raw_payload
-  )
-`;
 
 type Platform = "roblox" | "fortnite";
 type TrendTimeWindow = "7d" | "30d" | "3m";
@@ -242,6 +201,8 @@ function getAccessSettingKeys() {
 }
 
 function normalizeDashboardTier(value: unknown): UserTier {
+  if (value === "paid" || value === "trial") return "scout";
+  if (value === "newsletter") return "free";
   return USER_TIERS.includes(value as UserTier) ? (value as UserTier) : "free";
 }
 
@@ -390,70 +351,26 @@ export default function Home() {
     async function fetchData() {
       setLoading(true);
 
-      const { data: robloxData, error: robloxError } = await supabase
-        .from("games")
-        .select(`
-          id,
-          title,
-          url,
-          thumbnail_url,
-          description,
-          genre,
-          raw_game_details,
-          inferred_genre,
-          inferred_subgenre,
-          core_loop,
-          extracted_tags,
-          design_pattern,
-          audience_signal,
-          build_complexity,
-          monetization_style,
-          game_metrics (
-            date,
-            current_players,
-            visits,
-            favorites,
-            up_votes,
-            down_votes,
-            like_ratio
-          ),
-          roblox_chart_snapshots (
-            created_at,
-            current_players,
-            chart_rank,
-            sort_name
-          )
-        `)
-        .eq("platform", "roblox");
+      try {
+        const response = await fetch("/api/dashboard/data");
 
-      if (robloxError) console.error("Roblox fetch error:", robloxError);
+        if (!response.ok) {
+          throw new Error(`Dashboard data request failed with ${response.status}`);
+        }
 
-      const { data: fortniteData, error: fortniteError } =
-        await fetchAllFortniteIslands();
+        const payload = await response.json();
 
-      const { data: auditData, error: auditError } = await supabase
-        .from("data_quality_snapshots")
-        .select(
-          `
-            platform,
-            total_records,
-            classified_records,
-            classification_coverage_percent,
-            confidence_percent,
-            created_at
-          `
-        )
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (auditError) {
-        console.warn("Data quality audit fetch warning:", auditError.message);
+        setRobloxGames((payload.roblox ?? []).map(withLatestRobloxSnapshot));
+        setFortniteIslands((payload.fortnite ?? []).map(withLatestFortniteSnapshot));
+        setDataQualitySnapshots((payload.dataQualitySnapshots ?? []) as DataQualitySnapshot[]);
+      } catch (error) {
+        console.error("Dashboard data fetch error:", error);
+        setRobloxGames([]);
+        setFortniteIslands([]);
+        setDataQualitySnapshots([]);
+      } finally {
+        setLoading(false);
       }
-
-      setRobloxGames((robloxData ?? []).map(withLatestRobloxSnapshot));
-      setFortniteIslands((fortniteData ?? []).map(withLatestFortniteSnapshot));
-      setDataQualitySnapshots((auditData ?? []) as DataQualitySnapshot[]);
-      setLoading(false);
     }
 
     fetchData();
@@ -803,25 +720,44 @@ export default function Home() {
           </div>
         )}
 
-        {activePlatform === "roblox" ? (
+        {activePlatform === "roblox" || activePlatform === "fortnite" ? (
           <nav
-            aria-label="Roblox dashboard shortcuts"
+            aria-label={`${activePlatform === "roblox" ? "Roblox" : "Fortnite"} dashboard shortcuts`}
             className="mb-4 flex flex-wrap items-center justify-between gap-3"
           >
             <div className="flex flex-wrap gap-2">
-              {[
-                [
-                  "#most-played-games-over-time",
-                  "See what's popular",
-                  "Most Played Games Over Time",
-                ],
-                ["#my-game-idea-is", "Start a new project", "My Game Idea Is"],
-                [
-                  "#player-activity-landscape",
-                  "Track what's rising or falling",
-                  "Player Activity Landscape",
-                ],
-              ].map(([href, prompt, label]) => (
+              {(activePlatform === "roblox"
+                ? [
+                    [
+                      "#most-played-games-over-time",
+                      "See what's popular",
+                      "Most Played Games Over Time",
+                    ],
+                    ["#my-game-idea-is", "Start a new project", "My Game Idea Is"],
+                    [
+                      "#player-activity-landscape",
+                      "Track what's rising or falling",
+                      "Player Activity Landscape",
+                    ],
+                  ]
+                : [
+                    [
+                      "#primary-label-usage-over-time",
+                      "See repeated format signals",
+                      "Primary Label Usage Over Time",
+                    ],
+                    [
+                      "#my-fortnite-island-idea-is",
+                      "Start a new island concept",
+                      "My Fortnite Island Idea Is",
+                    ],
+                    [
+                      "#latest-imported-fortnite-islands",
+                      "Review imported island metadata",
+                      "Latest Imported Fortnite Islands",
+                    ],
+                  ]
+              ).map(([href, prompt, label]) => (
                 <a
                   key={href}
                   href={href}
@@ -1157,45 +1093,6 @@ export default function Home() {
               <LockedAccessSection itemKey="roblox_template_generator" panel={panel} />
             )}
 
-            {canAccess("roblox_correlation") ? (
-              <section className="mb-6">
-              <CorrelationAnalysisCard
-                title="Metric Correlation Analysis"
-                subtitle="Compare Roblox metrics by genre to see where engagement or player-pool signals concentrate."
-                games={topRobloxGames}
-                panel={panel}
-                accent={accent}
-                categoricalY
-                enableTimeWindow
-                defaultYMetricKey="genre"
-              />
-              </section>
-            ) : (
-              <LockedAccessSection itemKey="roblox_correlation" panel={panel} />
-            )}
-
-            {canAccess("roblox_directional_map") ? (
-              <section className="mb-6">
-              <div className={`rounded-3xl border p-6 ${panel}`}>
-                <h2 className="text-2xl font-bold">Directional Research Map</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
-                </p>
-                <BlockHeatMap
-                  items={activeGenreAnalysisItems}
-                  selectedGenre={selectedGenre}
-                  selectedSubgenre={selectedSubgenre}
-                  platform={activePlatform}
-                  panel={panel}
-                  accent={accent}
-                  allowedTimeWindowValues={allowedTimeWindows("roblox_directional_map", false)}
-                />
-              </div>
-              </section>
-            ) : (
-              <LockedAccessSection itemKey="roblox_directional_map" panel={panel} />
-            )}
-
             {canAccess("roblox_idea_card") ? (
               <section id="my-game-idea-is" className="mb-6 scroll-mt-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
@@ -1321,8 +1218,8 @@ export default function Home() {
                     : `This segment maps to ${filteredIdeaItems.length} imported islands.`,
                   `${ideaPercent}% of the active platform dataset matches this idea profile.`,
                   filteredIdeaItems.length > 5
-	                    ? "There are enough examples to investigate repeatable patterns."
-	                    : "This is a lower-signal area and should be treated as exploratory.",
+                    ? "There are enough examples to investigate repeatable patterns."
+                    : "This is a lower-signal area and should be treated as exploratory.",
                 ]}
               />
 
@@ -1339,17 +1236,56 @@ export default function Home() {
                 panel={panel}
                 accent={accent}
                 bullets={[
-	                  filteredIdeaItems.length < 5
-	                    ? "This combination has low representation in the imported dataset."
-	                    : "This combination has visible competition in the imported dataset.",
-	                  "Roblox signals are based on current player snapshots and inferred classifications.",
-                    "Rows marked Heuristic fallback use title, description, and chart text because Roblox source taxonomy was unavailable.",
-		                  "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
-	                ]}
-	              />
+                  filteredIdeaItems.length < 5
+                    ? "This combination has low representation in the imported dataset."
+                    : "This combination has visible competition in the imported dataset.",
+                  "Roblox signals are based on current player snapshots and inferred classifications.",
+                  "Rows marked Heuristic fallback use title, description, and chart text because Roblox source taxonomy was unavailable.",
+                  "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
+                ]}
+              />
               </section>
             ) : (
               <LockedAccessSection itemKey="roblox_research_cards" panel={panel} />
+            )}
+
+            {canAccess("roblox_correlation") ? (
+              <section className="mb-6">
+              <CorrelationAnalysisCard
+                title="Metric Correlation Analysis"
+                subtitle="Compare Roblox metrics by genre to see where engagement or player-pool signals concentrate."
+                games={topRobloxGames}
+                panel={panel}
+                accent={accent}
+                categoricalY
+                enableTimeWindow
+                defaultYMetricKey="genre"
+              />
+              </section>
+            ) : (
+              <LockedAccessSection itemKey="roblox_correlation" panel={panel} />
+            )}
+
+            {canAccess("roblox_directional_map") ? (
+              <section className="mb-6">
+              <div className={`rounded-3xl border p-6 ${panel}`}>
+                <h2 className="text-2xl font-bold">Directional Research Map</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
+                </p>
+                <BlockHeatMap
+                  items={activeGenreAnalysisItems}
+                  selectedGenre={selectedGenre}
+                  selectedSubgenre={selectedSubgenre}
+                  platform={activePlatform}
+                  panel={panel}
+                  accent={accent}
+                  allowedTimeWindowValues={allowedTimeWindows("roblox_directional_map", false)}
+                />
+              </div>
+              </section>
+            ) : (
+              <LockedAccessSection itemKey="roblox_directional_map" panel={panel} />
             )}
 
             {canAccess("roblox_activity_landscape") ? (
@@ -1703,7 +1639,7 @@ function FortniteDashboardView({ context }: any) {
       </section>
 
       {canAccess("fortnite_label_trend") ? (
-        <section className="mb-6">
+        <section id="primary-label-usage-over-time" className="mb-6 scroll-mt-6">
         <ChartCard
           title="Primary Label Usage Over Time"
           subtitle={`${fortniteLabelTrendLimit} first-surfaced labels by island usage across stored snapshots.`}
@@ -1915,30 +1851,8 @@ function FortniteDashboardView({ context }: any) {
         </section>
       )}
 
-      {canAccess("fortnite_directional_map") ? (
-        <section className="mb-6">
-        <div className={`rounded-3xl border p-6 ${panel}`}>
-          <h2 className="text-2xl font-bold">Directional Research Map</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
-          </p>
-          <BlockHeatMap
-            items={activeItems}
-            selectedGenre={selectedGenre}
-            selectedSubgenre={selectedSubgenre}
-            platform={activePlatform}
-            panel={panel}
-            accent={accent}
-            allowedTimeWindowValues={allowedTimeWindows("fortnite_directional_map", false)}
-          />
-        </div>
-        </section>
-      ) : (
-        <LockedAccessSection itemKey="fortnite_directional_map" panel={panel} />
-      )}
-
       {canAccess("fortnite_idea_card") ? (
-        <section className="mb-6">
+        <section id="my-fortnite-island-idea-is" className="mb-6 scroll-mt-6">
         <div className={`rounded-3xl border p-6 ${panel}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -2035,7 +1949,9 @@ function FortniteDashboardView({ context }: any) {
         </div>
         </section>
       ) : (
-        <LockedAccessSection itemKey="fortnite_idea_card" panel={panel} />
+        <section id="my-fortnite-island-idea-is" className="mb-6 scroll-mt-6">
+          <LockedAccessCard itemKey="fortnite_idea_card" panel={panel} />
+        </section>
       )}
 
       {canAccess("fortnite_research_cards") ? (
@@ -2078,8 +1994,30 @@ function FortniteDashboardView({ context }: any) {
         <LockedAccessSection itemKey="fortnite_research_cards" panel={panel} />
       )}
 
+      {canAccess("fortnite_directional_map") ? (
+        <section className="mb-6">
+        <div className={`rounded-3xl border p-6 ${panel}`}>
+          <h2 className="text-2xl font-bold">Directional Research Map</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
+          </p>
+          <BlockHeatMap
+            items={activeItems}
+            selectedGenre={selectedGenre}
+            selectedSubgenre={selectedSubgenre}
+            platform={activePlatform}
+            panel={panel}
+            accent={accent}
+            allowedTimeWindowValues={allowedTimeWindows("fortnite_directional_map", false)}
+          />
+        </div>
+        </section>
+      ) : (
+        <LockedAccessSection itemKey="fortnite_directional_map" panel={panel} />
+      )}
+
       {canAccess("fortnite_island_cards") ? (
-        <section className={`rounded-3xl border p-6 ${panel}`}>
+        <section id="latest-imported-fortnite-islands" className={`scroll-mt-6 rounded-3xl border p-6 ${panel}`}>
         <h2 className="text-2xl font-bold">Latest Imported Fortnite Islands</h2>
         <p className="mt-1 text-sm text-slate-500">
           Metadata cards from the latest imported source collection.
@@ -2098,7 +2036,9 @@ function FortniteDashboardView({ context }: any) {
         </div>
         </section>
       ) : (
-        <LockedAccessSection itemKey="fortnite_island_cards" panel={panel} />
+        <section id="latest-imported-fortnite-islands" className="scroll-mt-6">
+          <LockedAccessCard itemKey="fortnite_island_cards" panel={panel} />
+        </section>
       )}
 
       {canAccess("fortnite_forecasting_inputs") ? (
@@ -2174,30 +2114,6 @@ function withLatestRobloxSnapshot(game: any) {
         ? earliestRanked.chart_rank - latest.chart_rank
         : 0,
   };
-}
-
-async function fetchAllFortniteIslands() {
-  const pageSize = 1000;
-  const rows: any[] = [];
-
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from("fortnite_islands")
-      .select(FORTNITE_ISLAND_SELECT)
-      .order("island_code", { ascending: true })
-      .range(from, from + pageSize - 1);
-
-    if (error) {
-      console.error("Fortnite fetch error:", error);
-      return { data: rows, error };
-    }
-
-    rows.push(...(data ?? []));
-
-    if (!data || data.length < pageSize) {
-      return { data: rows, error: null };
-    }
-  }
 }
 
 function getAveragePlayerGain(snapshots: any[], days: number) {
@@ -6781,6 +6697,7 @@ function ReadOutCard({ maps, panel, platform }: any) {
     .filter(Boolean);
   const strongest = leaders.sort((a: any, b: any) => b.score - a.score)[0];
   const strongestExample = strongest?.examples?.[0];
+  const allGenreNote = getAllGenreOpportunityNote(maps);
 
   return (
     <div className="rounded-3xl border border-[#9fc7e4] bg-[#e8f2fa] p-6">
@@ -6816,6 +6733,12 @@ function ReadOutCard({ maps, panel, platform }: any) {
             ))}
           </ul>
 
+          {allGenreNote ? (
+            <div className="rounded-2xl border border-[#9fc7e4] bg-white/50 p-4 text-sm leading-6 text-slate-600">
+              <strong>Note about "All":</strong> {allGenreNote}
+            </div>
+          ) : null}
+
           <div className="rounded-2xl border border-[#9fc7e4] bg-white/50 p-4 text-sm leading-6 text-slate-600">
             <strong>Research interpretation:</strong>{" "}
             consider investigating segments that appear as deeper blue in more
@@ -6841,6 +6764,50 @@ function ReadOutCard({ maps, panel, platform }: any) {
         <Unavailable text="Not enough classified records to generate a read out." />
       )}
     </div>
+  );
+}
+
+function getAllGenreOpportunityNote(maps: any[]) {
+  const mapsWithAllGenre = maps
+    .map((map: any) => {
+      const allGenreItems = (map.items ?? []).filter(
+        (item: any) =>
+          isAllGenreLabel(item.genre) &&
+          !isAllGenreLabel(item.subgenre) &&
+          !isGenericOpportunityLabel(item.subgenre)
+      );
+
+      return allGenreItems.length
+        ? {
+            title: map.title,
+            subgenres: allGenreItems
+              .slice(0, 3)
+              .map((item: any) => item.subgenre),
+          }
+        : null;
+    })
+    .filter(Boolean);
+
+  if (!mapsWithAllGenre.length) return "";
+
+  const lenses = mapsWithAllGenre.map((map: any) => map.title).join(", ");
+  const subgenres = Array.from(
+    new Set(mapsWithAllGenre.flatMap((map: any) => map.subgenres))
+  ).slice(0, 4);
+
+  return `While a broad genre does not rank high in ${lenses}, ${subgenres.join(
+    ", "
+  )} still surfaces as a subgenre-level opportunity. Consider borrowing mechanics from these subgenres instead of treating "All" as a meaningful genre.`;
+}
+
+function isAllGenreLabel(value: unknown) {
+  return typeof value === "string" && /^all(?: genres)?$/i.test(value.trim());
+}
+
+function isGenericOpportunityLabel(value: unknown) {
+  return (
+    typeof value === "string" &&
+    /^(general|other|unknown|classification pending|n\/a|none)$/i.test(value.trim())
   );
 }
 
@@ -7112,10 +7079,12 @@ function GameTemplateGeneratorRow({
                       setTemplateType(value as "mainstream" | "uncommon" | "top10");
                       setRerollIndex(0);
                     }}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-black transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-2xl border border-[#9fc7e4] bg-[#e8f2fa] px-4 py-3 text-left text-sm font-black text-[#0d69ac] shadow-sm transition hover:border-[#0d69ac] hover:bg-[#dcecf7] disabled:cursor-not-allowed disabled:opacity-40"
                     style={{
                       borderColor: templateType === value && enabled ? accent : undefined,
                       color: templateType === value && enabled ? accent : undefined,
+                      backgroundColor:
+                        templateType === value && enabled ? `${accent}1f` : undefined,
                     }}
                   >
                     {label}
@@ -7125,7 +7094,7 @@ function GameTemplateGeneratorRow({
                     type="button"
                     disabled={!templateType || !templateOptions.reroll}
                     onClick={() => setRerollIndex((value) => value + 1)}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-2xl border border-[#9fc7e4] bg-[#e8f2fa] px-4 py-3 text-left text-sm font-black text-[#0d69ac] shadow-sm transition hover:border-[#0d69ac] hover:bg-[#dcecf7] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Reroll
                   </button>
@@ -10700,7 +10669,7 @@ function TopGamesTooltip({ active, payload, label }: any) {
   const rows = payload
     .filter((item: any) => item.value)
     .sort((a: any, b: any) => (b.value ?? 0) - (a.value ?? 0))
-    .slice(0, 8);
+    .slice(0, 10);
 
   return (
     <div className="max-w-xs rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-lg">

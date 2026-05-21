@@ -4,7 +4,6 @@ import {
   DASHBOARD_TIER_COOKIE,
   getDashboardAuthToken,
 } from "../../../../lib/dashboardAuth";
-import { normalizeAccessTier } from "../../../../lib/entitlements";
 
 export async function POST(req: Request) {
   const configuredPassword = process.env.DASHBOARD_PASSWORD;
@@ -29,9 +28,6 @@ export async function POST(req: Request) {
     isAdmin && configuredAdminPassword ? configuredAdminPassword : configuredPassword
   );
   const response = NextResponse.json({ ok: true });
-  const tier = isAdmin
-    ? "admin"
-    : normalizeAccessTier(process.env.DASHBOARD_DEFAULT_TIER ?? "scout");
 
   response.cookies.set(DASHBOARD_AUTH_COOKIE, token, {
     httpOnly: true,
@@ -40,12 +36,12 @@ export async function POST(req: Request) {
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
-  response.cookies.set(DASHBOARD_TIER_COOKIE, tier, {
+  response.cookies.set(DASHBOARD_TIER_COOKIE, "", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 0,
   });
 
   return response;

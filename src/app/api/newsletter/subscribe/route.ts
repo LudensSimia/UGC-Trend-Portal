@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import { normalizeAccessTier } from "@/lib/entitlements";
 import type { NewsletterFrequency, PlatformKey } from "@/lib/newsletter";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +13,6 @@ export async function POST(req: Request) {
     email?: string;
     frequency?: NewsletterFrequency;
     interests?: PlatformKey[];
-    tier?: string;
   } | null;
   const email = body?.email?.trim().toLowerCase();
 
@@ -28,8 +26,6 @@ export async function POST(req: Request) {
   const interests = (body?.interests ?? ["roblox", "fortnite"]).filter((platform) =>
     VALID_PLATFORMS.has(platform)
   );
-  const tier = normalizeAccessTier(body?.tier);
-
   const { data, error } = await supabase
     .from("newsletter_subscribers")
     .upsert(
@@ -37,7 +33,7 @@ export async function POST(req: Request) {
         email,
         frequency,
         interests: interests.length ? interests : ["roblox", "fortnite"],
-        tier,
+        tier: "newsletter",
         status: "active",
         unsubscribed_at: null,
       },
