@@ -547,9 +547,8 @@ export default function Home() {
     );
   }, [robloxGames]);
   const landscapeRobloxGames = useMemo(() => {
-    return buildCorrelationWindowGames(topRobloxGames, activeLandscapeWindow)
-      .sort((a: any, b: any) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0));
-  }, [topRobloxGames, activeLandscapeWindow]);
+    return buildLandscapeWindowGames(robloxGames, activeLandscapeWindow);
+  }, [robloxGames, activeLandscapeWindow]);
 
   const topFortniteIslands = useMemo(() => {
     return [...fortniteIslands].sort(compareFortniteIslands);
@@ -709,15 +708,12 @@ export default function Home() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-black tracking-tight">
-                  Snout - UGC Intel Dashboard
+                  Snoutboard - UGC Intel Dashboard
                 </h1>
                 <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
                   Beta
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Creator Development intelligence portal by FDS LLC
-              </p>
             </div>
           </div>
 
@@ -805,21 +801,58 @@ export default function Home() {
         {activePlatform === "roblox" ? (
           <nav
             aria-label="Roblox dashboard shortcuts"
-            className="mb-4 flex flex-wrap gap-2"
+            className="mb-4 flex flex-wrap items-center justify-between gap-3"
           >
-            {[
-              ["#most-played-games-over-time", "Most Played Games Over Time"],
-              ["#my-game-idea-is", "My Game Idea Is"],
-              ["#player-activity-landscape", "Player Activity Landscape"],
-            ].map(([href, label]) => (
-              <a
-                key={href}
-                href={href}
-                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10 hover:text-[#0d69ac]"
-              >
-                {label}
-              </a>
-            ))}
+            <div className="flex flex-wrap gap-2">
+              {[
+                [
+                  "#most-played-games-over-time",
+                  "See what's popular",
+                  "Most Played Games Over Time",
+                ],
+                ["#my-game-idea-is", "Start a new project", "My Game Idea Is"],
+                [
+                  "#player-activity-landscape",
+                  "Track what's rising or falling",
+                  "Player Activity Landscape",
+                ],
+              ].map(([href, prompt, label]) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
+                >
+                  <span className="block text-[11px] font-bold normal-case tracking-normal text-slate-400">
+                    {prompt}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-black uppercase tracking-wide text-slate-500">
+                    {label}
+                  </span>
+                </a>
+              ))}
+            </div>
+            <div className="flex items-center gap-2" aria-label="Social media links">
+              {[
+                ["YouTube", "/youtube-logo.png", "h-4 w-6"],
+                ["TikTok", "/tiktok-logo.png", "h-5 w-5"],
+                ["Twitter / X", "/twitter-logo-black.png", "h-5 w-5"],
+              ].map(([label, src, size]) => (
+                <a
+                  key={label}
+                  href="#"
+                  aria-label={`${label} link coming soon`}
+                  title={`${label} link coming soon`}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
+                >
+                  <img
+                    src={src}
+                    alt=""
+                    aria-hidden="true"
+                    className={`${size} object-contain opacity-75 transition hover:opacity-100`}
+                  />
+                </a>
+              ))}
+            </div>
           </nav>
         ) : null}
 
@@ -842,9 +875,9 @@ export default function Home() {
                   items={[
                     `The data is pulled from: ${dataSourceHealth.source}.`,
                     `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
-                    `How many games are queried in the latest snapshot: ${formatNumber(
+                    `Latest non-empty snapshot coverage: ${formatNumber(
                       dataSourceHealth.queriedToday
-                    )}.`,
+                    )} games${dataSourceHealth.snapshotDateLabel ? ` (${dataSourceHealth.snapshotDateLabel})` : ""}.`,
                   ]}
                   lastRunLabel={dataSourceHealth.lastRunLabel}
                   panel={panel}
@@ -1316,7 +1349,7 @@ export default function Home() {
                 <div>
                   <h2 className="text-2xl font-bold">Player Activity Landscape</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Rectangle size reflects player activity in the selected window. Color reflects stored player gain or loss.
+                    Rectangle size reflects today&apos;s activity or the stored peak activity in the selected window. Color reflects stored player gain or loss.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-3">
@@ -1466,9 +1499,14 @@ export default function Home() {
               </button>
             )}
           </div>
-          <p className="rounded-full bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-400">
-            v0.01
-          </p>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <p className="text-xs font-semibold text-slate-400">
+              SnoutBoard is a trademark product of Forgotten Diamond Software, LLC.
+            </p>
+            <p className="rounded-full bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-400">
+              v0.01
+            </p>
+          </div>
         </footer>
         {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
         {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
@@ -1551,9 +1589,9 @@ function FortniteDashboardView({ context }: any) {
             items={[
               `The data is pulled from: ${dataSourceHealth.source}.`,
               `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
-              `How many islands are queried in the latest snapshot: ${formatNumber(
+              `Latest non-empty snapshot coverage: ${formatNumber(
                 dataSourceHealth.queriedToday
-              )}.`,
+              )} islands${dataSourceHealth.snapshotDateLabel ? ` (${dataSourceHealth.snapshotDateLabel})` : ""}.`,
             ]}
             lastRunLabel={dataSourceHealth.lastRunLabel}
             panel={panel}
@@ -3355,20 +3393,8 @@ function buildDataSourceHealth(
       ? "Roblox Explore API / discover charts"
       : "Fortnite Data API / ecosystem islands";
 
-  const latestSnapshotDate = getLatestSourceDate(platform, items);
-  const queriedToday = latestSnapshotDate
-    ? platform === "roblox"
-      ? items.filter((item) =>
-          (item.snapshots ?? []).some((snapshot: any) =>
-            String(snapshot.created_at ?? "").startsWith(latestSnapshotDate)
-          )
-        ).length
-      : items.filter((item) =>
-          String(item.last_seen_at ?? item.created_at ?? "").startsWith(
-            latestSnapshotDate
-          )
-        ).length || items.length
-    : items.length;
+  const latestCoverage = getLatestNonEmptySnapshotCoverage(platform, items);
+  const queriedToday = latestCoverage.count || items.length;
 
   const captureCoverage = calculateDataCaptureCoverage(platform, items);
   const genreEligibleCount = getGenreAnalysisItems(items, platform).length;
@@ -3376,6 +3402,9 @@ function buildDataSourceHealth(
   return {
     totalRecords: items.length,
     queriedToday,
+    snapshotDateLabel: latestCoverage.dateKey
+      ? formatShortDate(`${latestCoverage.dateKey}T00:00:00.000Z`)
+      : "",
     source,
     captureCoverage,
     genreEligibleCount,
@@ -3384,6 +3413,33 @@ function buildDataSourceHealth(
       auditSnapshot?.created_at ?? getLatestSourceTimestamp(platform, items)
     ),
   };
+}
+
+function getLatestNonEmptySnapshotCoverage(platform: Platform, items: any[]) {
+  const countsByDate = new Map<string, Set<string>>();
+
+  items.forEach((item, index) => {
+    const itemKey = String(
+      platform === "roblox"
+        ? item.id ?? item.game_id ?? item.universe_id ?? index
+        : item.id ?? item.island_code ?? index
+    );
+    const snapshots = item.snapshots ?? [];
+
+    snapshots.forEach((snapshot: any) => {
+      const dateKey = getDateKey(snapshot.snapshot_date ?? snapshot.created_at);
+      if (!dateKey) return;
+      if (!countsByDate.has(dateKey)) countsByDate.set(dateKey, new Set());
+      countsByDate.get(dateKey)?.add(itemKey);
+    });
+  });
+
+  const latest = [...countsByDate.entries()]
+    .map(([dateKey, itemKeys]) => ({ dateKey, count: itemKeys.size }))
+    .filter((entry) => entry.count > 0)
+    .sort((a, b) => b.dateKey.localeCompare(a.dateKey))[0];
+
+  return latest ?? { dateKey: "", count: 0 };
 }
 
 function calculateDataCaptureCoverage(platform: Platform, items: any[]) {
@@ -5419,6 +5475,29 @@ function buildCorrelationWindowGames(games: any[], windowKey: "today" | "7d" | "
       };
     })
     .filter((game) => (game.snapshots ?? []).length);
+}
+
+function buildLandscapeWindowGames(
+  games: any[],
+  windowKey: LandscapeTimeWindow
+) {
+  return buildCorrelationWindowGames(games, windowKey)
+    .map((game: any) => {
+      const windowActivity =
+        windowKey === "today"
+          ? game.latestPlayers ?? 0
+          : Math.max(game.periodHigh ?? 0, game.latestPlayers ?? 0);
+
+      return {
+        ...game,
+        landscapePlayers: windowActivity,
+      };
+    })
+    .filter((game: any) => (game.landscapePlayers ?? 0) > 0)
+    .sort(
+      (a: any, b: any) =>
+        (b.landscapePlayers ?? 0) - (a.landscapePlayers ?? 0)
+    );
 }
 
 const fortniteCorrelationMetricOptions = [
@@ -8342,7 +8421,7 @@ function PlayerActivityLandscape({ games }: any) {
                     target="_blank"
                     rel="noreferrer"
                     title={`${game.title} - ${formatNumber(
-                      game.latestPlayers
+                      getLandscapePlayers(game)
                     )} players`}
                     className="group relative flex min-h-0 flex-col justify-end overflow-hidden p-2 text-white transition hover:brightness-110"
                     style={{
@@ -8364,7 +8443,7 @@ function PlayerActivityLandscape({ games }: any) {
                         {game.title}
                       </p>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-black leading-none drop-shadow md:text-xs">
-                        <span>{formatNumber(game.latestPlayers)}</span>
+                        <span>{formatNumber(getLandscapePlayers(game))}</span>
                         <span>
                           {Math.abs(Math.round(game.playerGainPercent ?? 0))}%
                           {positive ? " ▲" : " ▼"}
@@ -8400,7 +8479,7 @@ function buildLandscapeGroups(games: any[]) {
   const map: Record<string, any[]> = {};
 
   games
-    .filter((game) => (game.latestPlayers ?? 0) > 0)
+    .filter((game) => getLandscapePlayers(game) > 0)
     .forEach((game) => {
       const genre = game.inferred_genre ?? "Other";
       if (!map[genre]) map[genre] = [];
@@ -8410,13 +8489,13 @@ function buildLandscapeGroups(games: any[]) {
   return Object.entries(map)
     .map(([genre, entries]) => {
       const sortedEntries = [...entries].sort(
-        (a, b) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0)
+        (a, b) => getLandscapePlayers(b) - getLandscapePlayers(a)
       );
 
       return {
         genre,
         players: sortedEntries.reduce(
-          (sum, item) => sum + (item.latestPlayers ?? 0),
+          (sum, item) => sum + getLandscapePlayers(item),
           0
         ),
         entries: sortedEntries,
@@ -8439,6 +8518,10 @@ function buildLandscapeGroups(games: any[]) {
           })),
       };
     });
+}
+
+function getLandscapePlayers(game: any) {
+  return game.landscapePlayers ?? game.latestPlayers ?? 0;
 }
 
 function getLandscapeGameCount(rowSpan: number) {
@@ -9852,7 +9935,7 @@ function TermsModal({ onClose }: any) {
     {
       title: "Informational market intelligence only",
       body:
-        "Snout - UGC Intel Dashboard provides directional market intelligence, data summaries, automated classifications, and research tools. It does not provide legal, financial, investment, business, or professional advice.",
+        "Snoutboard - UGC Intel Dashboard provides directional market intelligence, data summaries, automated classifications, and research tools. It does not provide legal, financial, investment, business, or professional advice.",
     },
     {
       title: "No guaranteed outcomes",
