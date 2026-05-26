@@ -256,7 +256,7 @@ function analyzeFortniteIsland(island: any) {
    5. Insert snapshot into fortnite_island_snapshots
 
    Important:
-   The official Fortnite Data API may include activity
+   The Fortnite Data API may include activity
    metrics such as minutes played, plays, recommends,
    peak CCU, unique players, and retention. We keep the
    mapping defensive because field names can vary across
@@ -300,12 +300,12 @@ export async function GET(req: Request) {
         ingestRunId,
         status: "failed",
         httpStatus: res.status,
-        errorMessage: "Official Fortnite Data API fetch failed",
+        errorMessage: "Fortnite Data API fetch failed",
       });
 
       return NextResponse.json(
         {
-          error: "Official Fortnite Data API fetch failed",
+          error: "Fortnite Data API fetch failed",
           status: res.status,
         },
         { status: 500 }

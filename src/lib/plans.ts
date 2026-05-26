@@ -22,7 +22,7 @@ export const BILLING_PLANS: BillingPlan[] = [
   {
     key: "scout_monthly",
     tier: "scout",
-    name: "Scout Monthly",
+    name: "Explorer Monthly",
     period: "monthly",
     priceCents: 1900,
     displayPrice: "$19/mo",
@@ -30,7 +30,7 @@ export const BILLING_PLANS: BillingPlan[] = [
   {
     key: "scout_project_3_month",
     tier: "scout",
-    name: "Scout 3-Month Project Pass",
+    name: "Explorer 3-Month Project Pass",
     period: "project_3_month",
     priceCents: 4900,
     displayPrice: "$49",
@@ -38,7 +38,7 @@ export const BILLING_PLANS: BillingPlan[] = [
   {
     key: "scout_annual",
     tier: "scout",
-    name: "Scout Annual",
+    name: "Explorer Annual",
     period: "annual",
     priceCents: 19000,
     displayPrice: "$190/yr",
@@ -46,7 +46,7 @@ export const BILLING_PLANS: BillingPlan[] = [
   {
     key: "pro_monthly",
     tier: "pro",
-    name: "Pro Monthly",
+    name: "Researcher Monthly",
     period: "monthly",
     priceCents: 4900,
     displayPrice: "$49/mo",
@@ -54,7 +54,7 @@ export const BILLING_PLANS: BillingPlan[] = [
   {
     key: "pro_project_3_month",
     tier: "pro",
-    name: "Pro 3-Month Project Pass",
+    name: "Researcher 3-Month Project Pass",
     period: "project_3_month",
     priceCents: 12900,
     displayPrice: "$129",
@@ -62,7 +62,7 @@ export const BILLING_PLANS: BillingPlan[] = [
   {
     key: "pro_annual",
     tier: "pro",
-    name: "Pro Annual",
+    name: "Researcher Annual",
     period: "annual",
     priceCents: 49000,
     displayPrice: "$490/yr",

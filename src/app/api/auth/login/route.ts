@@ -2,31 +2,42 @@ import { NextResponse } from "next/server";
 import {
   DASHBOARD_AUTH_COOKIE,
   DASHBOARD_TIER_COOKIE,
-  getDashboardAuthToken,
+  createDashboardSessionToken,
 } from "../../../../lib/dashboardAuth";
+import { getOrCreateProfile, resolveProfileAccessTier } from "@/lib/authProfiles";
+import { createSupabaseAuthClient } from "@/lib/supabaseAuth";
 
 export async function POST(req: Request) {
-  const configuredPassword = process.env.DASHBOARD_PASSWORD;
-  const configuredAdminPassword =
-    process.env.DASHBOARD_ADMIN_PASSWORD ?? configuredPassword;
+  const { email, password } = await req.json();
 
-  if (!configuredPassword) {
+  if (!email || !password) {
     return NextResponse.json(
-      { error: "Dashboard password is not configured" },
-      { status: 500 }
+      { error: "Email and password are required" },
+      { status: 400 }
     );
   }
 
-  const { password } = await req.json();
-  const isAdmin = Boolean(configuredAdminPassword && password === configuredAdminPassword);
+  const supabase = createSupabaseAuthClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: String(email).trim().toLowerCase(),
+    password,
+  });
 
-  if (password !== configuredPassword && !isAdmin) {
-    return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+  if (error || !data.user) {
+    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
-  const token = await getDashboardAuthToken(
-    isAdmin && configuredAdminPassword ? configuredAdminPassword : configuredPassword
-  );
+  const profile = await getOrCreateProfile({
+    id: data.user.id,
+    email: data.user.email,
+  });
+  const tier = resolveProfileAccessTier(profile);
+  const token = await createDashboardSessionToken({
+    userId: data.user.id,
+    email: data.user.email ?? String(email).trim().toLowerCase(),
+    role: tier === "admin" ? "admin" : "user",
+    tier,
+  });
   const response = NextResponse.json({ ok: true });
 
   response.cookies.set(DASHBOARD_AUTH_COOKIE, token, {

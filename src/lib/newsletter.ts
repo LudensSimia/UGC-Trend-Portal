@@ -348,9 +348,9 @@ function buildBlock(
     return {
       widgetKey,
       title: `${platformLabel(platform)} Forecasting Signal Inputs`,
-      summary: "A pro-level research input block reserved for historical and forecasting-oriented views.",
+      summary: "A Researcher-level input block reserved for historical and forecasting-oriented views.",
       bullets: ["Use as market context only; this is not a prediction or business recommendation."],
-      ctaLabel: "Review pro dashboard",
+      ctaLabel: "Review Researcher dashboard",
       ctaUrl,
     };
   }

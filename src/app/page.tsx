@@ -240,7 +240,14 @@ function canSeeAccessItem(
 }
 
 function tierLabel(tier: UserTier) {
-  return tier === "admin" ? "Admin" : tier.charAt(0).toUpperCase() + tier.slice(1);
+  const labels: Record<UserTier, string> = {
+    free: "Free",
+    scout: "Explorer",
+    pro: "Researcher",
+    admin: "Admin",
+  };
+
+  return labels[tier];
 }
 
 export default function Home() {
@@ -375,6 +382,11 @@ export default function Home() {
 
     fetchData();
   }, []);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    window.location.href = "/login";
+  }
 
   const activeItems =
     activePlatform === "roblox" ? robloxGames : fortniteIslands;
@@ -630,7 +642,7 @@ export default function Home() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-black tracking-tight">
-                  Snoutboard - UGC Intel Dashboard
+                  Snoutboard - UGC Research Dashboard
                 </h1>
                 <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
                   Beta
@@ -676,22 +688,18 @@ export default function Home() {
 
             <DatePill date={currentDateLabel} accent={accent} />
 
-            <ToggleGroup>
-              <ToggleButton
-                active={!darkMode}
-                onClick={() => setDarkMode(false)}
-                activeColor={accent}
-              >
-                Light
-              </ToggleButton>
-              <ToggleButton
-                active={darkMode}
-                onClick={() => setDarkMode(true)}
-                activeColor={accent}
-              >
-                Dark
-              </ToggleButton>
-            </ToggleGroup>
+            <ThemeModeButton
+              darkMode={darkMode}
+              onClick={() => setDarkMode((value) => !value)}
+              accent={accent}
+            />
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-200"
+            >
+              Log out
+            </button>
           </div>
         </header>
 
@@ -699,16 +707,20 @@ export default function Home() {
           <div className="mb-8 flex items-start justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             <p>
               <span>
-                <strong>Informational use only.</strong> Snout provides
-                directional market intelligence, data summaries, and automated
-                classifications for research and creative exploration. It does
-                not provide legal, financial, investment, business, or
-                professional advice and does not guarantee revenue, player
-                growth, discoverability, platform placement, or creator success.
+                <strong>Informational use only.</strong> Snoutboard provides
+                independent market-intelligence summaries and research signals
+                for creative exploration. Data may be incomplete, delayed,
+                inferred, or automatically classified, and should be
+                independently reviewed before use. Snoutboard does not provide
+                legal, financial, investment, business, or professional advice
+                and does not guarantee revenue, player growth, discoverability,
+                platform placement, or creator success.
               </span>
               <span className="mt-2 block">
-                Video games are a form of art, please use the displayed
-                information to fuel your creativity and ultimately provide fun.
+                Snoutboard is not affiliated with, endorsed by, or sponsored by
+                Roblox, Epic Games, Fortnite, or any platform owner. Video games
+                are a form of art; use these signals to support your creativity
+                and build experiences that are fun.
               </span>
             </p>
             <button
@@ -1421,38 +1433,47 @@ export default function Home() {
           <FortniteDashboardView context={dashboardContext} />
         )}
 
-        <footer className="mt-12 flex min-h-20 flex-wrap items-start justify-between gap-3 border-t border-slate-200 pt-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setShowTerms(true)}
-              className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
-            >
-              Terms of service
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowGlossary(true)}
-              className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
-            >
-              Glossary
-            </button>
-            {userTier === "admin" && (
+        <footer className="mt-12 min-h-20 border-t border-slate-200 pt-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => setShowAdminPanel(true)}
-                className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+                onClick={() => setShowTerms(true)}
+                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
               >
-                Admin access
+                Terms of service
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => setShowGlossary(true)}
+                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
+              >
+                Glossary
+              </button>
+              {userTier === "admin" && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPanel(true)}
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  Admin access
+                </button>
+              )}
+            </div>
+            <div className="flex flex-col items-start gap-2 sm:items-end">
+              <p className="text-xs font-semibold text-slate-400">
+                SnoutBoard is a trademark product of Forgotten Diamond Software, LLC.
+              </p>
+              <p className="rounded-full bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-400">
+                v0.01
+              </p>
+            </div>
           </div>
-          <div className="flex flex-col items-start gap-2 sm:items-end">
-            <p className="text-xs font-semibold text-slate-400">
-              SnoutBoard is a trademark product of Forgotten Diamond Software, LLC.
-            </p>
-            <p className="rounded-full bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-400">
-              v0.01
+          <div className="mt-8 flex justify-center">
+            <p className="max-w-4xl text-center text-xs font-semibold leading-5 text-slate-400">
+              Snoutboard is independent and is not affiliated with, endorsed by,
+              sponsored by, certified by, approved by, or operated by Roblox,
+              Epic Games, Fortnite, or any related platform owner.
             </p>
           </div>
         </footer>
@@ -1551,7 +1572,7 @@ function FortniteDashboardView({ context }: any) {
 
         {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
           <ScoreboardCard
-            title="Featured Fortnite Islands"
+            title="Imported Fortnite Islands"
             subtitle="Latest imported source collection"
             items={currentTopFortniteIslands.slice(0, 5).map((island: any, index: number) => {
               const yesterdayIsland = getFortniteIslandBySnapshotRank(
@@ -1682,7 +1703,7 @@ function FortniteDashboardView({ context }: any) {
       {SHOW_ARCHIVED_FORTNITE_VISIBILITY_WIDGETS && (
         <section className="mb-6">
           <ChartCard
-            title="Most Featured Islands"
+            title="Most Captured Islands"
             subtitle="Islands with the most captured days in the imported source collection."
             panel={panel}
             contentClassName="min-h-[30rem]"
@@ -1985,7 +2006,7 @@ function FortniteDashboardView({ context }: any) {
             filteredIdeaItems.length < 5
               ? "This combination has low representation in the imported Fortnite dataset."
               : "This combination has visible competition in the imported Fortnite dataset.",
-            "Fortnite signals use official activity fields when the source returns them; missing fields should be treated as coverage gaps.",
+            "Fortnite signals use source-provided activity fields when available; missing fields should be treated as coverage gaps.",
             "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
           ]}
         />
@@ -2211,7 +2232,7 @@ function getFortniteActivityLabel(item: any) {
     return `#${item.latestRank}`;
   }
 
-  return "Official metrics pending";
+  return "Source metrics pending";
 }
 
 function getFortniteSnapshotValue(snapshot: any) {
@@ -5685,7 +5706,7 @@ const fortniteCorrelationMetricOptions = [
   },
   {
     key: "top25Days",
-    label: "Captured Top 25 days",
+    label: "Captured source-set days",
     value: (island: any) => island.top25Days,
     format: formatNumber,
   },
@@ -7036,7 +7057,7 @@ function GameTemplateGeneratorRow({
     { value: "uncommon", label: "Uncommon type", enabled: templateOptions.uncommon },
     {
       value: "top10",
-      label: platform === "roblox" ? "Top 10 type" : "Source set type",
+      label: platform === "roblox" ? "Leading set type" : "Source set type",
       enabled: templateOptions.top10,
     },
   ];
@@ -7171,7 +7192,7 @@ function GameTemplateGeneratorRow({
             ) : (
               <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-500">
                 {platform === "roblox"
-                  ? "Select Mainstream type, Uncommon type, or Top 10 type to generate a fictional template."
+                  ? "Select Mainstream type, Uncommon type, or Leading set type to generate a fictional template."
                   : "Select Mainstream type, Uncommon type, or Source set type to generate a fictional template."}
               </div>
             )}
@@ -7279,7 +7300,7 @@ function buildGameTemplate(
         ? `This generated template is similar to the most common ${platform === "roblox" ? "Roblox" : "Fortnite"} genre and subgenre pattern captured in the ${windowLabel} window. Treat it as a baseline brief, not proof of demand.`
         : templateType === "top10"
           ? platform === "roblox"
-            ? "This generated template is similar to the genre and subgenre patterns visible in the current Top 10 Roblox records. Treat it as a top-set reference, not proof of demand."
+            ? "This generated template is similar to the genre and subgenre patterns visible in the current leading Roblox records. Treat it as a source-set reference, not proof of demand."
             : "This generated template is similar to the genre and subgenre patterns visible in the latest imported Fortnite records. Treat it as a source-set reference, not proof of demand."
         : `This generated template is similar to a less common ${platform === "roblox" ? "Roblox" : "Fortnite"} genre and subgenre pattern captured in the ${windowLabel} window. Treat it as a whitespace prompt, not proof that the uncommon format will convert.`,
     caveat:
@@ -7523,7 +7544,7 @@ function buildTemplateDescription(
       ]
     : templateType === "top10"
       ? [
-          `Build around a Top 10-inspired ${genre} / ${subgenre} experience centered on ${cue}.`,
+          `Build around a leading-set-inspired ${genre} / ${subgenre} experience centered on ${cue}.`,
           progressionLine,
           socialLine,
           freshnessLine,
@@ -8970,13 +8991,13 @@ function buildPredictionSignals(
 
   return [
     {
-      label: "Daily rank history",
+      label: "Daily source-position history",
       value: rankedSnapshots.length
-        ? `${rankedSnapshots.length} ranked snapshots`
-        : "No ranked snapshots",
-      detail: `Latest rank: #${target.latestRank ?? "N/A"} in ${
-        target.latestSort ?? "current chart"
-      }. Rank movement: ${rankGain > 0 ? "+" : ""}${rankGain} spots.`,
+        ? `${rankedSnapshots.length} source-position snapshots`
+        : "No source-position snapshots",
+      detail: `Latest source position: #${target.latestRank ?? "N/A"} in ${
+        target.latestSort ?? "current source set"
+      }. Position movement: ${rankGain > 0 ? "+" : ""}${rankGain} spots.`,
     },
     {
       label: "Player velocity",
@@ -9257,6 +9278,46 @@ function DatePill({ date, accent }: any) {
   );
 }
 
+function ThemeModeButton({ darkMode, onClick, accent }: any) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+      title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+      style={
+        darkMode
+          ? {
+              backgroundColor: accent,
+              borderColor: accent,
+              color: "white",
+              outlineColor: accent,
+            }
+          : { outlineColor: accent }
+      }
+    >
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M9 18h6" />
+        <path d="M10 22h4" />
+        <path d="M8.5 14.5c-1.3-1-2-2.5-2-4.1a5.5 5.5 0 0 1 11 0c0 1.6-.7 3.1-2 4.1-.8.6-1.2 1.5-1.2 2.5H9.7c0-1-.4-1.9-1.2-2.5Z" />
+        {!darkMode && <path d="M12 2v1.5" />}
+        {!darkMode && <path d="M4.9 4.9 6 6" />}
+        {!darkMode && <path d="M19.1 4.9 18 6" />}
+      </svg>
+    </button>
+  );
+}
+
 function ModalShell({ children, onClose }: any) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
@@ -9306,8 +9367,8 @@ function AdminTierPreviewSelect({
       >
         <option value="admin">Admin</option>
         <option value="free">Free</option>
-        <option value="scout">Scout</option>
-        <option value="pro">Pro</option>
+        <option value="scout">Explorer</option>
+        <option value="pro">Researcher</option>
       </select>
     </label>
   );
@@ -9351,10 +9412,10 @@ function AdminAccessModal({
             </p>
             <h2 className="mt-1 text-2xl font-black">Tier Visibility Panel</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              Choose which cards are visible to Free, Scout, and Pro users.
-              Each card can also expose its own dedicated options, such as 7D,
-              Month, 3M, list views, search, or template rerolls. Admin always
-              sees every card and option.
+              Choose which cards are visible to Free, Explorer, and Researcher
+              users. Each card can also expose its own dedicated options, such
+              as 7D, Month, 3M, list views, search, or template rerolls. Admin
+              always sees every card and option.
             </p>
           </div>
           <button
@@ -9671,7 +9732,7 @@ function LockedPreview({ type }: { type: LockedPreviewType | "chart" }) {
     return (
       <div className="mt-5 rounded-2xl bg-slate-50 p-5">
         <p className="text-sm font-bold leading-6 text-slate-400">
-          A breakdown of the top 25 featured game descriptions to help you
+          A processed breakdown of captured game descriptions to help you
           structure yours.
         </p>
         <div className="mt-4 space-y-2">
@@ -9728,7 +9789,7 @@ function LockedPreview({ type }: { type: LockedPreviewType | "chart" }) {
             Template type
           </p>
           <div className="mt-4 grid gap-2">
-            {["Mainstream type", "Uncommon type", "Top 10 type", "Reroll"].map((label) => (
+            {["Mainstream type", "Uncommon type", "Leading set type", "Reroll"].map((label) => (
               <span key={label} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-400">
                 {label}
               </span>
@@ -10114,39 +10175,39 @@ function LockedAccessSection({ itemKey, panel }: { itemKey: string; panel: strin
 function TermsModal({ onClose }: any) {
   const sections = [
     {
-      title: "Informational market intelligence only",
+      title: "Independent research tool",
       body:
-        "Snoutboard - UGC Intel Dashboard provides directional market intelligence, data summaries, automated classifications, and research tools. It does not provide legal, financial, investment, business, or professional advice.",
+        "Snoutboard - UGC Research Dashboard is an independent research product that provides processed data summaries, interpreted signals, automated classifications, and creative research tools. It is not an official product, partner portal, agency service, marketplace, or platform-operated analytics tool.",
     },
     {
-      title: "No guaranteed outcomes",
+      title: "No platform affiliation or endorsement",
       body:
-        "The dashboard does not guarantee revenue, profit, player growth, audience retention, discoverability, platform placement, publishing success, or any specific creative or business result. Users are solely responsible for their own creative, production, publishing, investment, and business decisions.",
+        "Snoutboard is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner. Platform names, game names, island names, experience names, thumbnails, labels, and other references are used only to identify the source context of the processed research data.",
     },
     {
-      title: "Interpreted and incomplete data",
+      title: "Informational use only",
       body:
-        "Displayed information may be incomplete, delayed, inferred, automatically classified, experimental, or inaccurate. Scores, maps, labels, rankings, and forecasts are research signals only and should be independently reviewed before use.",
+        "The dashboard does not provide legal, financial, investment, business, production, publishing, or professional advice. It does not guarantee revenue, profit, player growth, audience retention, discoverability, platform placement, publishing success, or any specific creative or business result. Users are solely responsible for their own creative, production, publishing, investment, and business decisions.",
+    },
+    {
+      title: "Processed and interpreted data",
+      body:
+        "Displayed information is processed from available source data and may be incomplete, delayed, inferred, automatically classified, experimental, or inaccurate. Scores, maps, labels, source positions, trend lines, and forecasts are Snoutboard research signals only and should be independently reviewed before use.",
+    },
+    {
+      title: "No raw source redistribution",
+      body:
+        "Snoutboard users may not misuse, scrape, bulk export, resell, redistribute, or present Snoutboard outputs as official platform data, guaranteed business advice, or a substitute for reviewing the original platform source. Access is intended for viewing processed dashboard research, not for obtaining a raw data feed.",
     },
     {
       title: "All access tiers",
       body:
-        "These terms apply to all users and access types, including newsletter subscribers, trial users, paid users, pro users, and admin/internal users. Newsletter content is also informational and does not provide business advice or guaranteed outcomes.",
+        "These terms apply to all users and access types, including newsletter subscribers, trial users, paid users, Explorer users, Researcher users, and admin/internal users. Newsletter content is also informational and does not provide business advice, official platform guidance, or guaranteed outcomes.",
     },
     {
       title: "Beta product",
       body:
-        "Snout is currently in beta. Features, data sources, calculations, labels, and tier access may change as the product develops.",
-    },
-    {
-      title: "No platform affiliation",
-      body:
-        "Unless expressly stated otherwise, Snout is not affiliated with, endorsed by, or sponsored by Roblox, Epic Games, Fortnite, Microsoft, Mojang, or any related platform owner.",
-    },
-    {
-      title: "Use of the service",
-      body:
-        "Users may not misuse, resell, scrape, redistribute, or present Snout outputs as guaranteed business advice. Continued use of the dashboard means you understand these limitations.",
+        "Snoutboard is currently in beta. Features, data sources, calculations, labels, pricing, and tier access may change as the product develops. Continued use of the dashboard means you understand these limitations.",
     },
   ];
 
@@ -10202,62 +10263,62 @@ function GlossaryModal({ onClose }: any) {
     {
       title: "Current players",
       body:
-        "The latest stored concurrent player count for a Roblox experience when that metric is available.",
+        "A processed dashboard field showing the latest stored concurrent player count for a Roblox experience when that metric is available from the captured source data.",
     },
     {
       title: "Source position",
       body:
-        "The position captured from a source list or from the imported source order.",
+        "A processed dashboard field showing the position captured from a source list or imported source order. It should not be read as an official popularity ranking unless the source explicitly provides that meaning.",
     },
     {
       title: "Focused source set",
       body:
-        "A filtered view of the entries selected from the imported source data for that platform.",
+        "A processed and filtered view of entries selected from imported source data for the active platform. The set is used for research comparisons inside Snoutboard.",
     },
     {
       title: "Data capture coverage",
       body:
-        "The share of expected source and dashboard fields captured across the current dataset. Missing expected fields reduce the score. This measures field completeness, not whether an interpretation or classification is correct.",
+        "A processed completeness score: the share of expected source and dashboard fields captured across the current dataset. Missing expected fields reduce the score. This measures field completeness, not whether an interpretation or classification is correct.",
     },
     {
       title: "Heuristic fallback",
       body:
-        "A label shown when source taxonomy is unavailable and the dashboard estimates classification from title, description, chart context, or stored metadata.",
+        "A processed classification label shown when source taxonomy is unavailable and Snoutboard estimates classification from title, description, source context, or stored metadata.",
     },
     {
       title: "Primary label",
       body:
-        "For Fortnite islands, the first surfaced label captured from the island metadata. This can reveal format, theme, or collaboration signals.",
+        "A processed Fortnite field based on the first surfaced label captured from island metadata. It can suggest format, theme, or collaboration context, but it is not an official endorsement or partnership signal.",
     },
     {
       title: "IP / Collaboration signal",
       body:
-        "A detected reference to a recognizable franchise, brand, or collaboration theme in labels, titles, or descriptions.",
+        "A processed detection of a recognizable franchise, brand, or collaboration reference in labels, titles, or descriptions. It identifies textual context only and does not imply Snoutboard has any relationship with that rights holder.",
     },
     {
       title: "Directional research map",
       body:
-        "A visual research aid that compares categories across interpreted market signals. It is not a prediction or recommendation guarantee.",
+        "A processed visual research aid that compares categories across interpreted signals. It is not an official platform tool, prediction, recommendation guarantee, or business instruction.",
     },
     {
       title: "Demand",
       body:
-        "An interpreted measure of player activity or audience concentration in a category based on available snapshot data.",
+        "A processed and interpreted measure of player activity or audience concentration in a category based on available snapshot data.",
     },
     {
       title: "Saturation",
       body:
-        "An interpreted measure of how many imported games or islands occupy a similar category or format.",
+        "A processed and interpreted measure of how many imported games or islands occupy a similar category or format in the captured dataset.",
     },
     {
       title: "Estimated game format complexity",
       body:
-        "A directional estimate of how complex a category or format appears from its genre, subgenre, labels, and observed design pattern. It is not an engineering cost estimate.",
+        "A processed directional estimate of how complex a category or format appears from genre, subgenre, labels, and observed design patterns. It is not an official platform classification or engineering cost estimate.",
     },
     {
       title: "Prediction market signals",
       body:
-        "Research-oriented signals that may help observe momentum, volatility, category concentration, and outlier behavior. They are informational only.",
+        "Processed research-oriented signals that may help observe momentum, volatility, category concentration, and outlier behavior. They are informational only and do not predict or guarantee outcomes.",
     },
   ];
 
@@ -10273,8 +10334,8 @@ function GlossaryModal({ onClose }: any) {
               Glossary
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Short definitions for dashboard terms used across Roblox and
-              Fortnite views.
+              Short definitions for processed dashboard terms used across
+              Roblox and Fortnite research views.
             </p>
           </div>
           <button
@@ -10508,7 +10569,7 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
                     {row.title}
                   </p>
                   <p className="text-[11px] font-semibold text-slate-400">
-                    Longest Top {limit} streak: {row.streakFirstSeenLabel} -{" "}
+                    Longest {limit}-item source-set streak: {row.streakFirstSeenLabel} -{" "}
                     {row.streakLatestSeenLabel} · {formatNumber(row.featuredCount)} captured
                     appearances
                   </p>
@@ -10533,7 +10594,7 @@ function FortniteFeaturedIslandsBar({ islands, limit, accent }: any) {
       <div className="mt-auto border-t border-slate-100 pt-4">
         {hasOnlySingleDayRows && (
           <p className="mb-3 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-snug text-slate-400">
-            Multi-day Top {limit} streaks are not available yet from rank-captured snapshots.
+            Multi-day {limit}-item source-set streaks are not available yet from captured source-position snapshots.
           </p>
         )}
         <PagedChartFooter
@@ -10609,7 +10670,7 @@ function FortniteIslandLifecycleRankings({ islands, limit, accent }: any) {
       <FortniteLifecycleList
         title="Longest standing"
         rows={longest}
-        metricLabel="Top snapshots"
+        metricLabel="Source-set snapshots"
         metricKey="featuredCountLabel"
         accent={accent}
       />
@@ -10787,7 +10848,7 @@ function FortniteLifecycleList({ title, rows, metricLabel, metricKey, accent }: 
                 {metricLabel}: {row[metricKey]} · Latest rank #{row.latestRank ?? "N/A"}
               </p>
               <p className="text-[11px] font-semibold text-slate-400">
-                {row.daysInChartLabel} in Top {row.rankLimit} charts
+                {row.daysInChartLabel} in {row.rankLimit}-item source sets
               </p>
             </div>
           </div>

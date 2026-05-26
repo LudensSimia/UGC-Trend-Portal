@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Snout - UGC Intel Dashboard",
-  description: "Creator market intelligence dashboard for Roblox and Fortnite UGC signals.",
+  title: "Snoutboard - UGC Research Dashboard",
+  description: "Creator research dashboard for Roblox and Fortnite UGC signals.",
 };
 
 export default function RootLayout({

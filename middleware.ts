@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   DASHBOARD_AUTH_COOKIE,
-  getDashboardAuthToken,
+  verifyDashboardSessionToken,
 } from "./src/lib/dashboardAuth";
 
 const PUBLIC_FILE = /\.(.*)$/;
@@ -22,18 +22,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const password = process.env.DASHBOARD_PASSWORD;
+  const session = await verifyDashboardSessionToken(
+    req.cookies.get(DASHBOARD_AUTH_COOKIE)?.value
+  );
 
-  if (!password) {
-    return redirectToLogin(req);
-  }
-
-  const adminPassword = process.env.DASHBOARD_ADMIN_PASSWORD ?? password;
-  const expectedToken = await getDashboardAuthToken(password);
-  const expectedAdminToken = await getDashboardAuthToken(adminPassword);
-  const authToken = req.cookies.get(DASHBOARD_AUTH_COOKIE)?.value;
-
-  if (authToken === expectedToken || authToken === expectedAdminToken) {
+  if (session) {
     return NextResponse.next();
   }
 

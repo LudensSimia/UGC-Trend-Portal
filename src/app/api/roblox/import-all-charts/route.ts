@@ -19,7 +19,7 @@ const supabase = createSupabaseServerClient()
 /* =========================================================
    ROBLOX API CONFIG
    ---------------------------------------------------------
-   These parameters mimic a Roblox Discover request.
+   These parameters define the captured Roblox discovery context.
    ========================================================= */
 
 const SESSION_ID = '11111111-1111-1111-1111-111111111111'
