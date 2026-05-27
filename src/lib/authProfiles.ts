@@ -7,14 +7,13 @@ export type DashboardProfile = {
   role: "user" | "admin";
   subscription_tier: string;
   subscription_status: string;
-  access_expires_at?: string | null;
 };
 
 export async function getOrCreateProfile(user: { id: string; email?: string | null }) {
   const supabase = createSupabaseServerClient();
   const { data: existing, error: readError } = await supabase
     .from("profiles")
-    .select("id,email,role,subscription_tier,subscription_status,access_expires_at")
+    .select("id,email,role,subscription_tier,subscription_status")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -27,10 +26,10 @@ export async function getOrCreateProfile(user: { id: string; email?: string | nu
       id: user.id,
       email: user.email ?? null,
       role: "user",
-      subscription_tier: "free",
+      subscription_tier: "newsletter",
       subscription_status: "none",
     })
-    .select("id,email,role,subscription_tier,subscription_status,access_expires_at")
+    .select("id,email,role,subscription_tier,subscription_status")
     .single();
 
   if (error) throw error;
@@ -42,7 +41,7 @@ export async function getProfileById(userId: string) {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,role,subscription_tier,subscription_status,access_expires_at")
+    .select("id,email,role,subscription_tier,subscription_status")
     .eq("id", userId)
     .maybeSingle();
 
@@ -57,10 +56,8 @@ export function resolveProfileAccessTier(profile?: DashboardProfile | null): Acc
 
   const tier = normalizeAccessTier(profile.subscription_tier);
   const activeStatus = ["active", "trialing"].includes(profile.subscription_status);
-  const hasUnexpiredAccess =
-    !profile.access_expires_at || new Date(profile.access_expires_at).getTime() > Date.now();
 
-  if ((tier === "scout" || tier === "paid" || tier === "pro" || tier === "trial") && activeStatus && hasUnexpiredAccess) {
+  if ((tier === "scout" || tier === "paid" || tier === "pro" || tier === "trial") && activeStatus) {
     return tier;
   }
 

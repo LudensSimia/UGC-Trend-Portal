@@ -9,6 +9,7 @@ import { getProfileById, resolveProfileAccessTier } from "@/lib/authProfiles";
 export type DashboardSession = {
   authenticated: boolean;
   tier: AccessTier;
+  email?: string | null;
 };
 
 export async function getDashboardSession(req: NextRequest): Promise<DashboardSession> {
@@ -18,6 +19,7 @@ export async function getDashboardSession(req: NextRequest): Promise<DashboardSe
     return {
       authenticated: true,
       tier: normalizeAccessTier(devTier),
+      email: null,
     };
   }
 
@@ -32,7 +34,11 @@ export async function getDashboardSession(req: NextRequest): Promise<DashboardSe
   const profile = await getProfileById(authPayload.userId);
   const tier = resolveProfileAccessTier(profile);
 
-  return { authenticated: true, tier };
+  return {
+    authenticated: true,
+    tier,
+    email: profile?.email ?? authPayload.email ?? null,
+  };
 }
 
 export function hasFullDashboardDataAccess(tier: AccessTier) {

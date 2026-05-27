@@ -35,6 +35,7 @@ const ROBLOX_SELECT = `
     like_ratio
   ),
   roblox_chart_snapshots (
+    snapshot_date,
     created_at,
     current_players,
     chart_rank,

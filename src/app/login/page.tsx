@@ -13,14 +13,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [subscribeNewsletter, setSubscribeNewsletter] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [freeLoading, setFreeLoading] = useState(false);
   const supabase = useMemo(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    return url && anonKey ? createClient(url, anonKey) : null;
+    return url && anonKey
+      ? createClient(url, anonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+          },
+        })
+      : null;
   }, []);
 
   useEffect(() => {
@@ -67,6 +77,7 @@ export default function LoginPage() {
       return;
     }
 
+    await submitNewsletterOptIn();
     const nextPath =
       new URLSearchParams(window.location.search).get("next") || "/";
 
@@ -87,6 +98,8 @@ export default function LoginPage() {
       return;
     }
 
+    await submitNewsletterOptIn();
+
     if (payload?.requiresConfirmation) {
       setMessage("Check your email to confirm the account before signing in.");
       setMode("login");
@@ -96,6 +109,45 @@ export default function LoginPage() {
 
     router.replace("/");
     router.refresh();
+  }
+
+  async function submitNewsletterOptIn() {
+    if (!subscribeNewsletter || !email) return;
+
+    await fetch("/api/newsletter/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        frequency: "weekly",
+        interests: ["roblox", "fortnite"],
+      }),
+    }).catch(() => null);
+  }
+
+  async function enterFreeDashboard() {
+    setError("");
+    setMessage("");
+    setFreeLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/free", { method: "POST" });
+
+      if (!response.ok) {
+        throw new Error("Unable to open the free dashboard.");
+      }
+
+      router.replace("/");
+      router.refresh();
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to open the free dashboard."
+      );
+    } finally {
+      setFreeLoading(false);
+    }
   }
 
   async function submitForgotPassword() {
@@ -181,26 +233,61 @@ export default function LoginPage() {
           : "Enter Dashboard";
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#111318] px-6 text-slate-100">
-      <section className="w-full max-w-sm rounded-2xl border border-[#303540] bg-[#191c22] p-6 shadow-2xl">
-        <div className="mb-6">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#0d69ac]">
-            Private Beta
-          </p>
-          <h1 className="mt-3 text-2xl font-black tracking-tight">
-            Snoutboard
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">
-            {title}
-          </p>
+    <main className="min-h-screen bg-[#eef0f3] px-5 py-8 text-slate-900">
+      <section className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-2">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-10">
+          <div className="flex items-center gap-4">
+            <img
+              src="/LogoSnoutBoard.svg"
+              alt="Snoutboard"
+              className="h-16 w-16 object-contain"
+            />
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-black tracking-tight md:text-3xl">
+                  Snoutboard
+                </h1>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                  Beta
+                </span>
+              </div>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                UGC Research Dashboard
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-3xl border border-[#b9d6ea] bg-[#eaf5fd] p-5">
+            <p className="text-sm font-black text-[#0d4f82]">
+              Disclaimer & Acknowledgement
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[#24465d]">
+              Snoutboard is independent and is not affiliated with, endorsed by,
+              sponsored by, or operated by Roblox, Epic Games, Fortnite, or any
+              related platform owner. By entering the portal, you acknowledge
+              that Snoutboard provides processed research information only, and
+              that it is not official platform guidance or a guarantee of
+              business or game performance.
+            </p>
+          </div>
         </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <div className="relative rounded-[2rem] border border-slate-200 bg-white p-6 pb-12 shadow-sm">
+          <div className="mb-6">
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+              {title}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Enter with your account, create one, or preview the free dashboard.
+            </p>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
           {mode !== "reset" && (
-            <label className="block text-sm font-semibold text-slate-300">
+            <label className="block text-sm font-bold text-slate-600">
               Email
               <input
-                className="mt-2 w-full rounded-xl border border-[#303540] bg-[#111318] px-4 py-3 text-slate-100 outline-none ring-[#0d69ac] transition focus:ring-2"
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none ring-[#0d69ac] transition focus:border-[#0d69ac] focus:bg-white focus:ring-2"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -212,10 +299,10 @@ export default function LoginPage() {
           )}
 
           {(mode === "login" || mode === "signup") && (
-            <label className="block text-sm font-semibold text-slate-300">
+            <label className="block text-sm font-bold text-slate-600">
               Password
               <input
-                className="mt-2 w-full rounded-xl border border-[#303540] bg-[#111318] px-4 py-3 text-slate-100 outline-none ring-[#0d69ac] transition focus:ring-2"
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none ring-[#0d69ac] transition focus:border-[#0d69ac] focus:bg-white focus:ring-2"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -232,9 +319,9 @@ export default function LoginPage() {
               onClick={() => {
                 setMode("forgot");
                 setError("");
-                setMessage("");
+              setMessage("");
               }}
-              className="text-sm font-bold text-[#72b8e8] transition hover:text-white"
+              className="text-sm font-bold text-[#0d69ac] transition hover:text-[#084b79]"
             >
               Forgot your password?
             </button>
@@ -242,10 +329,10 @@ export default function LoginPage() {
 
           {mode === "reset" && (
             <>
-              <label className="block text-sm font-semibold text-slate-300">
+              <label className="block text-sm font-bold text-slate-600">
                 New password
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#303540] bg-[#111318] px-4 py-3 text-slate-100 outline-none ring-[#0d69ac] transition focus:ring-2"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none ring-[#0d69ac] transition focus:border-[#0d69ac] focus:bg-white focus:ring-2"
                   type="password"
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
@@ -254,10 +341,10 @@ export default function LoginPage() {
                   required
                 />
               </label>
-              <label className="block text-sm font-semibold text-slate-300">
+              <label className="block text-sm font-bold text-slate-600">
                 Confirm password
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#303540] bg-[#111318] px-4 py-3 text-slate-100 outline-none ring-[#0d69ac] transition focus:ring-2"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none ring-[#0d69ac] transition focus:border-[#0d69ac] focus:bg-white focus:ring-2"
                   type="password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
@@ -270,19 +357,19 @@ export default function LoginPage() {
           )}
 
           {message && (
-            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+            <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
               {message}
             </p>
           )}
 
           {error && (
-            <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            <p className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
               {error}
             </p>
           )}
 
           <button
-            className="w-full rounded-xl bg-[#0d69ac] px-4 py-3 text-sm font-black text-white transition hover:bg-[#2f83bd] disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-2xl bg-[#0d69ac] px-4 py-3 text-sm font-black uppercase tracking-wide text-white transition hover:bg-[#2f83bd] disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
             disabled={
               loading ||
@@ -293,10 +380,34 @@ export default function LoginPage() {
           >
             {loading ? "Please wait..." : buttonLabel}
           </button>
+
+          {mode === "login" && (
+            <button
+              type="button"
+              onClick={enterFreeDashboard}
+              disabled={freeLoading}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {freeLoading ? "Opening preview..." : "Access Free Version"}
+            </button>
+          )}
         </form>
 
         {mode !== "reset" && (
-          <div className="mt-5 border-t border-[#303540] pt-4 text-sm text-slate-400">
+          <div className="mt-5 border-t border-slate-200 pt-4 text-sm text-slate-500">
+            {mode !== "forgot" && (
+              <label className="mb-4 flex items-start gap-3 rounded-2xl bg-slate-50 p-3 text-sm font-semibold leading-5 text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={subscribeNewsletter}
+                  onChange={(event) => setSubscribeNewsletter(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#0d69ac]"
+                />
+                <span>
+                  Subscribe to the weekly Snoutboard research newsletter.
+                </span>
+              </label>
+            )}
             {mode === "signup" ? (
               <button
                 type="button"
@@ -305,7 +416,7 @@ export default function LoginPage() {
                   setError("");
                   setMessage("");
                 }}
-                className="font-bold text-[#72b8e8] transition hover:text-white"
+                className="font-bold text-[#0d69ac] transition hover:text-[#084b79]"
               >
                 Already have an account? Sign in.
               </button>
@@ -317,13 +428,17 @@ export default function LoginPage() {
                   setError("");
                   setMessage("");
                 }}
-                className="font-bold text-[#72b8e8] transition hover:text-white"
+                className="font-bold text-[#0d69ac] transition hover:text-[#084b79]"
               >
                 New here? Create an account.
               </button>
             )}
           </div>
         )}
+          <p className="absolute bottom-5 right-6 rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-slate-400">
+            V0.0.1
+          </p>
+        </div>
       </section>
     </main>
   );

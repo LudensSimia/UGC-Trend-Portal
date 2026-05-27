@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -256,10 +256,13 @@ export default function Home() {
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [showTerms, setShowTerms] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
+  const [showAccountInfo, setShowAccountInfo] = useState(false);
+  const [showTodayTldr, setShowTodayTldr] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [userTier, setUserTier] = useState<UserTier>(
     process.env.NODE_ENV !== "production" ? "admin" : "free"
   );
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const [adminPreviewTier, setAdminPreviewTier] = useState<UserTier>("admin");
   const [tierVisibility, setTierVisibility] = useState<TierVisibilitySettings>(
     DEFAULT_TIER_VISIBILITY
@@ -267,6 +270,8 @@ export default function Home() {
   const [tierVisibilityReady, setTierVisibilityReady] = useState(false);
   const [robloxGames, setRobloxGames] = useState<any[]>([]);
   const [fortniteIslands, setFortniteIslands] = useState<any[]>([]);
+  const [dashboardDataScope, setDashboardDataScope] =
+    useState<"full" | "free_preview">("free_preview");
   const [dataQualitySnapshots, setDataQualitySnapshots] = useState<
     DataQualitySnapshot[]
   >([]);
@@ -337,6 +342,7 @@ export default function Home() {
             ? "admin"
             : normalizeDashboardTier(session?.tier)
         );
+        setAccountEmail(session?.email ?? null);
       } catch (error) {
         console.warn("Dashboard session could not be loaded:", error);
       }
@@ -367,11 +373,13 @@ export default function Home() {
 
         const payload = await response.json();
 
+        setDashboardDataScope(payload.dataScope === "full" ? "full" : "free_preview");
         setRobloxGames((payload.roblox ?? []).map(withLatestRobloxSnapshot));
         setFortniteIslands((payload.fortnite ?? []).map(withLatestFortniteSnapshot));
         setDataQualitySnapshots((payload.dataQualitySnapshots ?? []) as DataQualitySnapshot[]);
       } catch (error) {
         console.error("Dashboard data fetch error:", error);
+        setDashboardDataScope("free_preview");
         setRobloxGames([]);
         setFortniteIslands([]);
         setDataQualitySnapshots([]);
@@ -738,6 +746,21 @@ export default function Home() {
             className="mb-4 flex flex-wrap items-center justify-between gap-3"
           >
             <div className="flex flex-wrap gap-2">
+              {activePlatform === "roblox" && (
+                <button
+                  type="button"
+                  onClick={() => setShowTodayTldr(true)}
+                  disabled={loading || !topRobloxGames.length}
+                  className="rounded-2xl border border-[#0d69ac] bg-[#0d69ac] px-4 py-3 text-left text-white shadow-sm transition hover:border-[#0b5b95] hover:bg-[#0b5b95] disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  <span className="block text-[11px] font-bold normal-case tracking-normal text-white/75">
+                    Quick briefing
+                  </span>
+                  <span className="mt-0.5 block text-xs font-black uppercase tracking-wide text-white">
+                    Give me today's TLDR
+                  </span>
+                </button>
+              )}
               {(activePlatform === "roblox"
                 ? [
                     [
@@ -770,18 +793,19 @@ export default function Home() {
                     ],
                   ]
               ).map(([href, prompt, label]) => (
-                <a
-                  key={href}
-                  href={href}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
-                >
-                  <span className="block text-[11px] font-bold normal-case tracking-normal text-slate-400">
-                    {prompt}
-                  </span>
-                  <span className="mt-0.5 block text-xs font-black uppercase tracking-wide text-slate-500">
-                    {label}
-                  </span>
-                </a>
+                <Fragment key={href}>
+                  <a
+                    href={href}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
+                  >
+                    <span className="block text-[11px] font-bold normal-case tracking-normal text-slate-400">
+                      {prompt}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-black uppercase tracking-wide text-slate-500">
+                      {label}
+                    </span>
+                  </a>
+                </Fragment>
               ))}
             </div>
             <div className="flex items-center gap-2" aria-label="Social media links">
@@ -918,7 +942,7 @@ export default function Home() {
               id="most-played-games-over-time"
               className="mb-6 grid scroll-mt-6 gap-6 lg:grid-cols-2"
             >
-              {canAccess("roblox_games_trend") ? (
+              {canAccess("roblox_games_trend") && dashboardDataScope === "full" ? (
                 <ChartCard
                   title="Most Played Games Over Time"
                   subtitle={`Top ${topGamesTrendLimit} experiences by current players, tracked across stored snapshot dates.`}
@@ -961,7 +985,7 @@ export default function Home() {
                 <LockedAccessCard itemKey="roblox_games_trend" panel={panel} />
               )}
 
-              {canAccess("roblox_genres_trend") ? (
+              {canAccess("roblox_genres_trend") && dashboardDataScope === "full" ? (
                 <ChartCard
                   title="Most Played Genres Over Time"
                   subtitle="Genre-level player curves using stored Roblox snapshot dates."
@@ -1450,6 +1474,13 @@ export default function Home() {
               >
                 Glossary
               </button>
+              <button
+                type="button"
+                onClick={() => setShowAccountInfo(true)}
+                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
+              >
+                Account info
+              </button>
               {userTier === "admin" && (
                 <button
                   type="button"
@@ -1469,16 +1500,29 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="mt-8 flex justify-center">
-            <p className="max-w-4xl text-center text-xs font-semibold leading-5 text-slate-400">
-              Snoutboard is independent and is not affiliated with, endorsed by,
-              sponsored by, certified by, approved by, or operated by Roblox,
-              Epic Games, Fortnite, or any related platform owner.
+          <div className="mt-8 flex justify-center overflow-x-auto">
+            <p className="whitespace-nowrap text-center text-xs font-semibold leading-5 text-slate-400">
+              Snoutboard is independent and is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner.
             </p>
           </div>
         </footer>
         {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
         {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
+        {showAccountInfo && (
+          <AccountInfoModal
+            email={accountEmail}
+            tier={userTier}
+            onClose={() => setShowAccountInfo(false)}
+          />
+        )}
+        {showTodayTldr && (
+          <TodayTldrModal
+            games={topRobloxGames}
+            panel={panel}
+            loading={loading}
+            onClose={() => setShowTodayTldr(false)}
+          />
+        )}
         {showAdminPanel && userTier === "admin" && (
           <AdminAccessModal
             settings={tierVisibility}
@@ -2082,10 +2126,7 @@ function FortniteDashboardView({ context }: any) {
 
 function withLatestRobloxSnapshot(game: any) {
   const snapshots = game.roblox_chart_snapshots ?? [];
-  const sorted = [...snapshots].sort(
-    (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
+  const sorted = getDailyRobloxSnapshots(snapshots);
   const metrics = [...(game.game_metrics ?? [])].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
@@ -2138,23 +2179,18 @@ function withLatestRobloxSnapshot(game: any) {
 }
 
 function getAveragePlayerGain(snapshots: any[], days: number) {
-  const sorted = [...(snapshots ?? [])]
-    .filter((snapshot) => snapshot.created_at)
-    .sort(
-      (a, b) =>
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
+  const sorted = getDailyRobloxSnapshots(snapshots);
 
   if (sorted.length < 2) return null;
 
   const latest = sorted[sorted.length - 1];
-  const latestTime = new Date(latest.created_at).getTime();
+  const latestTime = new Date(getSnapshotDisplayDate(latest)).getTime();
   const cutoff = latestTime - days * 24 * 60 * 60 * 1000;
   const windowSnapshots = sorted.filter(
-    (snapshot) => new Date(snapshot.created_at).getTime() >= cutoff
+    (snapshot) => new Date(getSnapshotDisplayDate(snapshot)).getTime() >= cutoff
   );
   const earliest = windowSnapshots[0] ?? sorted[0];
-  const earliestTime = new Date(earliest.created_at).getTime();
+  const earliestTime = new Date(getSnapshotDisplayDate(earliest)).getTime();
   const elapsedDays = Math.max(
     1,
     (latestTime - earliestTime) / (24 * 60 * 60 * 1000)
@@ -2191,6 +2227,39 @@ function withLatestFortniteSnapshot(island: any) {
     latestActivityLabel: getFortniteSnapshotMetricLabel(latest),
     latestPlayers: 0,
   };
+}
+
+function getDailyRobloxSnapshots(snapshots: any[]) {
+  const byDate = new Map<string, any>();
+
+  (snapshots ?? []).forEach((snapshot) => {
+    const dateKey = getSnapshotDateKey(getSnapshotDisplayDate(snapshot));
+    if (!dateKey) return;
+
+    const existing = byDate.get(dateKey);
+    const currentPlayers = snapshot.current_players ?? 0;
+    const existingPlayers = existing?.current_players ?? -1;
+    const isBetterPlayerSample = currentPlayers > existingPlayers;
+    const isNewerSample =
+      currentPlayers === existingPlayers &&
+      String(snapshot.created_at ?? "") > String(existing?.created_at ?? "");
+
+    if (!existing || isBetterPlayerSample || isNewerSample) {
+      byDate.set(dateKey, {
+        ...snapshot,
+        snapshot_date: snapshot.snapshot_date ?? dateKey,
+      });
+    }
+  });
+
+  return [...byDate.values()].sort(
+    (a, b) =>
+      String(getSnapshotDisplayDate(a)).localeCompare(String(getSnapshotDisplayDate(b)))
+  );
+}
+
+function getSnapshotDisplayDate(snapshot: any) {
+  return snapshot?.snapshot_date ?? snapshot?.created_at;
 }
 
 function compareFortniteIslands(a: any, b: any) {
@@ -2261,8 +2330,8 @@ function getFortniteSnapshotMetricLabel(snapshot: any) {
 }
 
 function buildGameTrend(game: any) {
-  return (game.snapshots ?? []).map((s: any) => ({
-    date: formatShortDate(s.created_at),
+  return getDailyRobloxSnapshots(game.snapshots ?? []).map((s: any) => ({
+    date: formatShortDate(getSnapshotDisplayDate(s)),
     total: s.current_players ?? 0,
   }));
 }
@@ -2276,8 +2345,8 @@ function buildGenreCandles(games: any[]) {
   games
     .filter((g) => g.inferred_genre === topGenre)
     .forEach((game) => {
-      (game.snapshots ?? []).forEach((s: any) => {
-        const date = formatShortDate(s.created_at);
+      getDailyRobloxSnapshots(game.snapshots ?? []).forEach((s: any) => {
+        const date = formatShortDate(getSnapshotDisplayDate(s));
         byDate[date] = (byDate[date] ?? 0) + (s.current_players ?? 0);
       });
     });
@@ -2479,20 +2548,21 @@ function buildPeriodTrendingHighlights(games: any[], days: number) {
   const periodRows = games
     .map((game) => {
       const snapshots = [...(game.snapshots ?? [])]
-        .filter((snapshot: any) => snapshot.created_at)
+        .filter((snapshot: any) => getSnapshotDisplayDate(snapshot))
         .sort(
           (a: any, b: any) =>
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            new Date(getSnapshotDisplayDate(a)).getTime() -
+            new Date(getSnapshotDisplayDate(b)).getTime()
         );
       const latestSnapshot = snapshots
         .filter((snapshot: any) => {
-          const dateKey = getSnapshotDateKey(snapshot.created_at);
+          const dateKey = getSnapshotDateKey(getSnapshotDisplayDate(snapshot));
           return dateKey && dateKey <= latestKey;
         })
         .at(-1);
       const startSnapshot =
         snapshots.find((snapshot: any) => {
-          const dateKey = getSnapshotDateKey(snapshot.created_at);
+          const dateKey = getSnapshotDateKey(getSnapshotDisplayDate(snapshot));
           const snapshotDate = parseDateKey(dateKey);
           return snapshotDate && snapshotDate >= startDate && snapshotDate <= latestDate;
         }) ?? snapshots[0];
@@ -2535,10 +2605,13 @@ function buildPeriodTrendingHighlights(games: any[], days: number) {
 
 function getLatestSnapshotForDate(game: any, dateKey: string) {
   return (game.snapshots ?? [])
-    .filter((item: any) => String(item.created_at ?? "").startsWith(dateKey))
+    .filter((item: any) =>
+      String(getSnapshotDisplayDate(item) ?? "").startsWith(dateKey)
+    )
     .sort(
       (a: any, b: any) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        new Date(getSnapshotDisplayDate(b)).getTime() -
+        new Date(getSnapshotDisplayDate(a)).getTime()
     )[0];
 }
 
@@ -2547,7 +2620,7 @@ function getPreviousSnapshotDateKey(games: any[], beforeDateKey: string) {
     new Set(
       games.flatMap((game) =>
         (game.snapshots ?? []).map((snapshot: any) =>
-          String(snapshot.created_at ?? "").slice(0, 10)
+          String(getSnapshotDisplayDate(snapshot) ?? "").slice(0, 10)
         )
       )
     )
@@ -5548,8 +5621,9 @@ function buildCorrelationWindowGames(games: any[], windowKey: "today" | "7d" | "
 
   return games
     .map((game) => {
-      const snapshots = (game.snapshots ?? []).filter((snapshot: any) => {
-        const dateKey = getSnapshotDateKey(snapshot.created_at);
+      const dailySnapshots = getDailyRobloxSnapshots(game.snapshots ?? []);
+      const snapshots = dailySnapshots.filter((snapshot: any) => {
+        const dateKey = getSnapshotDateKey(getSnapshotDisplayDate(snapshot));
         const snapshotDate = parseDateKey(dateKey);
         return snapshotDate && snapshotDate >= startDate && snapshotDate <= latestDate;
       });
@@ -5559,13 +5633,24 @@ function buildCorrelationWindowGames(games: any[], windowKey: "today" | "7d" | "
       });
       const sortedSnapshots = [...snapshots].sort(
         (a: any, b: any) =>
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          new Date(getSnapshotDisplayDate(a)).getTime() -
+          new Date(getSnapshotDisplayDate(b)).getTime()
       );
       const sortedMetrics = [...metrics].sort(
         (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()
       );
       const earliest = sortedSnapshots[0];
       const latest = sortedSnapshots.at(-1);
+      const previousDaily =
+        windowKey === "today"
+          ? [...dailySnapshots]
+              .filter((snapshot: any) => {
+                const dateKey = getSnapshotDateKey(getSnapshotDisplayDate(snapshot));
+                return dateKey && dateKey < latestDateKey;
+              })
+              .at(-1)
+          : null;
+      const comparisonStart = previousDaily ?? earliest;
       const bestRankSnapshot = sortedSnapshots
         .filter((snapshot: any) => snapshot.chart_rank)
         .sort((a: any, b: any) => (a.chart_rank ?? 9999) - (b.chart_rank ?? 9999))[0];
@@ -5581,18 +5666,18 @@ function buildCorrelationWindowGames(games: any[], windowKey: "today" | "7d" | "
               typeof metric.like_ratio === "number"
           ) ?? latestMetric;
       const elapsedDays =
-        earliest && latest
+        comparisonStart && latest
           ? Math.max(
               1,
-              (new Date(latest.created_at).getTime() -
-                new Date(earliest.created_at).getTime()) /
+              (new Date(getSnapshotDisplayDate(latest)).getTime() -
+                new Date(getSnapshotDisplayDate(comparisonStart)).getTime()) /
                 86400000
             )
           : 1;
       const playerGain =
-        earliest?.current_players && latest?.current_players
-          ? ((latest.current_players - earliest.current_players) /
-              Math.max(earliest.current_players, 1)) *
+        comparisonStart?.current_players && latest?.current_players
+          ? ((latest.current_players - comparisonStart.current_players) /
+              Math.max(comparisonStart.current_players, 1)) *
             100
           : 0;
 
@@ -5610,9 +5695,9 @@ function buildCorrelationWindowGames(games: any[], windowKey: "today" | "7d" | "
         bestRank: bestRankSnapshot?.chart_rank ?? null,
         bestRankSort: bestRankSnapshot?.sort_name ?? null,
         averagePlayerGain7Days:
-          earliest && latest
+          comparisonStart && latest
             ? Math.round(
-                ((latest.current_players ?? 0) - (earliest.current_players ?? 0)) /
+                ((latest.current_players ?? 0) - (comparisonStart.current_players ?? 0)) /
                   elapsedDays
               )
             : null,
@@ -10364,6 +10449,308 @@ function GlossaryModal({ onClose }: any) {
   );
 }
 
+function TodayTldrModal({
+  games,
+  panel,
+  loading,
+  onClose,
+}: {
+  games: any[];
+  panel: string;
+  loading?: boolean;
+  onClose: () => void;
+}) {
+  const topFive = games.slice(0, 5);
+  const averageType = buildRobloxArchetypes(games, "7d").find((item: any) =>
+    /average/i.test(item.kind)
+  );
+  const topGenres = buildTopGenreScoreboard(games).slice(0, 3);
+  const topGame = topFive[0];
+  const topGenre = topGenres[0];
+  const positiveMovers = topFive.filter((game) => (game.playerGainPercent ?? 0) > 0).length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="max-h-[88vh] w-full max-w-6xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wide text-[#0d69ac]">
+              Today's TLDR
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-slate-900">
+              Roblox Research Brief
+            </h2>
+            <p className="mt-2 max-w-none overflow-x-auto whitespace-nowrap text-sm leading-6 text-slate-500">
+              A compact readout of today's most visible Roblox signals: leading
+              experiences, the average popular format, and the three largest
+              genre curves over time.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-6 rounded-3xl border border-[#b9d6ea] bg-[#eaf5fd] p-4">
+          <p className="text-sm font-black text-[#0d4f82]">Mini readout</p>
+          {loading || !games.length ? (
+            <p className="mt-2 text-sm leading-6 text-[#24465d]">
+              Loading today's Roblox TLDR...
+            </p>
+          ) : (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-[#24465d]">
+              <li>
+                {topGame?.title ?? "The leading experience"} is currently the
+                largest captured player signal.
+              </li>
+              <li>
+                {topGenre
+                  ? `${topGenre.rawGenre} is the largest genre signal at ${topGenre.share}% of tracked players.`
+                  : "Genre movement is still building."}
+              </li>
+              <li>
+                {averageType
+                  ? `The average popular type points toward ${getDisplayGenre(
+                      averageType,
+                      "roblox"
+                    )} / ${getDisplaySubgenre(averageType, "roblox")}; ${positiveMovers} of the top 5 currently show positive stored player movement.`
+                  : `${positiveMovers} of the top 5 currently show positive stored player movement.`}
+              </li>
+            </ul>
+          )}
+        </div>
+
+        {loading || !games.length ? (
+          <div className="mt-6 rounded-3xl bg-slate-50 p-6 text-sm font-semibold text-slate-500">
+            Preparing today's TLDR from the latest Roblox dashboard data.
+          </div>
+        ) : (
+          <>
+        <section className="mt-6">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black text-slate-900">
+                Top 5 Most Played Experiences
+              </h3>
+              <p className="text-sm text-slate-500">
+                Same card format used in the Top 25 Roblox Experiences section.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {topFive.map((game, index) => (
+              <GameMarketCard
+                key={game.id}
+                item={game}
+                rank={index + 1}
+                platform="roblox"
+                panel={panel}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+          <div>
+            <h3 className="text-lg font-black text-slate-900">
+              Average Popular Type
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Composite profile from the current 7-day Roblox window.
+            </p>
+            <div className="mt-3 space-y-3">
+              {averageType ? (
+                <>
+                  <RobloxArchetypeCard item={averageType} rank={2} panel={panel} />
+                  <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
+                    {averageType.readout}
+                  </p>
+                </>
+              ) : (
+                <Unavailable text="Not enough Roblox metrics to build the average popular type yet." />
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-black text-slate-900">
+              Top 3 Most Played Genres Over Time
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Player-weighted genre curves across stored Roblox snapshot dates.
+            </p>
+            <div className="mt-3 h-72">
+              <GenreLinesTrend games={games} limit={3} timeWindow="7d" />
+            </div>
+          </div>
+        </section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountInfoModal({
+  email,
+  tier,
+  onClose,
+}: {
+  email: string | null;
+  tier: UserTier;
+  onClose: () => void;
+}) {
+  const [confirmation, setConfirmation] = useState("");
+  const [isErasing, setIsErasing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const canErase = confirmation.trim().toUpperCase() === "ERASE";
+  const isLocalAdminPreview =
+    process.env.NODE_ENV !== "production" && tier === "admin" && !email;
+
+  async function handleEraseAccount() {
+    if (!canErase || isLocalAdminPreview) return;
+
+    setIsErasing(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch("/api/auth/account", { method: "DELETE" });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Unable to erase account.");
+      }
+
+      setMessage("Your account has been erased. Redirecting to login...");
+      window.setTimeout(() => {
+        window.location.href = "/login";
+      }, 900);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to erase account."
+      );
+    } finally {
+      setIsErasing(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="max-h-[86vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wide text-emerald-700">
+              Account
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-slate-900">
+              Account Info
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Review your access level and manage account deletion. This action
+              is intentionally separate from subscription cancellation and
+              billing refunds.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <h3 className="text-sm font-black text-slate-800">
+              Current access
+            </h3>
+            <dl className="mt-3 space-y-3 text-sm">
+              <div>
+                <dt className="text-xs font-black uppercase tracking-wide text-slate-400">
+                  Email
+                </dt>
+                <dd className="mt-1 font-semibold text-slate-700">
+                  {email ?? "Local admin preview"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-black uppercase tracking-wide text-slate-400">
+                  Tier
+                </dt>
+                <dd className="mt-1 font-semibold text-slate-700">
+                  {tierLabel(tier)}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+            <h3 className="text-sm font-black text-red-700">Erase account</h3>
+            <p className="mt-2 text-sm leading-6 text-red-700/80">
+              Erasing your account permanently removes this email and password
+              combination from Snoutboard. If a recurring paid subscription is
+              attached, it will be scheduled to terminate at the end of the
+              current billing period.
+            </p>
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs font-semibold leading-5 text-red-700/75">
+              <li>You will lose dashboard access for this email immediately.</li>
+              <li>This account cannot be retrieved or restored from the dashboard.</li>
+              <li>Erasing the account does not create an automatic prorated refund.</li>
+            </ul>
+
+            {isLocalAdminPreview ? (
+              <p className="mt-4 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+                Account erasure is disabled in local admin preview because no
+                signed-in user account is attached to this session.
+              </p>
+            ) : (
+              <>
+                <label className="mt-4 block text-xs font-black uppercase tracking-wide text-red-700">
+                  Type ERASE to confirm
+                  <input
+                    value={confirmation}
+                    onChange={(event) => setConfirmation(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-red-400"
+                    placeholder="ERASE"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={!canErase || isErasing}
+                  onClick={handleEraseAccount}
+                  className="mt-3 w-full rounded-full bg-red-600 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-200"
+                >
+                  {isErasing ? "Erasing..." : "Erase my account"}
+                </button>
+              </>
+            )}
+
+            {message && (
+              <p className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
+                {message}
+              </p>
+            )}
+            {error && (
+              <p className="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-red-700">
+                {error}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToggleButton({ active, onClick, children, activeColor, disabled = false }: any) {
   return (
     <span
@@ -10980,11 +11367,11 @@ function mergeGameTrends(games: any[]) {
   const byDate: Record<string, any> = {};
 
   games.forEach((game) => {
-    (game.snapshots ?? []).forEach((s: any) => {
-      const dateKey = getSnapshotDateKey(s.created_at);
+    getDailyRobloxSnapshots(game.snapshots ?? []).forEach((s: any) => {
+      const dateKey = getSnapshotDateKey(getSnapshotDisplayDate(s));
       if (!dateKey) return;
       if (!byDate[dateKey]) {
-        byDate[dateKey] = { date: formatShortDate(s.created_at), dateKey };
+        byDate[dateKey] = { date: formatShortDate(getSnapshotDisplayDate(s)), dateKey };
       }
       byDate[dateKey][game.title] = s.current_players ?? 0;
     });
@@ -11442,12 +11829,12 @@ function mergeGenreTrends(games: any[], limit = 10) {
   games
     .filter((game) => genres.includes(getDisplayGenre(game, "roblox")))
     .forEach((game) => {
-      (game.snapshots ?? []).forEach((s: any) => {
-        const dateKey = getSnapshotDateKey(s.created_at);
+      getDailyRobloxSnapshots(game.snapshots ?? []).forEach((s: any) => {
+        const dateKey = getSnapshotDateKey(getSnapshotDisplayDate(s));
         if (!dateKey) return;
         const genre = getDisplayGenre(game, "roblox");
         if (!byDate[dateKey]) {
-          byDate[dateKey] = { date: formatShortDate(s.created_at), dateKey };
+          byDate[dateKey] = { date: formatShortDate(getSnapshotDisplayDate(s)), dateKey };
         }
         byDate[dateKey][genre] =
           (byDate[dateKey][genre] ?? 0) + (s.current_players ?? 0);
