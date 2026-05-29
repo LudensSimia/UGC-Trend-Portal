@@ -1,0 +1,921 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar
+} from 'recharts'
+
+const STOP_WORDS = new Set([
+  'the', 'and', 'for', 'you', 'your', 'with', 'this', 'that', 'are', 'from',
+  'game', 'play', 'new', 'all', 'can', 'get', 'will', 'has', 'have', 'into',
+  'roblox', 'experience', 'update', 'join', 'make', 'more', 'now', 'our',
+  'out', 'use', 'one', 'two', 'best', 'free', 'like', 'just'
+])
+
+export default function Home() {
+  const [snapshots, setSnapshots] = useState<any[]>([])
+  const [genreInput, setGenreInput] = useState('')
+  const [subgenreInput, setSubgenreInput] = useState('')
+
+  useEffect(() => {
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('roblox_chart_snapshots')
+        .select(`
+          id,
+          snapshot_date,
+          sort_name,
+          chart_rank,
+          current_players,
+          like_ratio,
+          games (
+            id,
+            title,
+            url,
+            thumbnail_url,
+            inferred_genre,
+            inferred_subgenre,
+            description,
+            creator,
+            build_complexity,
+            monetization_style
+          )
+        `)
+        .order('snapshot_date', { ascending: true })
+        .order('chart_rank', { ascending: true })
+
+      if (error) console.error(error)
+      else setSnapshots(data || [])
+    }
+
+    load()
+  }, [])
+
+  const latestDate = snapshots[snapshots.length - 1]?.snapshot_date
+
+  const latestSnapshots = snapshots.filter(
+    (row) => row.snapshot_date === latestDate
+  )
+
+  const cleanSnapshots = latestSnapshots.filter((row) => {
+    const genre = row.games?.inferred_genre
+    const subgenre = row.games?.inferred_subgenre
+
+    return (
+      genre &&
+      subgenre &&
+      genre !== 'Other' &&
+      subgenre !== 'General' &&
+      subgenre !== 'Unknown' &&
+      subgenre !== 'Unclassified'
+    )
+  })
+
+  const unclassifiedCount = latestSnapshots.length - cleanSnapshots.length
+
+  const genreOptions = useMemo(() => {
+    return Array.from(
+      new Set(cleanSnapshots.map((row) => row.games?.inferred_genre).filter(Boolean))
+    ).sort()
+  }, [cleanSnapshots])
+
+  const subgenreOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        cleanSnapshots
+          .filter((row) =>
+            genreInput ? row.games?.inferred_genre === genreInput : true
+          )
+          .map((row) => row.games?.inferred_subgenre)
+          .filter(Boolean)
+      )
+    ).sort()
+  }, [cleanSnapshots, genreInput])
+
+  const genreTrendData = useMemo(() => {
+    const byDate: Record<string, any> = {}
+
+    snapshots.forEach((row) => {
+      const genre = row.games?.inferred_genre || 'Other'
+      if (genre === 'Other') return
+
+      const date = row.snapshot_date
+
+      if (!byDate[date]) byDate[date] = { date }
+      byDate[date][genre] = (byDate[date][genre] || 0) + (row.current_players || 0)
+    })
+
+    return Object.values(byDate)
+  }, [snapshots])
+
+  const genreStats = useMemo(() => {
+    const map: Record<string, any> = {}
+
+    cleanSnapshots.forEach((row) => {
+      const genre = row.games?.inferred_genre
+      const subgenre = row.games?.inferred_subgenre
+      const key = `${genre} / ${subgenre}`
+
+      if (!map[key]) {
+        map[key] = {
+          key,
+          genre,
+          subgenre,
+          totalPlayers: 0,
+          records: 0,
+          earningHits: 0,
+          paidAccessHits: 0,
+          games: new Map()
+        }
+      }
+
+      map[key].records++
+      map[key].totalPlayers += row.current_players || 0
+
+      if (String(row.sort_name).toLowerCase().includes('earning')) {
+        map[key].earningHits++
+      }
+
+      if (String(row.sort_name).toLowerCase().includes('paid')) {
+        map[key].paidAccessHits++
+      }
+
+      if (row.games?.id) {
+        map[key].games.set(row.games.id, row.games)
+      }
+    })
+
+    return Object.values(map).map((item: any) => {
+      const avgPlayers = item.totalPlayers / Math.max(item.records, 1)
+      const profitability = item.earningHits * 2 + item.paidAccessHits
+      const popularity = avgPlayers
+      const saturation = item.games.size
+      const examples = Array.from(item.games.values()).slice(0, 3)
+
+      return {
+        ...item,
+        avgPlayers,
+        popularity,
+        profitability,
+        saturation,
+        examples,
+        recommendation: getRecommendation(popularity, profitability, saturation)
+      }
+    })
+  }, [cleanSnapshots])
+
+  const topGenreStats = [...genreStats]
+    .sort((a: any, b: any) => b.totalPlayers - a.totalPlayers)
+    .slice(0, 12)
+
+  const topGenres = topGenreStats.slice(0, 5).map((item: any) => item.genre)
+
+  const selectedMatch = useMemo(() => {
+    if (!genreInput) return null
+
+    const matches = genreStats.filter((item: any) => {
+      const genreMatch = item.genre === genreInput
+      const subgenreMatch = subgenreInput ? item.subgenre === subgenreInput : true
+
+      return genreMatch && subgenreMatch
+    })
+
+    if (!matches.length) return null
+
+    return matches.sort((a: any, b: any) => b.totalPlayers - a.totalPlayers)[0]
+  }, [genreInput, subgenreInput, genreStats])
+
+  const selectedHeatMapData = useMemo(() => {
+    if (!genreInput) return genreStats
+
+    return genreStats.filter((item: any) => {
+      const genreMatch = item.genre === genreInput
+      const subgenreMatch = subgenreInput ? item.subgenre === subgenreInput : true
+      return genreMatch && subgenreMatch
+    })
+  }, [genreStats, genreInput, subgenreInput])
+
+  const similarGames = useMemo(() => {
+    if (!selectedMatch) return []
+
+    return cleanSnapshots
+      .filter((row) => {
+        return (
+          row.games?.inferred_genre === selectedMatch.genre &&
+          row.games?.inferred_subgenre === selectedMatch.subgenre
+        )
+      })
+      .reduce((acc: any[], row) => {
+        if (!acc.find((x) => x.games?.id === row.games?.id)) acc.push(row)
+        return acc
+      }, [])
+      .sort((a, b) => (b.current_players || 0) - (a.current_players || 0))
+      .slice(0, 3)
+  }, [selectedMatch, cleanSnapshots])
+
+  const descriptionWords = useMemo(() => {
+    const text = similarGames
+      .map((row) => row.games?.description || '')
+      .join(' ')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+
+    const counts: Record<string, number> = {}
+
+    text.split(/\s+/).forEach((word) => {
+      if (word.length < 4) return
+      if (STOP_WORDS.has(word)) return
+      counts[word] = (counts[word] || 0) + 1
+    })
+
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 24)
+      .map(([word, count]) => ({ word, count }))
+  }, [similarGames])
+
+  const topMetricOne = topGenreStats[0]
+  const topMetricTwo = [...genreStats].sort(
+    (a: any, b: any) => b.profitability - a.profitability
+  )[0]
+
+  const bestGenre = topMetricOne?.genre
+  const bestGenreTrendData = genreTrendData.map((row: any) => ({
+    date: row.date,
+    [bestGenre]: row[bestGenre] || 0
+  }))
+
+  const top25GamesTrend = useMemo(() => {
+    const topGames = cleanSnapshots
+      .reduce((acc: any[], row) => {
+        if (!acc.find((x) => x.games?.id === row.games?.id)) acc.push(row)
+        return acc
+      }, [])
+      .sort((a, b) => (b.current_players || 0) - (a.current_players || 0))
+      .slice(0, 5)
+
+    const topIds = topGames.map((row) => row.games?.id)
+
+    const byDate: Record<string, any> = {}
+
+    snapshots.forEach((row) => {
+      if (!topIds.includes(row.games?.id)) return
+
+      const date = row.snapshot_date
+      const title = row.games?.title?.slice(0, 18)
+
+      if (!byDate[date]) byDate[date] = { date }
+      byDate[date][title] = Math.max(byDate[date][title] || 0, row.current_players || 0)
+    })
+
+    return {
+      data: Object.values(byDate),
+      titles: topGames.map((row) => row.games?.title?.slice(0, 18))
+    }
+  }, [snapshots, cleanSnapshots])
+
+  return (
+    <main style={{ display: 'flex', background: '#f5f7fb', minHeight: '100vh' }}>
+      <aside style={sidebar}>
+        <div style={logoPlaceholder}>Logo</div>
+
+        <h2>UGC Intel - Beta</h2>
+        <p style={{ fontSize: 12, color: '#94a3b8' }}>Creator Decision Tool</p>
+
+        <div style={{ marginTop: 30 }}>
+          <div style={navActive}>Trends</div>
+          <div style={nav}>Readout</div>
+          <div style={nav}>Heat Map</div>
+          <div style={nav}>Idea Search</div>
+          <div style={nav}>Top Games</div>
+        </div>
+      </aside>
+
+      <section style={{ flex: 1, padding: 30 }}>
+        <h1>UGC Intel - Beta</h1>
+        <p style={{ color: '#667085' }}>
+          Metrics-first dashboard for identifying Roblox genre and subgenre opportunities.
+        </p>
+
+        <section style={card}>
+          <h2>Trends Over Time</h2>
+          <p style={{ color: '#667085' }}>
+            Player demand by inferred genre over time. Popularity here means the
+            total current-player count captured in Roblox chart snapshots.
+          </p>
+
+          <div style={{ height: 360 }}>
+            <ResponsiveContainer>
+              <LineChart data={genreTrendData}>
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                {topGenres.map((genre) => (
+                  <Line key={genre} type="monotone" dataKey={genre} strokeWidth={2} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2>Current Readout</h2>
+
+          <div style={grid3}>
+            <Insight
+              title="Current"
+              value={topMetricOne ? topMetricOne.key : '—'}
+              text={
+                topMetricOne
+                  ? `${Math.round(topMetricOne.avgPlayers).toLocaleString()} avg players across chart records.`
+                  : 'No classified data yet.'
+              }
+              method="Method: aggregated player-demand analysis"
+            />
+
+            <Insight
+              title="Past Week"
+              value="Pending"
+              text="This will populate after several daily snapshots are collected."
+              method="Method planned: 7-day rolling comparison"
+            />
+
+            <Insight
+              title="Past Month"
+              value="Pending"
+              text="This will populate after enough historical data is collected."
+              method="Method planned: 30-day rolling trend analysis"
+            />
+          </div>
+
+          <div style={{ ...note, marginTop: 16 }}>
+            <strong>Data quality:</strong> {unclassifiedCount} records are currently
+            classified as General / Other / Unclassified. Treat those as classifier
+            artifacts, not actionable recommendations.
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2>Genre Heat Map: Popularity × Profitability</h2>
+          <p style={{ color: '#667085' }}>
+            X-axis = popularity, measured by average current players. Y-axis =
+            profitability proxy, measured by Top Earning / Paid Access appearances.
+          </p>
+
+          <div style={grid2}>
+            <HeatMap data={genreStats} />
+
+            <HeatMapSummary data={genreStats} />
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2>Search an Idea</h2>
+          <p style={{ color: '#667085' }}>
+            Select a genre and optional subgenre to test whether the current data
+            suggests this is a good idea.
+          </p>
+
+          <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
+            <select
+              value={genreInput}
+              onChange={(e) => {
+                setGenreInput(e.target.value)
+                setSubgenreInput('')
+              }}
+              style={input}
+            >
+              <option value="">Select genre</option>
+              {genreOptions.map((genre: any) => (
+                <option key={genre} value={genre}>
+                  {genre}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={subgenreInput}
+              onChange={(e) => setSubgenreInput(e.target.value)}
+              style={input}
+              disabled={!genreInput}
+            >
+              <option value="">All subgenres</option>
+              {subgenreOptions.map((subgenre: any) => (
+                <option key={subgenre} value={subgenre}>
+                  {subgenre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={grid2}>
+            <HeatMap data={selectedHeatMapData} />
+
+            {selectedMatch ? (
+              <div>
+                <h3>
+                  {selectedMatch.key}: {selectedMatch.recommendation}
+                </h3>
+
+                <p style={{ color: '#475569' }}>
+                  Popularity: {Math.round(selectedMatch.avgPlayers).toLocaleString()} avg players ·
+                  Profitability proxy: {selectedMatch.profitability} ·
+                  Competition: {selectedMatch.saturation} charting games
+                </p>
+
+                <p style={{ color: '#475569' }}>
+                  <strong>Short read:</strong> {getIdeaRead(selectedMatch)}
+                </p>
+
+                <h4>3 similar games to study</h4>
+                <div style={tileGrid}>
+                  {similarGames.map((row) => (
+                    <GameTile key={row.games.id} row={row} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={note}>
+                Select a genre to generate the idea readout and example games.
+              </div>
+            )}
+          </div>
+
+          {selectedMatch && (
+            <>
+              <h4>Description Word Cloud</h4>
+              <p style={{ color: '#667085' }}>
+                Common words across the top relevant games. This is a basic NLP
+                term-frequency view. If the cloud is empty, the selected games likely
+                have sparse descriptions or the current classifier has too few examples.
+              </p>
+
+              <WordCloud words={descriptionWords} />
+
+              <div style={note}>
+                <strong>Suggested template:</strong>{' '}
+                “A {selectedMatch.subgenre} experience with a clear progression loop,
+                visible reward chase, and short-session replayability. Use description
+                language around the repeated hooks above, but differentiate the theme
+                and thumbnail.”
+              </div>
+
+              <div style={note}>
+                <strong>Analytics methods used:</strong> quadrant analysis,
+                proxy scoring, nearest-neighbor comparison, and term-frequency text analysis.
+              </div>
+            </>
+          )}
+        </section>
+
+        <section style={card}>
+          <h2>Best Genre Trend Over Time</h2>
+          <p style={{ color: '#667085' }}>
+            Focused trend line for the strongest genre by popularity. Popularity
+            means total current players captured for that inferred genre in the
+            latest chart snapshot.
+          </p>
+
+          <div style={{ height: 280 }}>
+            <ResponsiveContainer>
+              <LineChart data={bestGenreTrendData}>
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                {bestGenre && <Line type="monotone" dataKey={bestGenre} strokeWidth={2} />}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2>Most Played Top Games Over Time</h2>
+          <p style={{ color: '#667085' }}>
+            Tracks the current-player progression of the strongest individual games.
+          </p>
+
+          <div style={{ height: 320 }}>
+            <ResponsiveContainer>
+              <LineChart data={top25GamesTrend.data}>
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                {top25GamesTrend.titles.map((title: string) => (
+                  <Line key={title} type="monotone" dataKey={title} strokeWidth={2} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2>Top Trending Game Tiles</h2>
+          <p style={{ color: '#667085' }}>
+            Examples worth studying. Each tile links to the Roblox game page.
+          </p>
+
+          <div style={tileGrid}>
+            {cleanSnapshots
+              .reduce((acc: any[], row) => {
+                if (!acc.find((x) => x.games?.id === row.games?.id)) acc.push(row)
+                return acc
+              }, [])
+              .sort((a, b) => (b.current_players || 0) - (a.current_players || 0))
+              .slice(0, 12)
+              .map((row) => (
+                <GameTile key={row.games.id} row={row} />
+              ))}
+          </div>
+        </section>
+      </section>
+    </main>
+  )
+}
+
+function HeatMap({ data }: { data: any[] }) {
+  if (!data.length) return <p>No classified genre data yet.</p>
+
+  const maxPopularity = Math.max(...data.map((d) => d.popularity || 0))
+  const maxProfitability = Math.max(...data.map((d) => d.profitability || 0), 1)
+
+  return (
+    <div style={heatMap}>
+      <div style={heatBackground}></div>
+      <div style={gridOverlay}></div>
+      <div style={yLabel}>Profitability Proxy ↑</div>
+      <div style={xLabel}>Popularity →</div>
+
+      <div style={axisLowX}>Low popularity</div>
+      <div style={axisHighX}>High popularity</div>
+      <div style={axisLowY}>Low profitability</div>
+      <div style={axisHighY}>High profitability</div>
+
+      {data.map((item: any) => {
+        const x = (item.popularity / maxPopularity) * 82 + 8
+        const y = 88 - (item.profitability / maxProfitability) * 72
+
+        return (
+          <div
+            key={item.key}
+            title={`${item.key}\nPopularity: ${Math.round(item.popularity)} avg players\nProfitability proxy: ${item.profitability}\n${item.recommendation}`}
+            style={{
+              position: 'absolute',
+              left: `${x}%`,
+              top: `${y}%`,
+              transform: 'translate(-50%, -50%)',
+              background: getColor(item.recommendation),
+              color: 'white',
+              padding: '6px 9px',
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              zIndex: 2
+            }}
+          >
+            {item.subgenre}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function HeatMapSummary({ data }: { data: any[] }) {
+  const best = [...data].sort((a: any, b: any) => {
+    const scoreA = a.popularity + a.profitability * 25000 - a.saturation * 5000
+    const scoreB = b.popularity + b.profitability * 25000 - b.saturation * 5000
+    return scoreB - scoreA
+  })[0]
+
+  const crowded = [...data].sort((a: any, b: any) => b.saturation - a.saturation)[0]
+  const monetization = [...data].sort((a: any, b: any) => b.profitability - a.profitability)[0]
+
+  return (
+    <div style={summaryBox}>
+      <h3>Current Heat Map Read</h3>
+
+      <p>
+        <strong>Best current opportunity:</strong><br />
+        {best ? `${best.key} (${best.recommendation})` : '—'}
+        {best?.examples?.[0]?.title && (
+          <span style={exampleLine}> Example: {best.examples[0].title}</span>
+        )}
+      </p>
+
+      <p>
+        <strong>Most crowded:</strong><br />
+        {crowded ? `${crowded.key} (${crowded.saturation} charting games)` : '—'}
+        {crowded?.examples?.[0]?.title && (
+          <span style={exampleLine}> Example: {crowded.examples[0].title}</span>
+        )}
+      </p>
+
+      <p>
+        <strong>Strongest monetization proxy:</strong><br />
+        {monetization ? `${monetization.key} (${monetization.profitability})` : '—'}
+        {monetization?.examples?.[0]?.title && (
+          <span style={exampleLine}> Example: {monetization.examples[0].title}</span>
+        )}
+      </p>
+
+      <p style={{ color: '#667085' }}>
+        Upper-right means higher player demand and stronger monetization proxy.
+        Lower-left means weak current evidence.
+      </p>
+    </div>
+  )
+}
+
+function WordCloud({ words }: { words: any[] }) {
+  if (!words.length) {
+    return (
+      <div style={wordCloudBox}>
+        No description words available yet for this selected idea.
+      </div>
+    )
+  }
+
+  const max = Math.max(...words.map((w) => w.count), 1)
+
+  return (
+    <div style={wordCloudBox}>
+      {words.map((item) => {
+        const size = 13 + (item.count / max) * 22
+
+        return (
+          <span
+            key={item.word}
+            title={`${item.word}: ${item.count} mentions`}
+            style={{
+              fontSize: size,
+              margin: 8,
+              display: 'inline-block',
+              color: '#1e3a8a',
+              fontWeight: item.count === max ? 800 : 600
+            }}
+          >
+            {item.word}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function GameTile({ row }: { row: any }) {
+  return (
+    <div style={tile}>
+      {row.games?.thumbnail_url && (
+        <img src={row.games.thumbnail_url} alt="" style={tileImage} />
+      )}
+      <div style={{ padding: 14 }}>
+        <h3 style={{ marginTop: 0 }}>{row.games?.title}</h3>
+        <p style={{ color: '#667085', fontSize: 13 }}>
+          {row.games?.inferred_genre} / {row.games?.inferred_subgenre}
+        </p>
+        <p style={{ color: '#667085', fontSize: 13 }}>
+          {(row.current_players || 0).toLocaleString()} players · {row.sort_name}
+        </p>
+        <a href={row.games?.url} target="_blank" style={link}>
+          Open game →
+        </a>
+      </div>
+    </div>
+  )
+}
+
+function Insight({ title, value, text, method }: any) {
+  return (
+    <div style={insight}>
+      <p style={{ color: '#667085', margin: 0 }}>{title}</p>
+      <h3>{value}</h3>
+      <p style={{ color: '#475569' }}>{text}</p>
+      <p style={{ color: '#64748b', fontSize: 12 }}>{method}</p>
+    </div>
+  )
+}
+
+function getRecommendation(popularity: number, profitability: number, saturation: number) {
+  if (popularity > 80000 && profitability > 5 && saturation < 10) return 'Very High'
+  if (popularity > 50000 && profitability > 2) return 'High'
+  if (popularity > 20000) return 'Medium'
+  return 'Low'
+}
+
+function getIdeaRead(item: any) {
+  if (item.recommendation === 'Very High') {
+    return 'Strong player demand and monetization proxy with manageable saturation. Worth serious prototyping.'
+  }
+
+  if (item.recommendation === 'High') {
+    return 'Good evidence of demand, but validate differentiation and production scope before committing.'
+  }
+
+  if (item.recommendation === 'Medium') {
+    return 'Some demand exists. Treat this as a testable concept rather than a core bet.'
+  }
+
+  return 'Weak signal right now. Only pursue if you have a very distinctive creative hook.'
+}
+
+function getColor(level: string) {
+  if (level === 'Very High') return '#15803d'
+  if (level === 'High') return '#2563eb'
+  if (level === 'Medium') return '#d97706'
+  return '#64748b'
+}
+
+const sidebar = {
+  width: 240,
+  background: '#0f172a',
+  color: 'white',
+  padding: 20
+}
+
+const logoPlaceholder = {
+  width: 72,
+  height: 72,
+  border: '2px dashed #64748b',
+  borderRadius: 12,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#94a3b8',
+  fontSize: 12,
+  marginBottom: 18
+}
+
+const nav = { color: '#94a3b8', marginBottom: 12 }
+const navActive = { color: '#38bdf8', fontWeight: 700, marginBottom: 12 }
+
+const card = {
+  background: 'white',
+  padding: 22,
+  borderRadius: 16,
+  marginTop: 22,
+  boxShadow: '0 6px 20px rgba(15,23,42,0.08)'
+}
+
+const grid2 = {
+  display: 'grid',
+  gridTemplateColumns: '2fr 1fr',
+  gap: 20
+}
+
+const grid3 = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 16
+}
+
+const insight = {
+  background: '#f8fafc',
+  padding: 16,
+  borderRadius: 12
+}
+
+const input = {
+  padding: 12,
+  borderRadius: 8,
+  border: '1px solid #d1d5db',
+  flex: 1
+}
+
+const heatMap = {
+  position: 'relative' as const,
+  height: 420,
+  background: '#ffffff',
+  border: '1px solid #e5e7eb',
+  borderRadius: 16,
+  overflow: 'hidden'
+}
+
+const heatBackground = {
+  position: 'absolute' as const,
+  inset: 0,
+  background:
+    'linear-gradient(90deg, rgba(219,234,254,0.25), rgba(220,252,231,0.28)), linear-gradient(0deg, rgba(248,250,252,0.9), rgba(254,249,195,0.18))'
+}
+
+const gridOverlay = {
+  position: 'absolute' as const,
+  inset: 0,
+  backgroundImage:
+    'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+  backgroundSize: '25% 25%',
+  opacity: 0.75
+}
+
+const xLabel = {
+  position: 'absolute' as const,
+  bottom: 12,
+  right: 16,
+  color: '#475569',
+  fontWeight: 700
+}
+
+const yLabel = {
+  position: 'absolute' as const,
+  top: 12,
+  left: 16,
+  color: '#475569',
+  fontWeight: 700
+}
+
+const axisLowX = {
+  position: 'absolute' as const,
+  bottom: 12,
+  left: 16,
+  color: '#94a3b8',
+  fontSize: 12
+}
+
+const axisHighX = {
+  position: 'absolute' as const,
+  bottom: 34,
+  right: 16,
+  color: '#94a3b8',
+  fontSize: 12
+}
+
+const axisLowY = {
+  position: 'absolute' as const,
+  bottom: 40,
+  left: 16,
+  color: '#94a3b8',
+  fontSize: 12
+}
+
+const axisHighY = {
+  position: 'absolute' as const,
+  top: 34,
+  left: 16,
+  color: '#94a3b8',
+  fontSize: 12
+}
+
+const summaryBox = {
+  background: '#f8fafc',
+  borderRadius: 16,
+  padding: 18,
+  color: '#334155'
+}
+
+const exampleLine = {
+  display: 'block',
+  marginTop: 4,
+  color: '#2563eb',
+  fontSize: 13
+}
+
+const wordCloudBox = {
+  minHeight: 180,
+  background: '#f8fafc',
+  borderRadius: 16,
+  padding: 18,
+  lineHeight: 1.3
+}
+
+const tileGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+  gap: 16
+}
+
+const tile = {
+  background: '#ffffff',
+  borderRadius: 16,
+  overflow: 'hidden',
+  boxShadow: '0 6px 18px rgba(15,23,42,0.08)'
+}
+
+const tileImage = {
+  width: '100%',
+  height: 140,
+  objectFit: 'cover' as const
+}
+
+const link = {
+  display: 'inline-block',
+  marginTop: 10,
+  color: '#2563eb',
+  fontWeight: 700,
+  textDecoration: 'none'
+}
+
+const note = {
+  marginTop: 14,
+  background: '#eff6ff',
+  padding: 14,
+  borderRadius: 12,
+  color: '#1e3a8a'
+}
