@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getDashboardSession,
-  hasFullDashboardDataAccess,
-} from "@/lib/dashboardSession";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
@@ -78,14 +74,7 @@ const FORTNITE_SELECT = `
   )
 `;
 
-export async function GET(req: NextRequest) {
-  const session = await getDashboardSession(req);
-
-  if (!session.authenticated) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const hasFullAccess = hasFullDashboardDataAccess(session.tier);
+export async function GET(_req: NextRequest) {
   const [robloxResult, fortniteResult, auditResult] = await Promise.all([
     supabase.from("games").select(ROBLOX_SELECT).eq("platform", "roblox"),
     fetchAllFortniteIslands(),
@@ -127,14 +116,10 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    tier: session.tier,
-    dataScope: hasFullAccess ? "full" : "free_preview",
-    roblox: hasFullAccess
-      ? robloxResult.data ?? []
-      : pruneRobloxFreeData(robloxResult.data ?? []),
-    fortnite: hasFullAccess
-      ? fortniteResult.data
-      : pruneFortniteFreeData(fortniteResult.data),
+    tier: "research",
+    dataScope: "full",
+    roblox: robloxResult.data ?? [],
+    fortnite: fortniteResult.data,
     dataQualitySnapshots: auditResult.data ?? [],
   });
 }

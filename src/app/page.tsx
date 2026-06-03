@@ -55,6 +55,8 @@ type DataQualitySnapshot = {
 
 const USER_TIERS: UserTier[] = ["free", "scout", "pro", "admin"];
 const CONFIGURABLE_TIERS: TierAssignable[] = ["free", "scout", "pro"];
+const INTERNAL_DASHBOARD_SETTINGS_TIER: TierAssignable = "pro";
+const INTERNAL_DASHBOARD_SETTINGS_STORAGE_KEY = "snout-internal-dashboard-settings";
 const TIME_WINDOW_OPTIONS: AccessOption[] = [
   { key: "time_7d", label: "7D", description: "Allow the 7-day view." },
   { key: "time_30d", label: "Month", description: "Allow the rolling 30-day view." },
@@ -126,7 +128,7 @@ const ACCESS_ITEMS: AccessItem[] = [
   { key: "fortnite_label_trend", label: "Primary Label Usage Over Time", platform: "fortnite", description: "Label usage over stored snapshots.", options: [...TIME_WINDOW_OPTIONS, ...LABEL_10_25_OPTIONS] },
   { key: "fortnite_genre_presence", label: "Estimated Genre / Format Presence", platform: "fortnite", description: "Estimated Fortnite genre or format presence.", options: TIME_WINDOW_OPTIONS },
   { key: "fortnite_keyword_cloud", label: "Fortnite Island Keyword Cloud", platform: "fortnite", description: "Title and label keyword signals." },
-  { key: "fortnite_ip_signals", label: "IP / Collaboration Signals", platform: "fortnite", description: "Brand, IP, and collaboration cues." },
+  { key: "fortnite_ip_signals", label: "IP / Collaboration Signals", platform: "fortnite", description: "Brand, IP, and collaboration cues.", options: TWO_TIME_WINDOW_OPTIONS },
   { key: "fortnite_tile_colors", label: "Island Tile Colors", platform: "fortnite", description: "Primary and secondary island tile colors." },
   { key: "fortnite_archetypes", label: "Fictional Island Archetypes", platform: "fortnite", description: "Synthetic profiles from Fortnite metadata.", options: TIME_WINDOW_OPTIONS },
   { key: "fortnite_template_generator", label: "Game Template Generator", platform: "fortnite", description: "Synthetic island concept generator.", options: TEMPLATE_OPTIONS },
@@ -256,14 +258,9 @@ export default function Home() {
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [showTerms, setShowTerms] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
-  const [showAccountInfo, setShowAccountInfo] = useState(false);
-  const [showTodayTldr, setShowTodayTldr] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [userTier, setUserTier] = useState<UserTier>(
-    process.env.NODE_ENV !== "production" ? "admin" : "free"
-  );
-  const [accountEmail, setAccountEmail] = useState<string | null>(null);
-  const [adminPreviewTier, setAdminPreviewTier] = useState<UserTier>("admin");
+  const userTier: UserTier =
+    process.env.NODE_ENV !== "production" ? "admin" : "free";
   const [tierVisibility, setTierVisibility] = useState<TierVisibilitySettings>(
     DEFAULT_TIER_VISIBILITY
   );
@@ -304,6 +301,8 @@ export default function Home() {
     useState<TrendTimeWindow>("7d");
   const [fortniteGenreScoreboardWindow, setFortniteGenreScoreboardWindow] =
     useState<TrendTimeWindow>("7d");
+  const [fortniteIpSignalWindow, setFortniteIpSignalWindow] =
+    useState<"7d" | "30d">("7d");
   const [fortniteArchetypeWindow, setFortniteArchetypeWindow] =
     useState<TrendTimeWindow>("7d");
   const [predictionSearch, setPredictionSearch] = useState("");
@@ -322,7 +321,7 @@ export default function Home() {
   );
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("snout-tier-visibility");
+    const stored = window.localStorage.getItem(INTERNAL_DASHBOARD_SETTINGS_STORAGE_KEY);
 
     if (stored) {
       try {
@@ -332,29 +331,12 @@ export default function Home() {
       }
     }
     setTierVisibilityReady(true);
-
-    async function fetchSession() {
-      try {
-        const response = await fetch("/api/auth/session");
-        const session = await response.json();
-        setUserTier(
-          process.env.NODE_ENV !== "production"
-            ? "admin"
-            : normalizeDashboardTier(session?.tier)
-        );
-        setAccountEmail(session?.email ?? null);
-      } catch (error) {
-        console.warn("Dashboard session could not be loaded:", error);
-      }
-    }
-
-    fetchSession();
   }, []);
 
   useEffect(() => {
     if (tierVisibilityReady) {
       window.localStorage.setItem(
-        "snout-tier-visibility",
+        INTERNAL_DASHBOARD_SETTINGS_STORAGE_KEY,
         JSON.stringify(tierVisibility)
       );
     }
@@ -391,11 +373,6 @@ export default function Home() {
     fetchData();
   }, []);
 
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
-    window.location.href = "/login";
-  }
-
   const activeItems =
     activePlatform === "roblox" ? robloxGames : fortniteIslands;
   const activeGenreAnalysisItems = useMemo(
@@ -423,11 +400,16 @@ export default function Home() {
     ).sort();
   }, [activeGenreAnalysisItems, activePlatform, selectedGenre]);
 
-  const effectiveUserTier = userTier === "admin" ? adminPreviewTier : userTier;
+  const isInternalAdmin = process.env.NODE_ENV !== "production" && userTier === "admin";
   const canAccess = (key: string) =>
-    canSeeAccessItem(effectiveUserTier, tierVisibility, key);
+    canSeeAccessItem(INTERNAL_DASHBOARD_SETTINGS_TIER, tierVisibility, key);
   const canAccessOption = (itemKey: string, optionKey: string) =>
-    canSeeAccessOption(effectiveUserTier, tierVisibility, itemKey, optionKey);
+    canSeeAccessOption(
+      INTERNAL_DASHBOARD_SETTINGS_TIER,
+      tierVisibility,
+      itemKey,
+      optionKey
+    );
   const effectiveTimeWindow = (
     itemKey: string,
     requested: TrendTimeWindow
@@ -602,11 +584,13 @@ export default function Home() {
     fortniteLifecycleLimit,
     fortniteLabelTrendWindow,
     fortniteGenreScoreboardWindow,
+    fortniteIpSignalWindow,
     fortniteArchetypeWindow,
     setFortniteLabelTrendLimit,
     setFortniteLifecycleLimit,
     setFortniteLabelTrendWindow,
     setFortniteGenreScoreboardWindow,
+    setFortniteIpSignalWindow,
     setFortniteArchetypeWindow,
     selectedGenre,
     selectedSubgenre,
@@ -621,9 +605,6 @@ export default function Home() {
     setPredictionSearch,
     predictionTarget,
     predictionSignals,
-    userTier,
-    effectiveUserTier,
-    tierVisibility,
     canAccess,
     canAccessOption,
     effectiveTimeWindow,
@@ -660,13 +641,6 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <UserTierBadge tier={effectiveUserTier} actualTier={userTier} />
-            {userTier === "admin" && (
-              <AdminTierPreviewSelect
-                value={adminPreviewTier}
-                onChange={setAdminPreviewTier}
-              />
-            )}
             {canAccess("global_platform_toggle") && (
               <ToggleGroup>
                 <ToggleButton
@@ -701,13 +675,6 @@ export default function Home() {
               onClick={() => setDarkMode((value) => !value)}
               accent={accent}
             />
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-200"
-            >
-              Log out
-            </button>
           </div>
         </header>
 
@@ -735,7 +702,7 @@ export default function Home() {
               onClick={() => setShowDisclaimer(false)}
               className="ml-4 rounded-full border px-3 py-1 text-xs font-bold"
             >
-              Dismiss
+              Acknowledge & Dismiss
             </button>
           </div>
         )}
@@ -746,21 +713,6 @@ export default function Home() {
             className="mb-4 flex flex-wrap items-center justify-between gap-3"
           >
             <div className="flex flex-wrap gap-2">
-              {activePlatform === "roblox" && (
-                <button
-                  type="button"
-                  onClick={() => setShowTodayTldr(true)}
-                  disabled={loading || !topRobloxGames.length}
-                  className="rounded-2xl border border-[#0d69ac] bg-[#0d69ac] px-4 py-3 text-left text-white shadow-sm transition hover:border-[#0b5b95] hover:bg-[#0b5b95] disabled:cursor-not-allowed disabled:opacity-55"
-                >
-                  <span className="block text-[11px] font-bold normal-case tracking-normal text-white/75">
-                    Quick briefing
-                  </span>
-                  <span className="mt-0.5 block text-xs font-black uppercase tracking-wide text-white">
-                    Give me today's TLDR
-                  </span>
-                </button>
-              )}
               {(activePlatform === "roblox"
                 ? [
                     [
@@ -773,6 +725,12 @@ export default function Home() {
                       "#player-activity-landscape",
                       "Track what's rising or falling",
                       "Player Activity Landscape",
+                    ],
+                    [
+                      "#",
+                      "Book time with a data expert",
+                      "Data Strategy Session",
+                      "cta",
                     ],
                   ]
                 : [
@@ -791,17 +749,43 @@ export default function Home() {
                       "Review imported island metadata",
                       "Latest Imported Fortnite Islands",
                     ],
+                    [
+                      "#",
+                      "Book time with a data expert",
+                      "Data Strategy Session",
+                      "cta",
+                    ],
                   ]
-              ).map(([href, prompt, label]) => (
+              ).map(([href, prompt, label, variant]) => (
                 <Fragment key={href}>
                   <a
                     href={href}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
+                    className={
+                      variant === "cta"
+                        ? "rounded-2xl border px-4 py-3 text-left text-white shadow-sm transition"
+                        : "rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
+                    }
+                    style={
+                      variant === "cta"
+                        ? {
+                            backgroundColor: accent,
+                            borderColor: accent,
+                          }
+                        : undefined
+                    }
                   >
-                    <span className="block text-[11px] font-bold normal-case tracking-normal text-slate-400">
+                    <span
+                      className={`block text-[11px] font-bold normal-case tracking-normal ${
+                        variant === "cta" ? "text-white/75" : "text-slate-400"
+                      }`}
+                    >
                       {prompt}
                     </span>
-                    <span className="mt-0.5 block text-xs font-black uppercase tracking-wide text-slate-500">
+                    <span
+                      className={`mt-0.5 block text-xs font-black uppercase tracking-wide ${
+                        variant === "cta" ? "text-white" : "text-slate-500"
+                      }`}
+                    >
                       {label}
                     </span>
                   </a>
@@ -1129,161 +1113,148 @@ export default function Home() {
               <LockedAccessSection itemKey="roblox_template_generator" panel={panel} />
             )}
 
-            {canAccess("roblox_idea_card") ? (
-              <section id="my-game-idea-is" className="mb-6 scroll-mt-6">
-              <div className={`rounded-3xl border p-6 ${panel}`}>
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-bold">My Game Idea Is</h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Use this as a reflection tool to position your concept.
-                    </p>
-                  </div>
-                  {
-                    <TwoOptionTimeWindowControls
-                      timeWindow={effectiveTimeWindow("roblox_idea_card", ideaTimeWindow)}
-                      onTimeWindowChange={setIdeaTimeWindow}
-                      accent={accent}
-                      allowedValues={allowedTimeWindows("roblox_idea_card", false)}
-                    />
-                  }
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  <select
-                    className="w-full rounded-xl border p-3 text-sm text-slate-800"
-                    value={selectedGenre}
-                    onChange={(e) => {
-                      setSelectedGenre(e.target.value);
-                      setSelectedSubgenre("");
-                    }}
-                  >
-                    <option value="">
-                      {activePlatform === "roblox" ? "Select Genre" : "Select Estimated Genre"}
-                    </option>
-                    {genres.map((genre) => (
-                      <option key={genre} value={genre}>
-                        {genre}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    className="w-full rounded-xl border p-3 text-sm text-slate-800"
-                    value={selectedSubgenre}
-                    onChange={(e) => setSelectedSubgenre(e.target.value)}
-                  >
-                    <option value="">
-                      {activePlatform === "roblox" ? "Select Subgenre" : "Select Estimated Subgenre"}
-                    </option>
-                    {subgenres.map((subgenre) => (
-                      <option key={subgenre} value={subgenre}>
-                        {subgenre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-	                <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-                    <div className="grid gap-4 lg:grid-cols-[24rem_1fr] lg:items-stretch">
-                      <IdeaSunburst
-                        items={activeIdeaAnalysisItems}
-                        platform={activePlatform}
-                        selectedGenre={selectedGenre}
-                        selectedSubgenre={selectedSubgenre}
-                        accent={accent}
-                      />
-                      <IdeaPositionReadout
-                        platform={activePlatform}
-                        selectedGenre={selectedGenre}
-                        selectedSubgenre={selectedSubgenre}
-                        ideaPercent={ideaPercent}
-                        totalPlayersInIdea={totalPlayersInIdea}
-                        items={activeIdeaAnalysisItems}
-                      />
-                    </div>
-                    <div className="mt-5 border-t border-slate-200 pt-4">
-                      <p className="text-xs font-black uppercase tracking-wide text-slate-400">
-                        Source-confirmed similar games
-                      </p>
-                      {topSimilar.length ? (
-                        <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                          <p className="sr-only">
-                            Roblox suggestions use source-confirmed genre and subgenre matches.
-                          </p>
-                          {topSimilar.slice(0, 5).map((item: any, index: number) => (
-                            <GameMarketCard
-                              key={item.id}
-                              item={item}
-                              rank={index + 1}
-                              platform={activePlatform}
-                              panel={panel}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-3 text-sm text-slate-500">
-                          {getIdeaSuggestionEmptyText(
-                            activePlatform,
-                            selectedGenre,
-                            selectedSubgenre
-                          )}
+            {(canAccess("roblox_idea_card") || canAccess("roblox_research_cards")) ? (
+              <section
+                id="my-game-idea-is"
+                className="mb-6 grid scroll-mt-6 gap-4 lg:grid-cols-2"
+              >
+                {canAccess("roblox_idea_card") ? (
+                  <div className={`rounded-3xl border p-6 ${panel}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-2xl font-bold">My Game Idea Is</h2>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Use this as a reflection tool to position your concept.
                         </p>
-                      )}
+                      </div>
+                      <TwoOptionTimeWindowControls
+                        timeWindow={effectiveTimeWindow("roblox_idea_card", ideaTimeWindow)}
+                        onTimeWindowChange={setIdeaTimeWindow}
+                        accent={accent}
+                        allowedValues={allowedTimeWindows("roblox_idea_card", false)}
+                      />
                     </div>
-	                </div>
-	              </div>
-              </section>
-            ) : (
-              <section id="my-game-idea-is" className="mb-6 scroll-mt-6">
-                <LockedAccessCard itemKey="roblox_idea_card" panel={panel} />
-              </section>
-            )}
 
-            {canAccess("roblox_research_cards") ? (
-              <section className="mb-6 grid gap-4 lg:grid-cols-3">
-              <RecommendationBlock
-                title="Research Signal"
-                panel={panel}
-                accent={accent}
-                bullets={[
-                  activePlatform === "roblox"
-                    ? `This segment currently maps to ${formatNumber(
-                        totalPlayersInIdea
-                      )} players across ${filteredIdeaItems.length} imported experiences.`
-                    : `This segment maps to ${filteredIdeaItems.length} imported islands.`,
-                  `${ideaPercent}% of the active platform dataset matches this idea profile.`,
-                  filteredIdeaItems.length > 5
-                    ? "There are enough examples to investigate repeatable patterns."
-                    : "This is a lower-signal area and should be treated as exploratory.",
-                ]}
-              />
+                    <div className="mt-5 space-y-3">
+                      <select
+                        className="w-full rounded-xl border p-3 text-sm text-slate-800"
+                        value={selectedGenre}
+                        onChange={(e) => {
+                          setSelectedGenre(e.target.value);
+                          setSelectedSubgenre("");
+                        }}
+                      >
+                        <option value="">
+                          {activePlatform === "roblox" ? "Select Genre" : "Select Estimated Genre"}
+                        </option>
+                        {genres.map((genre) => (
+                          <option key={genre} value={genre}>
+                            {genre}
+                          </option>
+                        ))}
+                      </select>
 
-              <RecommendationBlock
-                title="Design Cues"
-                panel={panel}
-                accent={accent}
-                readout={buildDesignCuesReadout(topTags(filteredIdeaItems), filteredIdeaItems.length)}
-                tags={topTags(filteredIdeaItems)}
-              />
+                      <select
+                        className="w-full rounded-xl border p-3 text-sm text-slate-800"
+                        value={selectedSubgenre}
+                        onChange={(e) => setSelectedSubgenre(e.target.value)}
+                      >
+                        <option value="">
+                          {activePlatform === "roblox" ? "Select Subgenre" : "Select Estimated Subgenre"}
+                        </option>
+                        {subgenres.map((subgenre) => (
+                          <option key={subgenre} value={subgenre}>
+                            {subgenre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              <RecommendationBlock
-                title="Warnings"
-                panel={panel}
-                accent={accent}
-                bullets={[
-                  filteredIdeaItems.length < 5
-                    ? "This combination has low representation in the imported dataset."
-                    : "This combination has visible competition in the imported dataset.",
-                  "Roblox signals are based on current player snapshots and inferred classifications.",
-                  "Rows marked Heuristic fallback use title, description, and chart text because Roblox source taxonomy was unavailable.",
-                  "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
-                ]}
-              />
+                    <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                      <div className="mx-auto max-w-sm">
+                        <IdeaSunburst
+                          items={activeIdeaAnalysisItems}
+                          platform={activePlatform}
+                          selectedGenre={selectedGenre}
+                          selectedSubgenre={selectedSubgenre}
+                          accent={accent}
+                        />
+                      </div>
+                      <div className="mt-5 border-t border-slate-200 pt-4">
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                          Source-confirmed similar games
+                        </p>
+                        {topSimilar.length ? (
+                          <div className="mt-3 grid gap-4 md:grid-cols-2">
+                            <p className="sr-only">
+                              Roblox suggestions use source-confirmed genre and subgenre matches.
+                            </p>
+                            {topSimilar.slice(0, 4).map((item: any, index: number) => (
+                              <GameMarketCard
+                                key={item.id}
+                                item={item}
+                                rank={index + 1}
+                                platform={activePlatform}
+                                panel={panel}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-sm text-slate-500">
+                            {getIdeaSuggestionEmptyText(
+                              activePlatform,
+                              selectedGenre,
+                              selectedSubgenre
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {canAccess("roblox_research_cards") ? (
+                  <div className="grid gap-4">
+                    <RecommendationBlock
+                      title="Design Cues"
+                      panel={panel}
+                      accent={accent}
+                      readout={buildDesignCuesReadout(topTags(filteredIdeaItems), filteredIdeaItems.length)}
+                      tags={topTags(filteredIdeaItems)}
+                    />
+                    <RecommendationBlock
+                      title="Research Signal"
+                      panel={panel}
+                      accent={accent}
+                      bullets={[
+                        activePlatform === "roblox"
+                          ? `This segment currently maps to ${formatNumber(
+                              totalPlayersInIdea
+                            )} players across ${filteredIdeaItems.length} imported experiences.`
+                          : `This segment maps to ${filteredIdeaItems.length} imported islands.`,
+                        `${ideaPercent}% of the active platform dataset matches this idea profile.`,
+                        filteredIdeaItems.length > 5
+                          ? "There are enough examples to investigate repeatable patterns."
+                          : "This is a lower-signal area and should be treated as exploratory.",
+                      ]}
+                    />
+                    <RecommendationBlock
+                      title="Warnings"
+                      panel={panel}
+                      accent={accent}
+                      bullets={[
+                        filteredIdeaItems.length < 5
+                          ? "This combination has low representation in the imported dataset."
+                          : "This combination has visible competition in the imported dataset.",
+                        "Roblox signals are based on current player snapshots and inferred classifications.",
+                        "Rows marked Heuristic fallback use title, description, and chart text because Roblox source taxonomy was unavailable.",
+                        "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
+                      ]}
+                    />
+                  </div>
+                ) : null}
               </section>
-            ) : (
-              <LockedAccessSection itemKey="roblox_research_cards" panel={panel} />
-            )}
+            ) : null}
 
             {canAccess("roblox_correlation") ? (
               <section className="mb-6">
@@ -1333,7 +1304,7 @@ export default function Home() {
                 <div>
                   <h2 className="text-2xl font-bold">Player Activity Landscape</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Rectangle size reflects today&apos;s activity or the stored peak activity in the selected window. Color reflects stored player gain or loss.
+                    Tile size reflects captured player count in the selected window. Color shows whether that captured count increased or decreased between stored snapshots; snapshots are point-in-time signals, not full-day player averages.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-3">
@@ -1474,14 +1445,7 @@ export default function Home() {
               >
                 Glossary
               </button>
-              <button
-                type="button"
-                onClick={() => setShowAccountInfo(true)}
-                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
-              >
-                Account info
-              </button>
-              {userTier === "admin" && (
+              {isInternalAdmin && (
                 <button
                   type="button"
                   onClick={() => setShowAdminPanel(true)}
@@ -1508,22 +1472,7 @@ export default function Home() {
         </footer>
         {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
         {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
-        {showAccountInfo && (
-          <AccountInfoModal
-            email={accountEmail}
-            tier={userTier}
-            onClose={() => setShowAccountInfo(false)}
-          />
-        )}
-        {showTodayTldr && (
-          <TodayTldrModal
-            games={topRobloxGames}
-            panel={panel}
-            loading={loading}
-            onClose={() => setShowTodayTldr(false)}
-          />
-        )}
-        {showAdminPanel && userTier === "admin" && (
+        {showAdminPanel && isInternalAdmin && (
           <AdminAccessModal
             settings={tierVisibility}
             onChange={setTierVisibility}
@@ -1564,11 +1513,13 @@ function FortniteDashboardView({ context }: any) {
     fortniteLifecycleLimit,
     fortniteLabelTrendWindow,
     fortniteGenreScoreboardWindow,
+    fortniteIpSignalWindow,
     fortniteArchetypeWindow,
     setFortniteLabelTrendLimit,
     setFortniteLifecycleLimit,
     setFortniteLabelTrendWindow,
     setFortniteGenreScoreboardWindow,
+    setFortniteIpSignalWindow,
     setFortniteArchetypeWindow,
     selectedGenre,
     selectedSubgenre,
@@ -1829,10 +1780,23 @@ function FortniteDashboardView({ context }: any) {
         {canAccess("fortnite_ip_signals") ? (
           <FortniteIpSignalsCard
             title="IP / Collaboration Signals"
-            subtitle="Primary labels and description cues in the latest substantial island collection"
-            islands={getFortniteIslandsByLatestSubstantialSnapshot(fortniteIslands)}
+            subtitle={`Primary labels and description cues across ${getTrendWindowLabel(
+              effectiveTimeWindow("fortnite_ip_signals", fortniteIpSignalWindow)
+            )}`}
+            islands={getFortniteIslandsBySnapshotWindow(
+              fortniteIslands,
+              effectiveTimeWindow("fortnite_ip_signals", fortniteIpSignalWindow)
+            )}
             panel={panel}
             accent={accent}
+            action={
+              <TwoOptionTimeWindowControls
+                timeWindow={effectiveTimeWindow("fortnite_ip_signals", fortniteIpSignalWindow)}
+                onTimeWindowChange={setFortniteIpSignalWindow}
+                accent={accent}
+                allowedValues={allowedTimeWindows("fortnite_ip_signals", false)}
+              />
+            }
           />
         ) : (
           <LockedAccessCard itemKey="fortnite_ip_signals" panel={panel} />
@@ -1916,148 +1880,135 @@ function FortniteDashboardView({ context }: any) {
         </section>
       )}
 
-      {canAccess("fortnite_idea_card") ? (
-        <section id="my-fortnite-island-idea-is" className="mb-6 scroll-mt-6">
-        <div className={`rounded-3xl border p-6 ${panel}`}>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-bold">My Fortnite Island Idea Is</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Use this as a reflection tool to position your island concept.
-              </p>
-            </div>
-            {
-              <TwoOptionTimeWindowControls
-                timeWindow={effectiveTimeWindow("fortnite_idea_card", ideaTimeWindow)}
-                onTimeWindowChange={setIdeaTimeWindow}
-                accent={accent}
-                allowedValues={allowedTimeWindows("fortnite_idea_card", false)}
-              />
-            }
-          </div>
-
-          <div className="mt-5 space-y-3">
-            <select
-              className="w-full rounded-xl border p-3 text-sm text-slate-800"
-              value={selectedGenre}
-              onChange={(event) => {
-                setSelectedGenre(event.target.value);
-                setSelectedSubgenre("");
-              }}
-            >
-              <option value="">Select Estimated Genre</option>
-              {genres.map((genre: string) => (
-                <option key={genre} value={genre}>
-                  {genre}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="w-full rounded-xl border p-3 text-sm text-slate-800"
-              value={selectedSubgenre}
-              onChange={(event) => setSelectedSubgenre(event.target.value)}
-            >
-              <option value="">Select Estimated Subgenre</option>
-              {subgenres.map((subgenre: string) => (
-                <option key={subgenre} value={subgenre}>
-                  {subgenre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-            <div className="grid gap-4 lg:grid-cols-[24rem_1fr] lg:items-stretch">
-              <IdeaSunburst
-                items={activeIdeaAnalysisItems}
-                platform={activePlatform}
-                selectedGenre={selectedGenre}
-                selectedSubgenre={selectedSubgenre}
-                accent={accent}
-              />
-              <IdeaPositionReadout
-                platform={activePlatform}
-                selectedGenre={selectedGenre}
-                selectedSubgenre={selectedSubgenre}
-                ideaPercent={ideaPercent}
-                totalPlayersInIdea={0}
-                items={activeIdeaAnalysisItems}
-              />
-            </div>
-            {topSimilar.length ? (
-              <div className="mt-5 border-t border-slate-200 pt-4">
-                <p className="text-xs font-black uppercase tracking-wide text-slate-400">
-                  Similar imported islands
-                </p>
-                <div className="mt-3 grid gap-3 md:grid-cols-3">
-                  {topSimilar.map((item: any, index: number) => (
-                    <MiniSimilarGameCard
-                      key={item.id}
-                      item={item}
-                      rank={index + 1}
-                      platform={activePlatform}
-                    />
-                  ))}
+      {(canAccess("fortnite_idea_card") || canAccess("fortnite_research_cards")) ? (
+        <section
+          id="my-fortnite-island-idea-is"
+          className="mb-6 grid scroll-mt-6 gap-4 lg:grid-cols-2"
+        >
+          {canAccess("fortnite_idea_card") ? (
+            <div className={`rounded-3xl border p-6 ${panel}`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">My Fortnite Island Idea Is</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Use this as a reflection tool to position your island concept.
+                  </p>
                 </div>
+                <TwoOptionTimeWindowControls
+                  timeWindow={effectiveTimeWindow("fortnite_idea_card", ideaTimeWindow)}
+                  onTimeWindowChange={setIdeaTimeWindow}
+                  accent={accent}
+                  allowedValues={allowedTimeWindows("fortnite_idea_card", false)}
+                />
               </div>
-            ) : (
-              <p className="mt-5 border-t border-slate-200 pt-4 text-sm text-slate-500">
-                {getIdeaSuggestionEmptyText(
-                  activePlatform,
-                  selectedGenre,
-                  selectedSubgenre
+
+              <div className="mt-5 space-y-3">
+                <select
+                  className="w-full rounded-xl border p-3 text-sm text-slate-800"
+                  value={selectedGenre}
+                  onChange={(event) => {
+                    setSelectedGenre(event.target.value);
+                    setSelectedSubgenre("");
+                  }}
+                >
+                  <option value="">Select Estimated Genre</option>
+                  {genres.map((genre: string) => (
+                    <option key={genre} value={genre}>
+                      {genre}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  className="w-full rounded-xl border p-3 text-sm text-slate-800"
+                  value={selectedSubgenre}
+                  onChange={(event) => setSelectedSubgenre(event.target.value)}
+                >
+                  <option value="">Select Estimated Subgenre</option>
+                  {subgenres.map((subgenre: string) => (
+                    <option key={subgenre} value={subgenre}>
+                      {subgenre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                <div className="mx-auto max-w-sm">
+                  <IdeaSunburst
+                    items={activeIdeaAnalysisItems}
+                    platform={activePlatform}
+                    selectedGenre={selectedGenre}
+                    selectedSubgenre={selectedSubgenre}
+                    accent={accent}
+                  />
+                </div>
+                {topSimilar.length ? (
+                  <div className="mt-5 border-t border-slate-200 pt-4">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                      Similar imported islands
+                    </p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {topSimilar.slice(0, 4).map((item: any, index: number) => (
+                        <MiniSimilarGameCard
+                          key={item.id}
+                          item={item}
+                          rank={index + 1}
+                          platform={activePlatform}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-5 border-t border-slate-200 pt-4 text-sm text-slate-500">
+                    {getIdeaSuggestionEmptyText(
+                      activePlatform,
+                      selectedGenre,
+                      selectedSubgenre
+                    )}
+                  </p>
                 )}
-              </p>
-            )}
-          </div>
-        </div>
-        </section>
-      ) : (
-        <section id="my-fortnite-island-idea-is" className="mb-6 scroll-mt-6">
-          <LockedAccessCard itemKey="fortnite_idea_card" panel={panel} />
-        </section>
-      )}
+              </div>
+            </div>
+          ) : null}
 
-      {canAccess("fortnite_research_cards") ? (
-        <section className="mb-6 grid gap-4 lg:grid-cols-3">
-        <RecommendationBlock
-          title="Research Signal"
-          panel={panel}
-          accent={accent}
-          bullets={[
-            `This segment maps to ${filteredIdeaItems.length} imported Fortnite islands.`,
-            `${ideaPercent}% of the Fortnite dataset matches this idea profile.`,
-            filteredIdeaItems.length > 5
-              ? "There are enough examples to investigate repeatable island patterns."
-              : "This is a lower-signal area and should be treated as exploratory.",
-          ]}
-        />
-
-        <RecommendationBlock
-          title="Design Cues"
-          panel={panel}
-          accent={accent}
-          readout={buildDesignCuesReadout(topTags(filteredIdeaItems), filteredIdeaItems.length)}
-          tags={topTags(filteredIdeaItems)}
-        />
-
-        <RecommendationBlock
-          title="Warnings"
-          panel={panel}
-          accent={accent}
-          bullets={[
-            filteredIdeaItems.length < 5
-              ? "This combination has low representation in the imported Fortnite dataset."
-              : "This combination has visible competition in the imported Fortnite dataset.",
-            "Fortnite signals use source-provided activity fields when available; missing fields should be treated as coverage gaps.",
-            "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
-          ]}
-        />
+          {canAccess("fortnite_research_cards") ? (
+            <div className="grid gap-4">
+              <RecommendationBlock
+                title="Design Cues"
+                panel={panel}
+                accent={accent}
+                readout={buildDesignCuesReadout(topTags(filteredIdeaItems), filteredIdeaItems.length)}
+                tags={topTags(filteredIdeaItems)}
+              />
+              <RecommendationBlock
+                title="Research Signal"
+                panel={panel}
+                accent={accent}
+                bullets={[
+                  `This segment maps to ${filteredIdeaItems.length} imported Fortnite islands.`,
+                  `${ideaPercent}% of the Fortnite dataset matches this idea profile.`,
+                  filteredIdeaItems.length > 5
+                    ? "There are enough examples to investigate repeatable island patterns."
+                    : "This is a lower-signal area and should be treated as exploratory.",
+                ]}
+              />
+              <RecommendationBlock
+                title="Warnings"
+                panel={panel}
+                accent={accent}
+                bullets={[
+                  filteredIdeaItems.length < 5
+                    ? "This combination has low representation in the imported Fortnite dataset."
+                    : "This combination has visible competition in the imported Fortnite dataset.",
+                  "Fortnite signals use source-provided activity fields when available; missing fields should be treated as coverage gaps.",
+                  "Use this as informational market intelligence, not as business advice or a prediction of creator outcome.",
+                ]}
+              />
+            </div>
+          ) : null}
         </section>
-      ) : (
-        <LockedAccessSection itemKey="fortnite_research_cards" panel={panel} />
-      )}
+      ) : null}
 
       {canAccess("fortnite_directional_map") ? (
         <section className="mb-6">
@@ -2913,7 +2864,10 @@ const fortniteIpLabelPatterns = [
 ];
 
 function buildFortniteIpSignals(islands: any[]) {
-  const map: Record<string, { label: string; type: string; count: number; examples: string[] }> = {};
+  const map: Record<
+    string,
+    { label: string; type: string; islandKeys: Set<string>; examples: string[] }
+  > = {};
 
   islands.forEach((island) => {
     const signal = getFortniteIpSignal(island);
@@ -2923,18 +2877,26 @@ function buildFortniteIpSignals(islands: any[]) {
       map[signal.label] = {
         label: signal.label,
         type: signal.type,
-        count: 0,
+        islandKeys: new Set<string>(),
         examples: [],
       };
     }
 
-    map[signal.label].count += 1;
+    const islandKey = getFortniteIslandKey(island);
+    if (map[signal.label].islandKeys.has(islandKey)) return;
+
+    map[signal.label].islandKeys.add(islandKey);
     if (map[signal.label].examples.length < 3) {
       map[signal.label].examples.push(island.title ?? "Untitled island");
     }
   });
 
-  return Object.values(map).sort(
+  return Object.values(map).map((signal) => ({
+    label: signal.label,
+    type: signal.type,
+    count: signal.islandKeys.size,
+    examples: signal.examples,
+  })).sort(
     (a, b) => b.count - a.count || a.label.localeCompare(b.label)
   );
 }
@@ -3352,6 +3314,43 @@ function getFortniteIslandsByLatestSubstantialSnapshot(islands: any[]) {
   );
 }
 
+function getFortniteIslandsBySnapshotWindow(
+  islands: any[],
+  timeWindow: TrendTimeWindow = "7d"
+) {
+  const latestDateKey =
+    getFortniteSubstantialSnapshotDateKeys(islands).at(-1) ??
+    getAvailableFortniteSnapshotDateKeys(islands).at(-1);
+  const latestDate = parseDateKey(latestDateKey);
+
+  if (!latestDate) return getFortniteIslandsByLatestSubstantialSnapshot(islands);
+
+  const startDate = new Date(latestDate);
+  startDate.setUTCDate(startDate.getUTCDate() - getTrendWindowDays(timeWindow) + 1);
+
+  const filtered = islands.filter((island) =>
+    (island.snapshots ?? []).some((snapshot: any) => {
+      const dateKey = getSnapshotDateKey(snapshot.created_at);
+      const snapshotDate = parseDateKey(dateKey);
+      return snapshotDate && snapshotDate >= startDate && snapshotDate <= latestDate;
+    })
+  );
+
+  return filtered.length ? filtered : getFortniteIslandsByLatestSubstantialSnapshot(islands);
+}
+
+function getUniqueFortniteIslands(islands: any[]) {
+  const map = new Map<string, any>();
+
+  islands.forEach((island) => {
+    const key = getFortniteIslandKey(island);
+    if (!key || map.has(key)) return;
+    map.set(key, island);
+  });
+
+  return Array.from(map.values());
+}
+
 function getFortniteSnapshotDateCounts(islands: any[]) {
   const dateKeys = getAvailableFortniteSnapshotDateKeys(islands);
 
@@ -3420,7 +3419,7 @@ function buildDataSourceHealth(
 ) {
   const source =
     platform === "roblox"
-      ? "Roblox Explore API / discover charts"
+      ? "Roblox public discovery chart responses"
       : "Fortnite Data API / ecosystem islands";
 
   const latestCoverage = getLatestNonEmptySnapshotCoverage(platform, items);
@@ -4262,15 +4261,21 @@ function FortniteLabelRankingsCard({ title, subtitle, items, panel, accent }: an
   );
 }
 
-function FortniteIpSignalsCard({ title, subtitle, islands, panel, accent }: any) {
+function FortniteIpSignalsCard({ title, subtitle, islands, panel, accent, action }: any) {
+  const uniqueIslands = getUniqueFortniteIslands(islands);
   const signals = buildFortniteIpSignals(islands);
   const topSignals = signals.slice(0, 5);
-  const ipLedIslands = islands.filter((island: any) => getFortniteIpSignal(island));
+  const ipLedIslands = uniqueIslands.filter((island: any) => getFortniteIpSignal(island));
 
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
-      <p className="text-sm font-semibold text-slate-500">{title}</p>
-      <p className="text-xs text-slate-400">{subtitle}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">{title}</p>
+          <p className="text-xs text-slate-400">{subtitle}</p>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
 
       <div className="mt-4 rounded-2xl bg-slate-50 p-4">
         <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
@@ -4281,7 +4286,7 @@ function FortniteIpSignalsCard({ title, subtitle, islands, panel, accent }: any)
             {ipLedIslands.length}
           </span>
           <span className="text-right text-xs font-bold text-slate-400">
-            of {islands.length} imported islands
+            of {uniqueIslands.length} unique imported islands
           </span>
         </div>
       </div>
@@ -6811,10 +6816,6 @@ function ReadOutCard({ maps, panel, platform }: any) {
       <p className="mt-1 text-sm text-slate-500">
         Synthesis across demand, saturation, velocity, and estimated game format complexity.
       </p>
-      <p className="mt-4 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold leading-6 text-slate-700">
-        Use the darker blue areas as starting points for research: they point to formats with stronger player activity signals and less obvious crowding.
-      </p>
-
       {strongest ? (
         <div className="mt-5 space-y-4">
           <div className="rounded-2xl bg-white/70 p-4">
@@ -6844,13 +6845,6 @@ function ReadOutCard({ maps, panel, platform }: any) {
               <strong>Note about "All":</strong> {allGenreNote}
             </div>
           ) : null}
-
-          <div className="rounded-2xl border border-[#9fc7e4] bg-white/50 p-4 text-sm leading-6 text-slate-600">
-            <strong>Research interpretation:</strong>{" "}
-            consider investigating segments that appear as deeper blue in more
-            than one lens; treat lighter areas as potentially crowded,
-            slow-moving, uncertain, or expensive to build.
-          </div>
 
           {strongestExample ? (
             <div className="border-t border-[#9fc7e4] pt-4">
@@ -7145,7 +7139,7 @@ function GameTemplateGeneratorRow({
       label: platform === "roblox" ? "Leading set type" : "Source set type",
       enabled: templateOptions.top10,
     },
-  ];
+  ].filter((option) => option.enabled);
   const [templateType, setTemplateType] = useState<
     "mainstream" | "uncommon" | "top10" | null
   >(null);
@@ -7176,38 +7170,39 @@ function GameTemplateGeneratorRow({
             </p>
             {visibleTemplateOptions.length ? (
               <div className="mt-5 grid gap-2">
-                {visibleTemplateOptions.map(({ value, label, enabled }) => (
+                {visibleTemplateOptions.map(({ value, label }) => (
                   <button
                     key={value}
                     type="button"
-                    disabled={!enabled}
                     onClick={() => {
                       setTemplateType(value as "mainstream" | "uncommon" | "top10");
                       setRerollIndex(0);
                     }}
-                    className="rounded-2xl border border-[#9fc7e4] bg-[#e8f2fa] px-4 py-3 text-left text-sm font-black text-[#0d69ac] shadow-sm transition hover:border-[#0d69ac] hover:bg-[#dcecf7] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-2xl border border-[#9fc7e4] bg-[#e8f2fa] px-4 py-3 text-left text-sm font-black text-[#0d69ac] shadow-sm transition hover:border-[#0d69ac] hover:bg-[#dcecf7]"
                     style={{
-                      borderColor: templateType === value && enabled ? accent : undefined,
-                      color: templateType === value && enabled ? accent : undefined,
+                      borderColor: templateType === value ? accent : undefined,
+                      color: templateType === value ? accent : undefined,
                       backgroundColor:
-                        templateType === value && enabled ? `${accent}1f` : undefined,
+                        templateType === value ? `${accent}1f` : undefined,
                     }}
                   >
                     {label}
                   </button>
                 ))}
+                {templateOptions.reroll ? (
                   <button
                     type="button"
-                    disabled={!templateType || !templateOptions.reroll}
+                    disabled={!templateType}
                     onClick={() => setRerollIndex((value) => value + 1)}
                     className="rounded-2xl border border-[#9fc7e4] bg-[#e8f2fa] px-4 py-3 text-left text-sm font-black text-[#0d69ac] shadow-sm transition hover:border-[#0d69ac] hover:bg-[#dcecf7] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Reroll
                   </button>
+                ) : null}
               </div>
             ) : (
               <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-500">
-                Template controls are not enabled for this tier.
+                Template controls are currently hidden.
               </p>
             )}
           </div>
@@ -9417,48 +9412,6 @@ function ModalShell({ children, onClose }: any) {
   );
 }
 
-function UserTierBadge({ tier, actualTier }: { tier: UserTier; actualTier?: UserTier }) {
-  const styles: Record<UserTier, string> = {
-    free: "bg-slate-100 text-slate-600",
-    scout: "bg-blue-50 text-blue-700",
-    pro: "bg-violet-50 text-violet-700",
-    admin: "bg-emerald-50 text-emerald-700",
-  };
-  const isPreview = actualTier === "admin" && tier !== "admin";
-
-  return (
-    <span
-      className={`rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-wide ${styles[tier]}`}
-    >
-      {isPreview ? `Viewing ${tierLabel(tier)}` : tierLabel(tier)}
-    </span>
-  );
-}
-
-function AdminTierPreviewSelect({
-  value,
-  onChange,
-}: {
-  value: UserTier;
-  onChange: (tier: UserTier) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700">
-      <span>View as</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value as UserTier)}
-        className="rounded-full border border-emerald-200 bg-white px-2 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 outline-none"
-      >
-        <option value="admin">Admin</option>
-        <option value="free">Free</option>
-        <option value="scout">Explorer</option>
-        <option value="pro">Researcher</option>
-      </select>
-    </label>
-  );
-}
-
 function AdminAccessModal({
   settings,
   onChange,
@@ -9468,7 +9421,7 @@ function AdminAccessModal({
   onChange: (settings: TierVisibilitySettings) => void;
   onClose: () => void;
 }) {
-  const [selectedTier, setSelectedTier] = useState<TierAssignable>("scout");
+  const selectedTier = INTERNAL_DASHBOARD_SETTINGS_TIER;
 
   function setAccess(tier: TierAssignable, key: string, value: boolean) {
     onChange({
@@ -9495,12 +9448,11 @@ function AdminAccessModal({
             <p className="text-xs font-black uppercase tracking-wide text-emerald-600">
               Admin only
             </p>
-            <h2 className="mt-1 text-2xl font-black">Tier Visibility Panel</h2>
+            <h2 className="mt-1 text-2xl font-black">Internal Dashboard Panel</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              Choose which cards are visible to Free, Explorer, and Researcher
-              users. Each card can also expose its own dedicated options, such
-              as 7D, Month, 3M, list views, search, or template rerolls. Admin
-              always sees every card and option.
+              Public membership tiers are disabled. This local-only panel lets
+              you toggle dashboard cards and card options while the dashboard is
+              being reworked.
             </p>
           </div>
           <button
@@ -9512,20 +9464,7 @@ function AdminAccessModal({
           </button>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <ToggleGroup>
-            {CONFIGURABLE_TIERS.map((tier) => (
-              <ToggleButton
-                key={tier}
-                active={selectedTier === tier}
-                onClick={() => setSelectedTier(tier)}
-                activeColor="#059669"
-              >
-                {tierLabel(tier)}
-              </ToggleButton>
-            ))}
-          </ToggleGroup>
-
+        <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
           <div className="flex gap-2">
             <button
               type="button"
@@ -9545,7 +9484,7 @@ function AdminAccessModal({
         </div>
 
         <AdminAccessSection
-          title="Cards"
+          title="Dashboard Cards"
           items={ACCESS_ITEMS}
           selectedTier={selectedTier}
           settings={settings}
@@ -9650,40 +9589,7 @@ function LockedAccessCard({
   description?: string;
   previewType?: LockedPreviewType | "chart";
 }) {
-  const item = ACCESS_ITEMS.find((entry) => entry.key === itemKey);
-  const label = title ?? item?.label ?? "Premium feature";
-  const summary =
-    description ??
-    item?.description ??
-    "This widget displays deeper research signals when enabled for your tier.";
-  const type =
-    previewType ??
-    getLockedPreviewType(itemKey, label);
-
-  return (
-    <div
-      className={`group/locked-card relative rounded-3xl border border-dashed p-5 opacity-75 grayscale ${panel}`}
-      title="Upgrade to unlock"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-500">
-            {label}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-slate-400">
-            {summary}
-          </p>
-        </div>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
-          Upgrade to unlock
-        </span>
-      </div>
-      <span className="pointer-events-none absolute right-4 top-12 z-30 rounded-full bg-slate-900 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white opacity-0 shadow-lg transition group-hover/locked-card:opacity-100">
-        Upgrade to unlock
-      </span>
-      <LockedPreview type={type} />
-    </div>
-  );
+  return null;
 }
 
 type LockedPreviewType =
@@ -10285,14 +10191,14 @@ function TermsModal({ onClose }: any) {
         "Snoutboard users may not misuse, scrape, bulk export, resell, redistribute, or present Snoutboard outputs as official platform data, guaranteed business advice, or a substitute for reviewing the original platform source. Access is intended for viewing processed dashboard research, not for obtaining a raw data feed.",
     },
     {
-      title: "All access tiers",
+      title: "Dashboard access",
       body:
-        "These terms apply to all users and access types, including newsletter subscribers, trial users, paid users, Explorer users, Researcher users, and admin/internal users. Newsletter content is also informational and does not provide business advice, official platform guidance, or guaranteed outcomes.",
+        "These terms apply to dashboard use and newsletter content. All information is informational and does not provide business advice, official platform guidance, or guaranteed outcomes.",
     },
     {
       title: "Beta product",
       body:
-        "Snoutboard is currently in beta. Features, data sources, calculations, labels, pricing, and tier access may change as the product develops. Continued use of the dashboard means you understand these limitations.",
+        "Snoutboard is currently in beta. Features, data sources, calculations, labels, and product direction may change as the dashboard develops. Continued use of the dashboard means you understand these limitations.",
     },
   ];
 
@@ -10308,8 +10214,8 @@ function TermsModal({ onClose }: any) {
               Terms of Service
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              This summary is designed to make the product boundaries clear. A
-              lawyer should review the final Terms before paid access launches.
+              This summary is designed to make the product boundaries clear.
+              A lawyer should review the final Terms before public launch.
             </p>
           </div>
           <button
@@ -10595,184 +10501,23 @@ function TodayTldrModal({
   );
 }
 
-function AccountInfoModal({
-  email,
-  tier,
-  onClose,
-}: {
-  email: string | null;
-  tier: UserTier;
-  onClose: () => void;
-}) {
-  const [confirmation, setConfirmation] = useState("");
-  const [isErasing, setIsErasing] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const canErase = confirmation.trim().toUpperCase() === "ERASE";
-  const isLocalAdminPreview =
-    process.env.NODE_ENV !== "production" && tier === "admin" && !email;
-
-  async function handleEraseAccount() {
-    if (!canErase || isLocalAdminPreview) return;
-
-    setIsErasing(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const response = await fetch("/api/auth/account", { method: "DELETE" });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload?.error ?? "Unable to erase account.");
-      }
-
-      setMessage("Your account has been erased. Redirecting to login...");
-      window.setTimeout(() => {
-        window.location.href = "/login";
-      }, 900);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to erase account."
-      );
-    } finally {
-      setIsErasing(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-      <div className="max-h-[86vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-black uppercase tracking-wide text-emerald-700">
-              Account
-            </p>
-            <h2 className="mt-1 text-2xl font-black text-slate-900">
-              Account Info
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Review your access level and manage account deletion. This action
-              is intentionally separate from subscription cancellation and
-              billing refunds.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
-          >
-            Close
-          </button>
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <h3 className="text-sm font-black text-slate-800">
-              Current access
-            </h3>
-            <dl className="mt-3 space-y-3 text-sm">
-              <div>
-                <dt className="text-xs font-black uppercase tracking-wide text-slate-400">
-                  Email
-                </dt>
-                <dd className="mt-1 font-semibold text-slate-700">
-                  {email ?? "Local admin preview"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-black uppercase tracking-wide text-slate-400">
-                  Tier
-                </dt>
-                <dd className="mt-1 font-semibold text-slate-700">
-                  {tierLabel(tier)}
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
-            <h3 className="text-sm font-black text-red-700">Erase account</h3>
-            <p className="mt-2 text-sm leading-6 text-red-700/80">
-              Erasing your account permanently removes this email and password
-              combination from Snoutboard. If a recurring paid subscription is
-              attached, it will be scheduled to terminate at the end of the
-              current billing period.
-            </p>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs font-semibold leading-5 text-red-700/75">
-              <li>You will lose dashboard access for this email immediately.</li>
-              <li>This account cannot be retrieved or restored from the dashboard.</li>
-              <li>Erasing the account does not create an automatic prorated refund.</li>
-            </ul>
-
-            {isLocalAdminPreview ? (
-              <p className="mt-4 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
-                Account erasure is disabled in local admin preview because no
-                signed-in user account is attached to this session.
-              </p>
-            ) : (
-              <>
-                <label className="mt-4 block text-xs font-black uppercase tracking-wide text-red-700">
-                  Type ERASE to confirm
-                  <input
-                    value={confirmation}
-                    onChange={(event) => setConfirmation(event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-red-400"
-                    placeholder="ERASE"
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={!canErase || isErasing}
-                  onClick={handleEraseAccount}
-                  className="mt-3 w-full rounded-full bg-red-600 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-200"
-                >
-                  {isErasing ? "Erasing..." : "Erase my account"}
-                </button>
-              </>
-            )}
-
-            {message && (
-              <p className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
-                {message}
-              </p>
-            )}
-            {error && (
-              <p className="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-red-700">
-                {error}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ToggleButton({ active, onClick, children, activeColor, disabled = false }: any) {
+  if (disabled) return null;
+
   return (
     <span
-      className="group/locked-toggle relative inline-flex"
-      title={disabled ? "Upgrade to unlock" : undefined}
+      className="relative inline-flex"
     >
       <button
-        onClick={disabled ? undefined : onClick}
-        disabled={disabled}
-        className="rounded-full px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40"
+        onClick={onClick}
+        className="rounded-full px-4 py-2 text-sm font-bold transition"
         style={{
-          backgroundColor: active && !disabled ? activeColor : "transparent",
-          color: active && !disabled ? "white" : "#64748b",
+          backgroundColor: active ? activeColor : "transparent",
+          color: active ? "white" : "#64748b",
         }}
       >
         {children}
       </button>
-      {disabled ? (
-        <span className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-900 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white opacity-0 shadow-lg transition group-hover/locked-toggle:opacity-100">
-          Upgrade to unlock
-        </span>
-      ) : null}
     </span>
   );
 }
