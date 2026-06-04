@@ -259,6 +259,7 @@ export default function Home() {
   const [showTerms, setShowTerms] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showPodcastConductor, setShowPodcastConductor] = useState(false);
   const userTier: UserTier =
     process.env.NODE_ENV !== "production" ? "admin" : "free";
   const [tierVisibility, setTierVisibility] = useState<TierVisibilitySettings>(
@@ -1446,13 +1447,22 @@ export default function Home() {
                 Glossary
               </button>
               {isInternalAdmin && (
-                <button
-                  type="button"
-                  onClick={() => setShowAdminPanel(true)}
-                  className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
-                >
-                  Admin access
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowPodcastConductor(true)}
+                    className="rounded-full border border-[#b9d6ea] bg-[#eaf5fd] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#0d4f82] transition hover:bg-[#d9edf9]"
+                  >
+                    Podcast conductor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPanel(true)}
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    Admin access
+                  </button>
+                </>
               )}
             </div>
             <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -1477,6 +1487,14 @@ export default function Home() {
             settings={tierVisibility}
             onChange={setTierVisibility}
             onClose={() => setShowAdminPanel(false)}
+          />
+        )}
+        {showPodcastConductor && isInternalAdmin && (
+          <PodcastConductorModal
+            robloxGames={topRobloxGames}
+            fortniteIslands={topFortniteIslands}
+            dataQualitySnapshots={dataQualitySnapshots}
+            onClose={() => setShowPodcastConductor(false)}
           />
         )}
       </div>
@@ -10501,6 +10519,156 @@ function TodayTldrModal({
   );
 }
 
+function PodcastConductorModal({
+  robloxGames,
+  fortniteIslands,
+  dataQualitySnapshots,
+  onClose,
+}: {
+  robloxGames: any[];
+  fortniteIslands: any[];
+  dataQualitySnapshots: DataQualitySnapshot[];
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const conductor = useMemo(
+    () =>
+      buildPodcastConductorReadout(
+        robloxGames,
+        fortniteIslands,
+        dataQualitySnapshots
+      ),
+    [robloxGames, fortniteIslands, dataQualitySnapshots]
+  );
+
+  const copyConductor = async () => {
+    try {
+      await navigator.clipboard.writeText(conductor.plainText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch (error) {
+      console.warn("Podcast conductor could not be copied:", error);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wide text-[#0d69ac]">
+              Internal only
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-slate-900">
+              Podcast Conductor
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+              A private 15-minute show guide generated from the current dashboard
+              data. Use it as host notes for a Patreon-facing research episode.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={copyConductor}
+              className="rounded-full bg-[#0d69ac] px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-[#0a548a]"
+            >
+              {copied ? "Copied" : "Copy script"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {conductor.summaryCards.map((card) => (
+            <div key={card.label} className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                {card.label}
+              </p>
+              <p className="mt-2 text-xl font-black text-slate-900">
+                {card.value}
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                {card.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {conductor.sections.map((section) => (
+            <section
+              key={section.timestamp}
+              className="rounded-3xl border border-slate-200 bg-white p-5"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide text-[#0d69ac]">
+                    {section.timestamp}
+                  </p>
+                  <h3 className="mt-1 text-lg font-black text-slate-900">
+                    {section.title}
+                  </h3>
+                </div>
+                <p className="rounded-full bg-slate-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-slate-400">
+                  {section.role}
+                </p>
+              </div>
+              <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
+                Cards/tools: {section.tools.join(", ")}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                {section.narrative}
+              </p>
+              <p className="mt-4 text-xs font-black uppercase tracking-wide text-slate-400">
+                Producer notes
+              </p>
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600">
+                {section.points.map((point) => (
+                  <li key={point}>
+                    {point.trim().startsWith("[") ? (
+                      <span className="rounded-lg bg-yellow-100 px-2 py-1 font-black text-yellow-900">
+                        {point}
+                      </span>
+                    ) : (
+                      point
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3">
+                <p className="text-xs font-black uppercase tracking-wide text-yellow-700">
+                  Reflection prompt
+                </p>
+                <p className="mt-1 text-sm font-bold leading-6 text-yellow-950">
+                  {section.reflection}
+                </p>
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <div className="mt-6 rounded-3xl border border-[#b9d6ea] bg-[#eaf5fd] p-5">
+          <p className="text-sm font-black text-[#0d4f82]">
+            Host reminder
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#24465d]">
+            Keep the episode framed as creative research and interpreted signals.
+            Avoid implying official platform endorsement, guaranteed success, or
+            raw source redistribution.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToggleButton({ active, onClick, children, activeColor, disabled = false }: any) {
   if (disabled) return null;
 
@@ -11430,6 +11598,228 @@ function getFortniteIslandKey(island: any) {
   return String(island.island_code ?? island.title ?? island.id ?? "")
     .trim()
     .toLowerCase();
+}
+
+function buildPodcastConductorReadout(
+  robloxGames: any[],
+  fortniteIslands: any[],
+  dataQualitySnapshots: DataQualitySnapshot[]
+) {
+  const robloxTopFive = robloxGames.slice(0, 5);
+  const robloxGenres = buildTopGenreScoreboard(robloxGames).slice(0, 3);
+  const robloxMovers = buildTrendingHighlights(robloxGames, "roblox");
+  const robloxArchetype = buildRobloxArchetypes(robloxGames, "7d").find((item: any) =>
+    /average/i.test(item.kind)
+  );
+  const fortniteLabels = buildFortniteLabelRankings(fortniteIslands).slice(0, 5);
+  const fortniteIpSignals = buildFortniteIpSignals(fortniteIslands).slice(0, 3);
+  const robloxCoverage = getLatestNonEmptySnapshotCoverage("roblox", robloxGames);
+  const fortniteCoverage = getLatestNonEmptySnapshotCoverage("fortnite", fortniteIslands);
+  const latestAudit = [...dataQualitySnapshots].sort((a, b) =>
+    String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""))
+  )[0];
+  const topGame = robloxTopFive[0];
+  const strongestGenre = robloxGenres[0];
+  const strongestFortniteLabel = fortniteLabels[0];
+
+  const summaryCards = [
+    {
+      label: "Episode length",
+      value: "15 min",
+      detail: "Structured as a host conductor, not a word-for-word script.",
+    },
+    {
+      label: "Roblox source set",
+      value: formatNumber(robloxCoverage.count || robloxGames.length),
+      detail: robloxCoverage.dateKey
+        ? `Latest non-empty snapshot: ${formatDateKey(robloxCoverage.dateKey)}`
+        : "Using the current loaded dataset.",
+    },
+    {
+      label: "Fortnite source set",
+      value: formatNumber(fortniteCoverage.count || fortniteIslands.length),
+      detail: fortniteCoverage.dateKey
+        ? `Latest non-empty snapshot: ${formatDateKey(fortniteCoverage.dateKey)}`
+        : "Using the current loaded dataset.",
+    },
+  ];
+
+  const sections = [
+    {
+      timestamp: "0:00 - 1:00",
+      title: "Cold open",
+      role: "Hook",
+      tools: ["Top 5 Most Played Games", "Data Source & Health", "Player Activity Landscape"],
+      narrative:
+        `[Start on the Roblox page. Keep the Top 5 Most Played Games visible.] Today I want to look at the market from the creator's side: not as a promise of what will work, but as a way to ask better questions before building. The biggest captured Roblox signal right now is ${topGame?.title ?? "the leading captured experience"}, sitting at ${formatNumber(topGame?.latestPlayers)} captured players. The question for this episode is simple: what does today's data suggest creators should study before they commit to a new idea?`,
+      reflection:
+        "Something to reflect on is the difference between attention and opportunity: a large audience signal shows where players are gathering, but it does not automatically reveal what a new creator should build.",
+      points: [
+        "[Glance at Data Source & Health before you start reading numbers.]",
+        strongestGenre
+          ? `If you want a quick thesis line, say: ${strongestGenre.rawGenre} is the genre signal I want to keep testing today.`
+          : "Set the episode question around where creator attention appears to be concentrating this week.",
+        "Say once, early: this is independent creative research, not official platform guidance or a success guarantee.",
+      ],
+    },
+    {
+      timestamp: "1:00 - 4:00",
+      title: "Roblox market pulse",
+      role: "Data tour",
+      tools: ["Top 5 Most Played Games", "Most Played Genre Mix Estimated", "Fictional Roblox Experience Archetypes"],
+      narrative:
+        `[Stay on Roblox. Start with Top 5 Most Played Games, then scroll to Most Played Genre Mix Estimated.] The first pass is the market pulse: where are players visibly concentrated right now? The top captured experiences are ${formatPodcastList(
+          robloxTopFive.map(
+            (game, index) =>
+              `${index + 1}. ${game.title}, with ${formatNumber(game.latestPlayers)} players`
+          )
+        )}. I do not want to treat this as a list of games to copy. I want to treat it as a list of player promises to study: what is the fantasy, what is the loop, and how quickly does the player understand why they should click?`,
+      reflection:
+        "Remember that a median profile is different from an average profile: the median shows a middle example, while the average blends the dataset into a composite that may not exist as a real game.",
+      points: [
+        "[Scroll down to Most Played Genre Mix Estimated.]",
+        robloxGenres.length
+          ? `Largest genre signals: ${formatPodcastList(
+              robloxGenres.map(
+                (genre) =>
+                  `${genre.rawGenre} at ${genre.share}% of tracked players`
+              )
+            )}.`
+          : "Genre signals are not strong enough to call cleanly in the current view.",
+        "[Scroll down to the Fictional Roblox Experience Archetypes row.]",
+        robloxArchetype
+          ? `Average popular format cue: ${getDisplayGenre(robloxArchetype, "roblox")} / ${getDisplaySubgenre(robloxArchetype, "roblox")}. Use this as a baseline reference, then look for ways to differentiate.`
+          : "Skip the archetype readout if the loaded data is not complete enough.",
+      ],
+    },
+    {
+      timestamp: "4:00 - 7:00",
+      title: "Movement watch",
+      role: "Momentum",
+      tools: ["Trending Games", "Most Played Games Over Time", "Player Activity Landscape"],
+      narrative:
+        `[Scroll back to Trending Games, then open Most Played Games Over Time.] Now I want to separate size from movement. A game can be huge and slowing down, or smaller and moving quickly. The movement panel gives me three useful prompts today: ${robloxMovers[0]?.title ?? "no clear entry"} for player gain, ${robloxMovers[1]?.title ?? "no clear entry"} for position gain, and ${robloxMovers[2]?.title ?? "no clear entry"} for player loss. I would present these as research leads, not forecasts. The job is to ask why the audience is moving, not to pretend we already know where they will go next.`,
+      reflection:
+        "Something to reflect on is momentum versus durability: a spike can reveal curiosity, but sustained activity is what usually deserves deeper design study.",
+      points: [
+        `Player gain: ${robloxMovers[0]?.title ?? "No clear entry"} (${robloxMovers[0]?.metric ?? "N/A"}).`,
+        `Position gain: ${robloxMovers[1]?.title ?? "No clear entry"} (${robloxMovers[1]?.metric ?? "N/A"}).`,
+        `Player loss: ${robloxMovers[2]?.title ?? "No clear entry"} (${robloxMovers[2]?.metric ?? "N/A"}).`,
+        "[Open Player Activity Landscape and switch between Today, 7D, and Month if you want a visual beat.]",
+      ],
+    },
+    {
+      timestamp: "7:00 - 10:00",
+      title: "Fortnite creator signals",
+      role: "Metadata read",
+      tools: ["Primary Label Usage Over Time", "IP / Collaboration Signals", "Latest Imported Fortnite Islands"],
+      narrative:
+        `[Switch to the Fortnite page. Start on Primary Label Usage Over Time.] The Fortnite side needs a different tone. I am not reading this as a popularity chart; I am reading it as metadata, packaging, and positioning. The strongest captured label signal right now is ${strongestFortniteLabel?.label ?? "not clear enough to call"}, and that tells me what kind of language or format is showing up repeatedly in the imported island set. [Scroll down to IP / Collaboration Signals.] If an IP or collaboration signal appears, I would treat it as a theme watchlist, not as proof of demand.`,
+      reflection:
+        "Remember that labels describe how an island is packaged, not necessarily why players stay. A strong label can suggest positioning, but it should be paired with design and retention questions.",
+      points: [
+        fortniteLabels.length
+          ? `Most repeated captured labels: ${formatPodcastList(
+              fortniteLabels.map(
+                (label) => `${label.label} (${formatNumber(label.count)} islands)`
+              )
+            )}.`
+          : "No strong Fortnite label signal is available in the current dataset.",
+        "[Scroll down to Latest Imported Fortnite Islands if you want one concrete example to mention.]",
+        fortniteIpSignals.length
+          ? `IP and collaboration watch: ${formatPodcastList(
+              fortniteIpSignals.map(
+                (signal) =>
+                  `${signal.label} appears across ${formatNumber(signal.count)} unique islands`
+              )
+            )}.`
+          : "No clear IP or collaboration signal is visible from the current imported metadata.",
+        "Avoid saying top, best performing, ranked, or most popular on the Fortnite side unless the source explicitly supports that wording.",
+      ],
+    },
+    {
+      timestamp: "10:00 - 12:30",
+      title: "Creator takeaway",
+      role: "Synthesis",
+      tools: ["My Game Idea Is", "Game Template Generator", "Research Signal / Design Cues / Warnings"],
+      narrative:
+        `[Scroll down to My Game Idea Is. Then move to the Design Cues card on the right.] This is the practical part of the episode. If I were a creator using this dashboard, I would not ask, 'What should I copy?' I would ask, 'What format is already familiar to players, and what twist could make it feel worth clicking?' ${
+          strongestGenre
+            ? `For today, ${strongestGenre.rawGenre} is the biggest genre signal I would keep in mind, but I would use the subgenre and design cues to avoid staying too broad.`
+            : "For today, the safest read is to compare player activity against the available genre and subgenre signals before forming a concept."
+        } [Scroll down to the Example Card or suggested games if you want a concrete reference point.]`,
+      reflection:
+        "Something to reflect on is that a good creative brief should combine familiar structure with a fresh promise. Familiarity helps players understand the game quickly; novelty gives them a reason to care.",
+      points: [
+        strongestGenre
+          ? `If a creator wants to play near demand, start by studying ${strongestGenre.rawGenre}, then look one level deeper at subgenre mechanics rather than copying the surface theme.`
+          : "If a creator wants to use the dashboard well, start with player activity, then inspect genre and subgenre fit.",
+        strongestFortniteLabel
+          ? `On Fortnite, ${strongestFortniteLabel.label} is the label to watch in this episode because it is the most repeated captured primary label.`
+          : "On Fortnite, use labels as a metadata lens rather than a scoreboard.",
+        "[Open Game Template Generator only after you have explained the signal. Let it feel like an application of the readout, not the source of truth.]",
+      ],
+    },
+    {
+      timestamp: "12:30 - 14:00",
+      title: "Data transparency note",
+      role: "Trust",
+      tools: ["Data Source & Health", "Glossary", "Terms of Service"],
+      narrative:
+        `[Return briefly to Data Source & Health.] Before wrapping, I want to be clear about the limits. This dashboard is based on stored snapshots and processed fields. Some information comes directly from source responses, and some classification is estimated when the source data is incomplete. That does not make the dashboard useless; it makes it a research tool. The value is in using the signals to ask better questions, then validating before building.`,
+      reflection:
+        "Remember that transparency increases trust: saying what the data can and cannot prove makes the analysis more credible, not weaker.",
+      points: [
+        latestAudit?.created_at
+          ? `Latest data quality snapshot available in the app: ${formatUtcTimestamp(latestAudit.created_at)}.`
+          : "Mention that the dashboard uses stored snapshots and processed fields, so each readout has limits.",
+        "[If the Glossary is needed, open it only for one definition. Do not let the show become a product manual.]",
+        "Say this plainly: useful signal, not official data advice, and not a guarantee of success.",
+      ],
+    },
+    {
+      timestamp: "14:00 - 15:00",
+      title: "Patreon handoff",
+      role: "CTA",
+      tools: ["Podcast Conductor", "Dashboard Readouts", "Weekly Research Workflow"],
+      narrative:
+        `[Close the dashboard or leave the main readout visible.] If this kind of walkthrough is useful, the Patreon version is where I will spend more time on the interpretation: what I would study, what I would ignore, and what I would test before committing to a game idea. The point is not to sell raw data. The point is to save creators time and help them think with more structure. My closing prompt for the week is simple: choose one format, one mechanic, and one visual promise, then research those before you build.`,
+      reflection:
+        "Something to reflect on is the real product being sold: not the data itself, but the guided interpretation, the research habit, and the time saved for creators.",
+      points: [
+        "Keep the CTA focused on guided research and creative interpretation.",
+        "Position the value as research guidance and creative context, not access to raw platform data.",
+        "[Do not mention platform partnership, official status, or guaranteed outcomes.]",
+      ],
+    },
+  ];
+
+  const plainText = [
+    "SNOUTBOARD PODCAST CONDUCTOR",
+    "15-minute internal host readout",
+    "",
+    ...sections.flatMap((section) => [
+      `${section.timestamp} - ${section.title}`,
+      `Cards/tools: ${section.tools.join(", ")}`,
+      "On-air copy:",
+      section.narrative,
+      "Producer notes:",
+      ...section.points.map((point) => `- ${point}`),
+      `Reflection prompt: ${section.reflection}`,
+      "",
+    ]),
+    "Host reminder: frame everything as independent creative research and interpreted signals, not official platform guidance or guaranteed business advice.",
+  ].join("\n");
+
+  return { summaryCards, sections, plainText };
+}
+
+function formatPodcastList(items: string[]) {
+  if (!items.length) return "no clear entries";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
 }
 
 function parseFiniteNumber(value: any) {
