@@ -28,7 +28,7 @@ jobs:
 
       - name: Save dashboard snapshot
         run: |
-          curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/snapshots/dashboard
+          curl --fail --show-error --retry 3 --retry-all-errors --retry-delay 5 --max-time 60 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/snapshots/dashboard
 
       - name: Precompute Roblox core dashboard payload
         run: |
