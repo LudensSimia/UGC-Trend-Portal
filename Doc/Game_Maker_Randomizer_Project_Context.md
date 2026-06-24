@@ -1,6 +1,25 @@
 # Game Maker Randomizer App Context
 
-Last updated: 2026-05-28
+Last updated: 2026-06-10
+
+## Current Relationship To Snoutboard
+
+This remains a separate project idea and should not be mixed into the live Snoutboard dashboard.
+
+The randomizer concept is useful because it avoids the platform-data resale problem:
+
+- It should not query Roblox, Fortnite, Epic Games, or third-party trend APIs.
+- It should use original/hand-authored creative prompt dictionaries.
+- It should generate fictional concepts, not market recommendations.
+- It should not imply current popularity, ranking, or performance.
+
+Current Snoutboard monetization pivot:
+
+- Snoutboard dashboard supports research and internal content production.
+- Patreon carries the paid research episode.
+- The randomizer could later become a separate original tool if desired.
+
+The original project brief follows.
 
 This document is a handoff brief for a new project derived from Snoutboard's creative tooling ideas, but intentionally separated from the Roblox/Fortnite API data dashboard.
 
@@ -323,4 +342,3 @@ The MVP should have:
 
 Please help me create a dedicated project for this app.
 ```
-

@@ -1,6 +1,32 @@
 # Cease and Desist Response Runbook
 
-Last updated: 2026-05-27
+Last updated: 2026-06-10
+
+## Current Product Posture
+
+The current dashboard should not be presented as paid access to platform-derived data. The active monetization direction is a paid Patreon research episode, with three short public clips per episode and possible Data Strategy Sessions.
+
+This lowers, but does not eliminate, platform data-use risk. The runbook still applies if a platform challenges:
+
+- Data collection.
+- Historical caching.
+- Display of names/descriptions/thumbnails.
+- Processed metrics.
+- Newsletter or podcast use of platform-derived signals.
+- Any commercial framing around platform-derived data.
+
+Immediate current switches available:
+
+- Admin Access can hide widgets/options locally for presentation.
+- Production RLS keeps dashboard tables behind server routes.
+- Scheduled jobs can be paused in GitHub Actions.
+
+Important missing switches:
+
+- No formal `DISABLE_ROBLOX_INGEST` or `DISABLE_FORTNITE_INGEST` environment switch exists yet.
+- No active checkout kill switch is needed today because dashboard payments are paused, but one is required before any paid dashboard launch.
+
+Keep the original runbook below as the operational protocol.
 
 This document is an operational checklist for responding if Roblox, Epic Games, Fortnite, or another platform owner challenges Snoutboard's collection, processing, display, or sale of platform-derived public data.
 
@@ -326,4 +352,3 @@ Before re-enabling paid access:
 - Newsletter generation excludes disputed data unless approved.
 - Admin can disable affected widgets quickly.
 - A user communication plan is ready.
-

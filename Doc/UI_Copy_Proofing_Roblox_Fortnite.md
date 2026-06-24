@@ -1,4 +1,64 @@
-# UGC Trend Portal UI Copy Proofing
+# Snoutboard UI Copy Proofing
+
+Last updated: 2026-06-10
+
+## Current Copy Direction
+
+Current product name:
+
+```text
+Snoutboard - UGC Research Dashboard
+```
+
+Current positioning:
+
+- Independent research dashboard.
+- Processed source signals for creative research.
+- No affiliation with Roblox, Epic Games, Fortnite, or related platform owners.
+- No guarantee of creator, business, revenue, discovery, or engagement outcomes.
+
+Current important copy patterns:
+
+- Data Source & Health should refer to API/source responses and data capture coverage, not "accuracy."
+- Roblox widgets can reference current players when based on stored snapshots.
+- Fortnite widgets should avoid "top," "most popular," "best performing," and "ranked" unless the specific source field supports the claim.
+- Estimated fields should be labeled "Estimated."
+- Podcast conductor copy should frame the full Patreon episode as the paid product and public output as three short clips.
+
+Current required entry acknowledgement:
+
+| Area | Element | Current copy |
+| --- | --- | --- |
+| Entry gate | Eyebrow | Required acknowledgement |
+| Entry gate | Title | Before entering Snoutboard |
+| Entry gate | Responsibility line | By entering, you confirm that you understand these limitations and accept responsibility for how you interpret and use the displayed research. |
+| Entry gate | Button | I acknowledge and enter |
+| Entry gate | Record note | Acknowledgement version 2026-06-10. A timestamp is stored in this browser. |
+
+The full research-limit, no-advice, no-guarantee, and no-affiliation paragraphs
+are editable in the local Admin Access panel. The explicit entry action remains
+required. The same panel controls disclaimer text alignment, paragraph emphasis,
+and the optional local image shown in the acknowledgement gate.
+
+The acknowledgement gate exposes the Terms of Service before entry. The
+Glossary is intentionally omitted from the gate and remains available in the
+dashboard footer.
+
+The local Admin Access panel includes `Print usage copy`, which creates a
+print-formatted legal-language review containing the disclaimer, acknowledgement
+copy, Terms, glossary definitions, recurring usage notices, trademark, build
+version, and affiliation notice. It excludes all fetched and stored dashboard
+data.
+
+Current shared footer:
+
+```text
+Snoutboard is independent and is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner.
+```
+
+The older inventory below is retained for proofreading history and may contain stale names such as "Snout Intel Dashboard."
+
+# Historical UGC Trend Portal UI Copy Proofing
 Roblox and Fortnite dashboard text inventory
 Purpose: review user-facing static copy from the dashboard UI. This inventory excludes fetched data such as game names, live counts, dates, ranks, source values, and generated keyword terms. Dynamic values are shown in brackets.
 Source file: src/app/page.tsx. Generated for proofreading on May 8, 2026.

@@ -1,5 +1,30 @@
 # Beta Release Data Readiness
 
+Last updated: 2026-06-10
+
+## Current Release Goal
+
+The near-term beta should validate Snoutboard as a research dashboard and internal content engine, not as a paid dashboard subscription.
+
+Release confidence should focus on:
+
+- Honest creator research.
+- Reliable Patreon episode preparation.
+- Three short public clips per paid episode.
+- Data Strategy Session discovery.
+- Clear transparency around source limitations.
+
+Minimum current gate:
+
+- 14 consecutive clean scheduled refreshes.
+- `ingest_runs` and `raw_source_responses` populated for current pipelines.
+- Data Source & Health avoids misleading zero values when a latest non-empty snapshot exists.
+- Roblox source taxonomy and heuristic fallback are labeled clearly.
+- Fortnite copy avoids unsupported popularity/ranking language.
+- Admin and Podcast Conductor are not visible in production.
+
+The older paid-beta readiness notes below are retained as historical context.
+
 ## Practical Release Threshold
 
 For an early paid/user beta, the dashboard should have at least 14 consecutive clean daily runs after the data reliability foundation is deployed.

@@ -1,5 +1,36 @@
 # Dashboard Change Guardrails
 
+Last updated: 2026-06-10
+
+## Current Guardrail Summary
+
+Current business boundary:
+
+- Do not reintroduce paid dashboard access copy without explicit approval.
+- The dashboard is a research portal and internal content engine.
+- The paid product is the Patreon research episode.
+- Public clips are short excerpts only.
+- Admin tools are local-only.
+
+Current required checks:
+
+```bash
+npx tsc --noEmit --incremental false --pretty false
+npm run build
+npm run verify:dashboard
+```
+
+If podcast output changes, regenerate and inspect the conductor PDF.
+
+Current platform language rules:
+
+- Roblox can use player activity when based on stored current-player snapshots.
+- Fortnite should be framed as metadata, labels, IP/collaboration, source-visible collections, and estimated formats unless explicit activity metrics are returned.
+- Use "captured," "stored snapshot," "estimated," "processed," "directional signal," and "research."
+- Avoid unsupported "official," "partner," "certified," "approved," "guaranteed," "best performing," "most popular," and "ranked."
+
+The older guardrails below are retained for history and restore-point context.
+
 ## Restore Point
 
 Before splitting the platform dashboard paths, a local safety branch was created:

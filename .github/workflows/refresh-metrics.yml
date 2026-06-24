@@ -29,3 +29,7 @@ jobs:
       - name: Save dashboard snapshot
         run: |
           curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/snapshots/dashboard
+
+      - name: Precompute CDN dashboard payloads
+        run: |
+          curl --fail --show-error --max-time 300 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://ugc-trend-portal.vercel.app/api/dashboard/precompute

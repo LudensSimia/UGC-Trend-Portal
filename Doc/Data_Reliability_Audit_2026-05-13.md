@@ -1,5 +1,31 @@
 # Data Reliability Audit - May 13, 2026
 
+Last updated: 2026-06-10
+
+## Current Status Update
+
+This document began as the May 13 reliability audit. It is still useful as the origin of the reliability foundation, but live row counts and coverage values below are historical and should not be treated as current.
+
+Current reliability model:
+
+- Every ingestion should create an `ingest_runs` row.
+- Every source response should be archived in `raw_source_responses` with payload hash and row count.
+- Dashboard-level summaries should be captured in `dashboard_snapshots`.
+- Classification/capture health should be captured in `data_quality_snapshots`.
+- Broader row-count/duplicate/raw-payload checks should be captured in `data_integrity_snapshots`.
+
+Current source posture:
+
+- Roblox: strongest for player activity over time; taxonomy should prefer source-confirmed genre/subgenre when available and label heuristic fallback clearly.
+- Fortnite: strongest for metadata, labels, IP/collaboration cues, and estimated formats; avoid popularity/ranking claims unless source metrics support them.
+
+Current documentation rule:
+
+- Use this file for reliability design and audit concepts.
+- Query Supabase or `/api/audit/data-integrity` for current counts.
+
+Historical audit follows.
+
 ## Executive Summary
 
 The dashboard is good enough for an early beta UI, but the data layer is not yet archive-grade. Roblox has the stronger time-series coverage, but the dedicated chart snapshot table did not store raw source payloads before this audit. Fortnite preserves raw payloads, but historical ranks and activity metrics are mostly missing, so several widgets are relying on source-order fallbacks rather than explicit source metrics.

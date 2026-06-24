@@ -1,4 +1,36 @@
-# Access Tiers and Newsletter Foundation
+# Access, Admin, and Newsletter Foundation
+
+Last updated: 2026-06-10
+
+## Current Status
+
+Dashboard access tiers are not the active public business model. The current model is:
+
+- Dashboard: research portal / internal research engine.
+- Patreon: paid research episode.
+- Public clips: three short excerpts per episode.
+- Data Strategy Session: future service CTA managed through Admin Access.
+
+The tier, entitlement, profile, newsletter, and billing tables still exist as foundation work, but paid dashboard access should be treated as paused until legal/data-use review is complete.
+
+Current public API posture:
+
+```json
+{
+  "tier": "research",
+  "dataScope": "full"
+}
+```
+
+Current admin posture:
+
+- Admin tools are local-only.
+- They require non-production mode and `NEXT_PUBLIC_ENABLE_INTERNAL_ADMIN=true`.
+- Admin settings are presentation controls stored in localStorage, not production security.
+
+Newsletter infrastructure should be treated as draft-generation support only. Review and rewrite generated copy before sending, and do not frame newsletter content as paid access to raw platform data.
+
+The previous access-tier plan below is retained as historical/future infrastructure context.
 
 This foundation keeps the current password-protected dashboard intact while adding the database and API layer needed for paid access, pro access, and newsletter generation.
 

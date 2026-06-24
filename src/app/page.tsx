@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -44,6 +45,45 @@ type AccessItem = {
 
 type TierVisibilitySettings = Record<TierAssignable, Record<string, boolean>>;
 
+type WidgetCopyOverride = {
+  title?: string;
+  subtitle?: string;
+};
+
+type WidgetCopyOverrides = Record<string, WidgetCopyOverride>;
+type WidgetAutoLoadSettings = Record<string, boolean>;
+
+type DashboardCopySettings = {
+  disclaimerTitle: string;
+  disclaimerBody: string;
+  disclaimerAffiliation: string;
+  disclaimerButton: string;
+  disclaimerTextAlign: string;
+  disclaimerBodyStyle: string;
+  disclaimerAffiliationStyle: string;
+  disclaimerImageUrl: string;
+  mobileDisclaimerVersion: string;
+  mobileDisclaimerTitle: string;
+  mobileDisclaimerIndependence: string;
+  mobileDisclaimerDataLimits: string;
+  mobileDisclaimerOutcomes: string;
+  mobileDisclaimerAcknowledgement: string;
+  mobileDisclaimerRobloxButton: string;
+  mobileDisclaimerFortniteButton: string;
+  mobileDisclaimerStorageNote: string;
+  termsButton: string;
+  glossaryButton: string;
+  podcastButton: string;
+  adminButton: string;
+  footerTrademark: string;
+  footerVersion: string;
+  footerAffiliation: string;
+  dataStrategySessionUrl: string;
+  youtubeUrl: string;
+  tiktokUrl: string;
+  twitterUrl: string;
+};
+
 type DataQualitySnapshot = {
   platform: Platform;
   total_records: number;
@@ -57,6 +97,211 @@ const USER_TIERS: UserTier[] = ["free", "scout", "pro", "admin"];
 const CONFIGURABLE_TIERS: TierAssignable[] = ["free", "scout", "pro"];
 const INTERNAL_DASHBOARD_SETTINGS_TIER: TierAssignable = "pro";
 const INTERNAL_DASHBOARD_SETTINGS_STORAGE_KEY = "snout-internal-dashboard-settings";
+const INTERNAL_DASHBOARD_COPY_STORAGE_KEY = "snout-internal-dashboard-copy";
+const INTERNAL_WIDGET_COPY_STORAGE_KEY = "snout-internal-widget-copy";
+const INTERNAL_WIDGET_AUTO_LOAD_STORAGE_KEY = "snout-internal-widget-auto-load";
+const DISCLAIMER_ACKNOWLEDGEMENT_STORAGE_KEY = "snout-disclaimer-acknowledgement";
+const DISCLAIMER_ACKNOWLEDGEMENT_QUERY_KEY = "snout-disclaimer";
+const DISCLAIMER_VERSION = "2026-06-10";
+
+function getDisclaimerAcknowledgementState() {
+  if (typeof window === "undefined") {
+    return { acknowledged: false, fromQuery: false };
+  }
+
+  let fromQuery = false;
+  let fromStorage = false;
+
+  try {
+    const url = new URL(window.location.href);
+    fromQuery =
+      url.searchParams.get(DISCLAIMER_ACKNOWLEDGEMENT_QUERY_KEY) ===
+      DISCLAIMER_VERSION;
+  } catch {
+    fromQuery = false;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(
+      DISCLAIMER_ACKNOWLEDGEMENT_STORAGE_KEY
+    );
+    fromStorage = Boolean(
+      stored && JSON.parse(stored)?.version === DISCLAIMER_VERSION
+    );
+  } catch {
+    fromStorage = false;
+  }
+
+  return { acknowledged: Boolean(fromQuery || fromStorage), fromQuery };
+}
+
+const TERMS_SECTIONS = [
+  {
+    title: "Independent research tool",
+    body:
+      "Snoutboard - UGC Research Dashboard is an independent research product that provides processed data summaries, interpreted signals, automated classifications, and creative research tools. It is not an official product, partner portal, agency service, marketplace, or platform-operated analytics tool.",
+  },
+  {
+    title: "No platform affiliation or endorsement",
+    body:
+      "Snoutboard is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner. Platform names, game names, island names, experience names, thumbnails, labels, and other references are used only to identify the source context of the processed research data.",
+  },
+  {
+    title: "Informational use only",
+    body:
+      "The dashboard does not provide legal, financial, investment, business, production, publishing, or professional advice. It does not guarantee revenue, profit, player growth, audience retention, discoverability, platform placement, publishing success, or any specific creative or business result. Users are solely responsible for their own creative, production, publishing, investment, and business decisions.",
+  },
+  {
+    title: "Processed and interpreted data",
+    body:
+      "Displayed information is processed from available source data and may be incomplete, delayed, inferred, automatically classified, experimental, or inaccurate. Scores, maps, labels, source positions, trend lines, and forecasts are Snoutboard research signals only and should be independently reviewed before use.",
+  },
+  {
+    title: "No raw source redistribution",
+    body:
+      "Snoutboard users may not misuse, scrape, bulk export, resell, redistribute, or present Snoutboard outputs as official platform data, guaranteed business advice, or a substitute for reviewing the original platform source. Access is intended for viewing processed dashboard research, not for obtaining a raw data feed.",
+  },
+  {
+    title: "Dashboard access",
+    body:
+      "These terms apply to dashboard use and newsletter content. All information is informational and does not provide business advice, official platform guidance, or guaranteed outcomes.",
+  },
+  {
+    title: "Acknowledgement and acceptance",
+    body:
+      "Access to the dashboard requires an affirmative acknowledgement of the entry disclaimer. By clicking the acknowledgement button and entering the dashboard, you confirm that you have read and understood the displayed limitations and accept responsibility for how you interpret and use the research. Snoutboard may store the acknowledgement version and time in your browser for continuity; this browser record does not verify your legal identity.",
+  },
+  {
+    title: "Beta product",
+    body:
+      "Snoutboard is currently in beta. Features, data sources, calculations, labels, and product direction may change as the dashboard develops. Continued use of the dashboard means you understand these limitations.",
+  },
+];
+
+const GLOSSARY_TERMS = [
+  {
+    title: "Current players",
+    body:
+      "A processed dashboard field showing the latest stored concurrent player count for a Roblox experience when that metric is available from the captured source data.",
+  },
+  {
+    title: "Source position",
+    body:
+      "A processed dashboard field showing the position captured from a source list or imported source order. It should not be read as an official popularity ranking unless the source explicitly provides that meaning.",
+  },
+  {
+    title: "Focused source set",
+    body:
+      "A processed and filtered view of entries selected from imported source data for the active platform. The set is used for research comparisons inside Snoutboard.",
+  },
+  {
+    title: "Data capture coverage",
+    body:
+      "A processed completeness score: the share of expected source and dashboard fields captured across the current dataset. Missing expected fields reduce the score. This measures field completeness, not whether an interpretation or classification is correct.",
+  },
+  {
+    title: "Heuristic fallback",
+    body:
+      "A processed classification label shown when source taxonomy is unavailable and Snoutboard estimates classification from title, description, source context, or stored metadata.",
+  },
+  {
+    title: "Primary label",
+    body:
+      "A processed Fortnite field based on the first surfaced label captured from island metadata. It can suggest format, theme, or collaboration context, but it is not an official endorsement or partnership signal.",
+  },
+  {
+    title: "IP / Collaboration signal",
+    body:
+      "A processed detection of a recognizable franchise, brand, or collaboration reference in labels, titles, or descriptions. It identifies textual context only and does not imply Snoutboard has any relationship with that rights holder.",
+  },
+  {
+    title: "Directional research map",
+    body:
+      "A processed visual research aid that compares categories across interpreted signals. It is not an official platform tool, prediction, recommendation guarantee, or business instruction.",
+  },
+  {
+    title: "Demand",
+    body:
+      "A processed and interpreted measure of player activity or audience concentration in a category based on available snapshot data.",
+  },
+  {
+    title: "Saturation",
+    body:
+      "A processed and interpreted measure of how many imported games or islands occupy a similar category or format in the captured dataset.",
+  },
+  {
+    title: "Estimated game format complexity",
+    body:
+      "A processed directional estimate of how complex a category or format appears from genre, subgenre, labels, and observed design patterns. It is not an official platform classification or engineering cost estimate.",
+  },
+  {
+    title: "Prediction market signals",
+    body:
+      "Processed research-oriented signals that may help observe momentum, volatility, category concentration, and outlier behavior. They are informational only and do not predict or guarantee outcomes.",
+  },
+];
+
+const USAGE_REVIEW_NOTICES = [
+  {
+    title: "Research positioning",
+    body:
+      "Platform-specific market signals for creative research and market exploration.",
+  },
+  {
+    title: "Snapshot limitation",
+    body:
+      "Player activity is based on stored point-in-time snapshots. It describes captured changes in player counts during the selected period and may not represent every fluctuation between captures.",
+  },
+  {
+    title: "Estimated fields",
+    body:
+      "Fields marked Estimated are interpreted from available source metadata or dashboard heuristics and are not official platform classifications.",
+  },
+  {
+    title: "Creative responsibility",
+    body:
+      "Research signals are starting points for investigation. Users should independently validate source information and make their own creative, production, publishing, and business decisions.",
+  },
+];
+const DEFAULT_DASHBOARD_COPY: DashboardCopySettings = {
+  disclaimerTitle: "Before entering Snoutboard",
+  disclaimerBody:
+    "Snoutboard is an independent research tool that presents processed market signals for creative exploration. Source data and derived fields may be incomplete, delayed, estimated, inferred, automatically classified, or affected by point-in-time snapshot limits. You are responsible for independently validating any information before relying on it.",
+  disclaimerAffiliation:
+    "Snoutboard does not provide legal, financial, investment, business, or professional advice and does not guarantee revenue, player growth, discoverability, platform placement, or creator success. Snoutboard is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner.",
+  disclaimerButton: "I acknowledge and enter",
+  disclaimerTextAlign: "center",
+  disclaimerBodyStyle: "regular",
+  disclaimerAffiliationStyle: "regular",
+  disclaimerImageUrl: "",
+  mobileDisclaimerVersion: "2026-06-22-v1",
+  mobileDisclaimerTitle: "Snoutboard Disclaimer",
+  mobileDisclaimerIndependence:
+    "Snoutboard is an independent research tool and is not affiliated with, endorsed by, sponsored by, or operated by Roblox, Epic Games, or Fortnite.",
+  mobileDisclaimerDataLimits:
+    "Displayed information is processed from captured public-source data and may be incomplete, delayed, estimated, or automatically classified. It is provided for creative research, not as legal, financial, investment, business, or professional advice.",
+  mobileDisclaimerOutcomes:
+    "Snoutboard does not guarantee player growth, discoverability, revenue, platform placement, or creator success. Independently verify information before relying on it.",
+  mobileDisclaimerAcknowledgement:
+    "By continuing, you acknowledge that you have read and understood this notice. Choose the platform you want to load.",
+  mobileDisclaimerRobloxButton: "Acknowledge & Open Roblox",
+  mobileDisclaimerFortniteButton: "Acknowledge & Open Fortnite",
+  mobileDisclaimerStorageNote:
+    "This acknowledgement is stored on this device and will be requested again if the notice is revised.",
+  termsButton: "Terms of service",
+  glossaryButton: "Glossary",
+  podcastButton: "Podcast conductor",
+  adminButton: "Admin access",
+  footerTrademark:
+    "SnoutBoard is a trademark product of Forgotten Diamond Software, LLC.",
+  footerVersion: "v0.01",
+  footerAffiliation:
+    "Snoutboard is independent and is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner.",
+  dataStrategySessionUrl: "",
+  youtubeUrl: "",
+  tiktokUrl: "",
+  twitterUrl: "",
+};
 const TIME_WINDOW_OPTIONS: AccessOption[] = [
   { key: "time_7d", label: "7D", description: "Allow the 7-day view." },
   { key: "time_30d", label: "Month", description: "Allow the rolling 30-day view." },
@@ -141,6 +386,35 @@ const ACCESS_ITEMS: AccessItem[] = [
   ] },
 ];
 
+const DEFERRED_WIDGET_KEYS = new Set([
+  "roblox_subgenre_mix",
+  "roblox_keyword_cloud",
+  "roblox_common_structure",
+  "roblox_tile_colors",
+  "roblox_archetypes",
+  "roblox_template_generator",
+  "roblox_correlation",
+  "roblox_directional_map",
+  "roblox_idea_card",
+  "roblox_research_cards",
+  "roblox_activity_landscape",
+  "roblox_experience_cards",
+  "roblox_forecasting_inputs",
+  "fortnite_subgenre_mix",
+  "fortnite_keyword_cloud",
+  "fortnite_tile_colors",
+  "fortnite_archetypes",
+  "fortnite_template_generator",
+  "fortnite_directional_map",
+  "fortnite_idea_card",
+  "fortnite_research_cards",
+  "fortnite_island_cards",
+  "fortnite_forecasting_inputs",
+]);
+
+const DEFAULT_WIDGET_AUTO_LOAD_SETTINGS: WidgetAutoLoadSettings =
+  Object.fromEntries(ACCESS_ITEMS.map((item) => [item.key, false]));
+
 const DEFAULT_TIER_VISIBILITY: TierVisibilitySettings = buildDefaultTierVisibility();
 
 function buildDefaultTierVisibility(): TierVisibilitySettings {
@@ -209,7 +483,9 @@ function normalizeDashboardTier(value: unknown): UserTier {
 }
 
 function mergeTierVisibility(value: any): TierVisibilitySettings {
-  const merged = structuredClone(DEFAULT_TIER_VISIBILITY) as TierVisibilitySettings;
+  const merged = JSON.parse(
+    JSON.stringify(DEFAULT_TIER_VISIBILITY)
+  ) as TierVisibilitySettings;
 
   CONFIGURABLE_TIERS.forEach((tier) => {
     getAccessSettingKeys().forEach((key) => {
@@ -220,6 +496,63 @@ function mergeTierVisibility(value: any): TierVisibilitySettings {
   });
 
   return merged;
+}
+
+function mergeDashboardCopy(value: any): DashboardCopySettings {
+  const merged = { ...DEFAULT_DASHBOARD_COPY };
+
+  Object.keys(DEFAULT_DASHBOARD_COPY).forEach((key) => {
+    if (typeof value?.[key] === "string") {
+      merged[key as keyof DashboardCopySettings] = value[key];
+    }
+  });
+
+  if (merged.disclaimerTitle === "Informational use only.") {
+    merged.disclaimerTitle = DEFAULT_DASHBOARD_COPY.disclaimerTitle;
+  }
+  if (
+    merged.disclaimerBody ===
+    "Snoutboard provides independent market-intelligence summaries and research signals for creative exploration. Data may be incomplete, delayed, inferred, or automatically classified, and should be independently reviewed before use. Snoutboard does not provide legal, financial, investment, business, or professional advice and does not guarantee revenue, player growth, discoverability, platform placement, or creator success."
+  ) {
+    merged.disclaimerBody = DEFAULT_DASHBOARD_COPY.disclaimerBody;
+  }
+  if (
+    merged.disclaimerAffiliation ===
+    "Snoutboard is not affiliated with, endorsed by, or sponsored by Roblox, Epic Games, Fortnite, or any platform owner. Video games are a form of art; use these signals to support your creativity and build experiences that are fun."
+  ) {
+    merged.disclaimerAffiliation = DEFAULT_DASHBOARD_COPY.disclaimerAffiliation;
+  }
+  if (merged.disclaimerButton === "Acknowledge & Dismiss") {
+    merged.disclaimerButton = DEFAULT_DASHBOARD_COPY.disclaimerButton;
+  }
+
+  return merged;
+}
+
+function mergeWidgetCopyOverrides(value: any): WidgetCopyOverrides {
+  const merged: WidgetCopyOverrides = {};
+
+  ACCESS_ITEMS.forEach((item) => {
+    const title = value?.[item.key]?.title;
+    const subtitle = value?.[item.key]?.subtitle;
+    if (typeof title === "string" || typeof subtitle === "string") {
+      merged[item.key] = {
+        title: typeof title === "string" ? title : "",
+        subtitle: typeof subtitle === "string" ? subtitle : "",
+      };
+    }
+  });
+
+  return merged;
+}
+
+function mergeWidgetAutoLoadSettings(value: any): WidgetAutoLoadSettings {
+  return Object.fromEntries(
+    ACCESS_ITEMS.map((item) => [
+      item.key,
+      typeof value?.[item.key] === "boolean" ? value[item.key] : false,
+    ])
+  );
 }
 
 function canSeeAccessOption(
@@ -253,23 +586,36 @@ function tierLabel(tier: UserTier) {
 }
 
 export default function Home() {
+  const internalAdminEnabled =
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_ENABLE_INTERNAL_ADMIN === "true";
   const [activePlatform, setActivePlatform] = useState<Platform>("roblox");
   const [darkMode, setDarkMode] = useState(false);
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [showTerms, setShowTerms] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [showPodcastConductor, setShowPodcastConductor] = useState(false);
-  const userTier: UserTier =
-    process.env.NODE_ENV !== "production" ? "admin" : "free";
+  const userTier: UserTier = internalAdminEnabled ? "admin" : "free";
   const [tierVisibility, setTierVisibility] = useState<TierVisibilitySettings>(
     DEFAULT_TIER_VISIBILITY
   );
   const [tierVisibilityReady, setTierVisibilityReady] = useState(false);
+  const [dashboardCopy, setDashboardCopy] =
+    useState<DashboardCopySettings>(DEFAULT_DASHBOARD_COPY);
+  const [dashboardCopyReady, setDashboardCopyReady] = useState(false);
+  const [widgetCopyOverrides, setWidgetCopyOverrides] =
+    useState<WidgetCopyOverrides>({});
+  const [widgetCopyReady, setWidgetCopyReady] = useState(false);
+  const [widgetAutoLoadSettings, setWidgetAutoLoadSettings] =
+    useState<WidgetAutoLoadSettings>(DEFAULT_WIDGET_AUTO_LOAD_SETTINGS);
+  const [widgetAutoLoadReady, setWidgetAutoLoadReady] = useState(false);
   const [robloxGames, setRobloxGames] = useState<any[]>([]);
   const [fortniteIslands, setFortniteIslands] = useState<any[]>([]);
-  const [dashboardDataScope, setDashboardDataScope] =
-    useState<"full" | "free_preview">("free_preview");
+  const [platformDataScopes, setPlatformDataScopes] = useState<
+    Record<Platform, "none" | "core" | "full">
+  >({ roblox: "none", fortnite: "none" });
+  const [loadedWidgets, setLoadedWidgets] = useState<Set<string>>(() => new Set());
+  const [loadingWidget, setLoadingWidget] = useState<string | null>(null);
+  const [dataLoadError, setDataLoadError] = useState("");
   const [dataQualitySnapshots, setDataQualitySnapshots] = useState<
     DataQualitySnapshot[]
   >([]);
@@ -307,7 +653,10 @@ export default function Home() {
   const [fortniteArchetypeWindow, setFortniteArchetypeWindow] =
     useState<TrendTimeWindow>("7d");
   const [predictionSearch, setPredictionSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loadingStarted, setLoadingStarted] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("Starting dashboard load...");
 
   const accent = activePlatform === "roblox" ? "#0d69ac" : "#7c3aed";
   const currentDateLabel = useMemo(
@@ -335,6 +684,49 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const stored = window.localStorage.getItem(INTERNAL_DASHBOARD_COPY_STORAGE_KEY);
+
+    if (stored) {
+      try {
+        setDashboardCopy(mergeDashboardCopy(JSON.parse(stored)));
+      } catch (error) {
+        console.warn("Dashboard copy settings could not be loaded:", error);
+      }
+    }
+    setDashboardCopyReady(true);
+  }, []);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(INTERNAL_WIDGET_COPY_STORAGE_KEY);
+
+    if (stored) {
+      try {
+        setWidgetCopyOverrides(mergeWidgetCopyOverrides(JSON.parse(stored)));
+      } catch (error) {
+        console.warn("Widget copy settings could not be loaded:", error);
+      }
+    }
+    setWidgetCopyReady(true);
+  }, []);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(
+      INTERNAL_WIDGET_AUTO_LOAD_STORAGE_KEY
+    );
+
+    if (stored) {
+      try {
+        setWidgetAutoLoadSettings(
+          mergeWidgetAutoLoadSettings(JSON.parse(stored))
+        );
+      } catch (error) {
+        console.warn("Widget auto-load settings could not be loaded:", error);
+      }
+    }
+    setWidgetAutoLoadReady(true);
+  }, []);
+
+  useEffect(() => {
     if (tierVisibilityReady) {
       window.localStorage.setItem(
         INTERNAL_DASHBOARD_SETTINGS_STORAGE_KEY,
@@ -344,35 +736,155 @@ export default function Home() {
   }, [tierVisibility, tierVisibilityReady]);
 
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
+    if (dashboardCopyReady) {
+      window.localStorage.setItem(
+        INTERNAL_DASHBOARD_COPY_STORAGE_KEY,
+        JSON.stringify(dashboardCopy)
+      );
+    }
+  }, [dashboardCopy, dashboardCopyReady]);
 
-      try {
-        const response = await fetch("/api/dashboard/data");
+  useEffect(() => {
+    if (widgetCopyReady) {
+      window.localStorage.setItem(
+        INTERNAL_WIDGET_COPY_STORAGE_KEY,
+        JSON.stringify(widgetCopyOverrides)
+      );
+    }
+  }, [widgetCopyOverrides, widgetCopyReady]);
 
-        if (!response.ok) {
-          throw new Error(`Dashboard data request failed with ${response.status}`);
-        }
+  useEffect(() => {
+    if (widgetAutoLoadReady) {
+      window.localStorage.setItem(
+        INTERNAL_WIDGET_AUTO_LOAD_STORAGE_KEY,
+        JSON.stringify(widgetAutoLoadSettings)
+      );
+    }
+  }, [widgetAutoLoadReady, widgetAutoLoadSettings]);
 
-        const payload = await response.json();
+  const widgetTitle = (key: string, fallback: string) =>
+    widgetCopyOverrides[key]?.title?.trim() || fallback;
+  const widgetSubtitle = (key: string, fallback: string) =>
+    widgetCopyOverrides[key]?.subtitle?.trim() || fallback;
 
-        setDashboardDataScope(payload.dataScope === "full" ? "full" : "free_preview");
-        setRobloxGames((payload.roblox ?? []).map(withLatestRobloxSnapshot));
-        setFortniteIslands((payload.fortnite ?? []).map(withLatestFortniteSnapshot));
-        setDataQualitySnapshots((payload.dataQualitySnapshots ?? []) as DataQualitySnapshot[]);
-      } catch (error) {
-        console.error("Dashboard data fetch error:", error);
-        setDashboardDataScope("free_preview");
-        setRobloxGames([]);
-        setFortniteIslands([]);
-        setDataQualitySnapshots([]);
-      } finally {
-        setLoading(false);
-      }
+  async function loadPlatformData(
+    platform: Platform,
+    scope: "core" | "full" = "core"
+  ) {
+    const currentScope = platformDataScopes[platform];
+    if (currentScope === "full" || (currentScope === "core" && scope === "core")) {
+      setActivePlatform(platform);
+      return true;
     }
 
-    fetchData();
-  }, []);
+    const showPageLoader = scope === "core" && currentScope === "none";
+    setActivePlatform(platform);
+    if (showPageLoader) setLoading(true);
+    setLoadingStarted(true);
+    setLoadingProgress(scope === "full" ? 22 : 12);
+    setLoadingMessage(
+      scope === "full"
+        ? `Loading ${platform === "roblox" ? "Roblox" : "Fortnite"} research data...`
+        : `Loading ${platform === "roblox" ? "Roblox" : "Fortnite"} overview...`
+    );
+    setDataLoadError("");
+
+    try {
+      const response = await fetch(
+        `/api/dashboard/data?platform=${platform}&scope=${scope}`
+      );
+      setLoadingProgress(62);
+
+      if (!response.ok) {
+        throw new Error(`Dashboard data request failed with ${response.status}`);
+      }
+
+      const payload = await response.json();
+      setLoadingProgress(86);
+
+      if (platform === "roblox") {
+        setRobloxGames((payload.roblox ?? []).map(withLatestRobloxSnapshot));
+      } else {
+        setFortniteIslands((payload.fortnite ?? []).map(withLatestFortniteSnapshot));
+      }
+
+      setDataQualitySnapshots((current) => {
+        const otherPlatform = current.filter((item) => item.platform !== platform);
+        return [...otherPlatform, ...(payload.dataQualitySnapshots ?? [])];
+      });
+      setPlatformDataScopes((current) => ({ ...current, [platform]: scope }));
+      setLoadingProgress(100);
+      return true;
+    } catch (error) {
+      console.error("Dashboard data fetch error:", error);
+      setDataLoadError(
+        `${platform === "roblox" ? "Roblox" : "Fortnite"} data could not load. Please try again.`
+      );
+      return false;
+    } finally {
+      if (showPageLoader) setLoading(false);
+    }
+  }
+
+  async function loadDeferredWidget(widgetKey: string) {
+    setLoadingWidget(widgetKey);
+    try {
+      const loaded = await loadPlatformData(activePlatform, "full");
+      if (loaded) {
+        setLoadedWidgets((current) => new Set(current).add(widgetKey));
+      }
+    } finally {
+      setLoadingWidget(null);
+    }
+  }
+
+  async function loadPlatformWithConfiguredWidgets(platform: Platform) {
+    const coreLoaded = await loadPlatformData(platform, "core");
+    if (!coreLoaded) return;
+
+    const configuredKeys = ACCESS_ITEMS.filter(
+      (item) =>
+        item.platform === platform &&
+        DEFERRED_WIDGET_KEYS.has(item.key) &&
+        widgetAutoLoadSettings[item.key]
+    ).map((item) => item.key);
+
+    if (!configuredKeys.length) return;
+
+    const fullLoaded = await loadPlatformData(platform, "full");
+    if (!fullLoaded) return;
+
+    setLoadedWidgets((current) => {
+      const next = new Set(current);
+      configuredKeys.forEach((key) => next.add(key));
+      if (configuredKeys.includes("roblox_research_cards")) {
+        next.add("roblox_idea_card");
+      }
+      if (configuredKeys.includes("fortnite_research_cards")) {
+        next.add("fortnite_idea_card");
+      }
+      return next;
+    });
+  }
+
+  function selectRobloxTrendWindow(
+    windowKey: TrendTimeWindow,
+    setWindow: (value: TrendTimeWindow) => void
+  ) {
+    setWindow(windowKey);
+    if (windowKey !== "7d" && platformDataScopes.roblox !== "full") {
+      void loadPlatformData("roblox", "full");
+    }
+  }
+
+  function ensureFortniteHistory(windowKey: TrendTimeWindow) {
+    if (windowKey !== "7d" && platformDataScopes.fortnite !== "full") {
+      void loadPlatformData("fortnite", "full");
+    }
+  }
+
+  const isWidgetLoaded = (widgetKey: string) => loadedWidgets.has(widgetKey);
+  const dashboardStarted = platformDataScopes[activePlatform] !== "none";
 
   const activeItems =
     activePlatform === "roblox" ? robloxGames : fortniteIslands;
@@ -401,7 +913,7 @@ export default function Home() {
     ).sort();
   }, [activeGenreAnalysisItems, activePlatform, selectedGenre]);
 
-  const isInternalAdmin = process.env.NODE_ENV !== "production" && userTier === "admin";
+  const isInternalAdmin = internalAdminEnabled && userTier === "admin";
   const canAccess = (key: string) =>
     canSeeAccessItem(INTERNAL_DASHBOARD_SETTINGS_TIER, tierVisibility, key);
   const canAccessOption = (itemKey: string, optionKey: string) =>
@@ -449,12 +961,16 @@ export default function Home() {
       : effectiveTimeWindow("fortnite_idea_card", ideaTimeWindow);
   const activeLandscapeWindow = effectiveLandscapeTimeWindow(landscapeTimeWindow);
   const activeTwoOptionIdeaWindow = activeIdeaWindow as "7d" | "30d";
+  const ideaWidgetLoaded = isWidgetLoaded(
+    activePlatform === "roblox" ? "roblox_idea_card" : "fortnite_idea_card"
+  );
 
   const activeIdeaAnalysisItems = useMemo(() => {
+    if (!ideaWidgetLoaded) return [];
     return activePlatform === "roblox"
       ? buildCorrelationWindowGames(activeGenreAnalysisItems, activeTwoOptionIdeaWindow)
       : getFortniteIslandsInWindow(activeGenreAnalysisItems, activeTwoOptionIdeaWindow);
-  }, [activeGenreAnalysisItems, activePlatform, activeTwoOptionIdeaWindow]);
+  }, [activeGenreAnalysisItems, activePlatform, activeTwoOptionIdeaWindow, ideaWidgetLoaded]);
 
   const filteredIdeaItems = activeIdeaAnalysisItems.filter((item) => {
     const genreMatch = !selectedGenre || getDisplayGenre(item, activePlatform) === selectedGenre;
@@ -469,8 +985,9 @@ export default function Home() {
     );
   }, [robloxGames]);
   const landscapeRobloxGames = useMemo(() => {
+    if (!isWidgetLoaded("roblox_activity_landscape")) return [];
     return buildLandscapeWindowGames(robloxGames, activeLandscapeWindow);
-  }, [robloxGames, activeLandscapeWindow]);
+  }, [robloxGames, activeLandscapeWindow, loadedWidgets]);
 
   const topFortniteIslands = useMemo(() => {
     return [...fortniteIslands].sort(compareFortniteIslands);
@@ -532,8 +1049,15 @@ export default function Home() {
     [activeGenreAnalysisItems, activePlatform]
   );
   const predictionTarget = useMemo(
-    () => findPredictionTarget(activeItems, activePlatform, predictionSearch),
-    [activeItems, activePlatform, predictionSearch]
+    () => {
+      const key = activePlatform === "roblox"
+        ? "roblox_forecasting_inputs"
+        : "fortnite_forecasting_inputs";
+      return isWidgetLoaded(key)
+        ? findPredictionTarget(activeItems, activePlatform, predictionSearch)
+        : null;
+    },
+    [activeItems, activePlatform, predictionSearch, loadedWidgets]
   );
   const predictionSignals = buildPredictionSignals(
     predictionTarget,
@@ -593,6 +1117,7 @@ export default function Home() {
     setFortniteGenreScoreboardWindow,
     setFortniteIpSignalWindow,
     setFortniteArchetypeWindow,
+    ensureFortniteHistory,
     selectedGenre,
     selectedSubgenre,
     setSelectedGenre,
@@ -610,10 +1135,16 @@ export default function Home() {
     canAccessOption,
     effectiveTimeWindow,
     allowedTimeWindows,
+    isWidgetLoaded,
+    loadDeferredWidget,
+    loadingWidget,
+    widgetTitle,
+    widgetSubtitle,
   };
 
   return (
-    <main className={`min-h-screen p-6 ${shell}`}>
+    <main id="dashboard" className={`min-h-screen p-6 ${shell}`}>
+      <DashboardPrintGuard />
       <div className={`mx-auto max-w-7xl rounded-[32px] p-8 ${panel} border`}>
         <header className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -643,11 +1174,27 @@ export default function Home() {
 
           <div className="flex items-center gap-3">
             {canAccess("global_platform_toggle") && (
-              <ToggleGroup>
+              <div className="flex items-center gap-2">
+                {(widgetCopyOverrides.global_platform_toggle?.title?.trim() ||
+                  widgetCopyOverrides.global_platform_toggle?.subtitle?.trim()) ? (
+                  <div className="hidden text-right sm:block">
+                    {widgetCopyOverrides.global_platform_toggle?.title?.trim() ? (
+                      <p className="text-xs font-black text-slate-600">
+                        {widgetCopyOverrides.global_platform_toggle.title}
+                      </p>
+                    ) : null}
+                    {widgetCopyOverrides.global_platform_toggle?.subtitle?.trim() ? (
+                      <p className="text-[10px] text-slate-400">
+                        {widgetCopyOverrides.global_platform_toggle.subtitle}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                <ToggleGroup>
                 <ToggleButton
                   active={activePlatform === "roblox"}
                   onClick={() => {
-                    setActivePlatform("roblox");
+                    void loadPlatformWithConfiguredWidgets("roblox");
                     setSelectedGenre("");
                     setSelectedSubgenre("");
                   }}
@@ -658,7 +1205,7 @@ export default function Home() {
                 <ToggleButton
                   active={activePlatform === "fortnite"}
                   onClick={() => {
-                    setActivePlatform("fortnite");
+                    void loadPlatformWithConfiguredWidgets("fortnite");
                     setSelectedGenre("");
                     setSelectedSubgenre("");
                   }}
@@ -666,7 +1213,8 @@ export default function Home() {
                 >
                   Fortnite
                 </ToggleButton>
-              </ToggleGroup>
+                </ToggleGroup>
+              </div>
             )}
 
             <DatePill date={currentDateLabel} accent={accent} />
@@ -679,36 +1227,18 @@ export default function Home() {
           </div>
         </header>
 
-        {showDisclaimer && (
-          <div className="mb-8 flex items-start justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <p>
-              <span>
-                <strong>Informational use only.</strong> Snoutboard provides
-                independent market-intelligence summaries and research signals
-                for creative exploration. Data may be incomplete, delayed,
-                inferred, or automatically classified, and should be
-                independently reviewed before use. Snoutboard does not provide
-                legal, financial, investment, business, or professional advice
-                and does not guarantee revenue, player growth, discoverability,
-                platform placement, or creator success.
-              </span>
-              <span className="mt-2 block">
-                Snoutboard is not affiliated with, endorsed by, or sponsored by
-                Roblox, Epic Games, Fortnite, or any platform owner. Video games
-                are a form of art; use these signals to support your creativity
-                and build experiences that are fun.
-              </span>
-            </p>
-            <button
-              onClick={() => setShowDisclaimer(false)}
-              className="ml-4 rounded-full border px-3 py-1 text-xs font-bold"
-            >
-              Acknowledge & Dismiss
-            </button>
-          </div>
-        )}
+        <DashboardDisclaimerCard
+          copy={dashboardCopy}
+          dashboardStarted={dashboardStarted}
+          loading={loading}
+          activePlatform={activePlatform}
+          error={dataLoadError}
+          onLoadPlatform={(platform) =>
+            void loadPlatformWithConfiguredWidgets(platform)
+          }
+        />
 
-        {activePlatform === "roblox" || activePlatform === "fortnite" ? (
+        {dashboardStarted && (activePlatform === "roblox" || activePlatform === "fortnite") ? (
           <nav
             aria-label={`${activePlatform === "roblox" ? "Roblox" : "Fortnite"} dashboard shortcuts`}
             className="mb-4 flex flex-wrap items-center justify-between gap-3"
@@ -728,7 +1258,7 @@ export default function Home() {
                       "Player Activity Landscape",
                     ],
                     [
-                      "#",
+                      dashboardCopy.dataStrategySessionUrl || "#",
                       "Book time with a data expert",
                       "Data Strategy Session",
                       "cta",
@@ -751,7 +1281,7 @@ export default function Home() {
                       "Latest Imported Fortnite Islands",
                     ],
                     [
-                      "#",
+                      dashboardCopy.dataStrategySessionUrl || "#",
                       "Book time with a data expert",
                       "Data Strategy Session",
                       "cta",
@@ -795,15 +1325,17 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2" aria-label="Social media links">
               {[
-                ["YouTube", "/youtube-logo.png", "h-4 w-6"],
-                ["TikTok", "/tiktok-logo.png", "h-5 w-5"],
-                ["Twitter / X", "/twitter-logo-black.png", "h-5 w-5"],
-              ].map(([label, src, size]) => (
+                ["YouTube", "/youtube-logo.png", "h-4 w-6", dashboardCopy.youtubeUrl],
+                ["TikTok", "/tiktok-logo.png", "h-5 w-5", dashboardCopy.tiktokUrl],
+                ["Twitter / X", "/twitter-logo-black.png", "h-5 w-5", dashboardCopy.twitterUrl],
+              ].map(([label, src, size, href]) => (
                 <a
                   key={label}
-                  href="#"
-                  aria-label={`${label} link coming soon`}
-                  title={`${label} link coming soon`}
+                  href={href || "#"}
+                  aria-label={href ? `${label} link` : `${label} link coming soon`}
+                  title={href ? `${label} link` : `${label} link coming soon`}
+                  target={href ? "_blank" : undefined}
+                  rel={href ? "noreferrer" : undefined}
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
                 >
                   <img
@@ -818,22 +1350,28 @@ export default function Home() {
           </nav>
         ) : null}
 
-        <section className="mb-6">
+        {dashboardStarted ? <section className="mb-6">
           <h2 className="text-3xl font-bold">Creator Trend Intelligence</h2>
           <p className="mt-2 text-sm text-slate-500">
             Platform-specific market signals for creative research and market exploration.
           </p>
-        </section>
+        </section> : null}
 
         {loading ? (
-          <p>Loading platform data...</p>
-        ) : activePlatform === "roblox" ? (
+          <PlatformDataLoadingCard
+            accent={accent}
+            started={loadingStarted}
+            progress={loadingProgress}
+            message={loadingMessage}
+          />
+        ) : !dashboardStarted ? null : activePlatform === "roblox" ? (
           /* Roblox dashboard branch. Keep Fortnite-specific UI changes in FortniteDashboardView. */
           <>
             <section className="mb-6 grid gap-4 lg:grid-cols-3">
               {canAccess("roblox_data_source_health") ? (
                 <DataSourceHealthCard
-                  title="Data Source & Health"
+                  title={widgetTitle("roblox_data_source_health", "Data Source & Health")}
+                  subtitle={widgetSubtitle("roblox_data_source_health", "")}
                   items={[
                     `The data is pulled from: ${dataSourceHealth.source}.`,
                     `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
@@ -851,8 +1389,8 @@ export default function Home() {
 
               {canAccess("roblox_top_games") ? (
                 <ScoreboardCard
-                  title="Top 5 Most Played Games"
-                  subtitle="By current players"
+                  title={widgetTitle("roblox_top_games", "Top 5 Most Played Games")}
+                  subtitle={widgetSubtitle("roblox_top_games", "By current players")}
                   items={topGameScoreboard.map((g) => ({
                     label: g.title,
                     value: formatNumber(g.latestPlayers),
@@ -879,7 +1417,8 @@ export default function Home() {
 
               {canAccess("roblox_trending_games") ? (
                 <TrendingCard
-                  title="Trending Games"
+                  title={widgetTitle("roblox_trending_games", "Trending Games")}
+                  subtitle={widgetSubtitle("roblox_trending_games", "")}
                   items={trendingHighlights}
                   panel={panel}
                   accent={accent}
@@ -898,7 +1437,24 @@ export default function Home() {
                 panel={panel}
                 accent={accent}
                 showGenre={canAccess("roblox_genre_mix")}
-                showSubgenre={canAccess("roblox_subgenre_mix")}
+                showSubgenre={canAccess("roblox_subgenre_mix") && isWidgetLoaded("roblox_subgenre_mix")}
+                subgenreFallback={
+                  canAccess("roblox_subgenre_mix") ? (
+                    <DeferredWidgetCard
+                      title={widgetTitle("roblox_subgenre_mix", "Most Played Subgenre Mix Estimated")}
+                      description={widgetSubtitle("roblox_subgenre_mix", "Load the player-weighted subgenre breakdown for the current Roblox set.")}
+                      panel={panel}
+                      accent={accent}
+                      loading={loadingWidget === "roblox_subgenre_mix"}
+                      onLoad={() => void loadDeferredWidget("roblox_subgenre_mix")}
+                      className=""
+                    />
+                  ) : undefined
+                }
+                genreTitle={widgetTitle("roblox_genre_mix", "Most Played Genre Mix Estimated")}
+                genreSubtitle={widgetSubtitle("roblox_genre_mix", `Player-weighted genre share across the current Top ${mostPlayedMixLimit} most played Roblox experiences.`)}
+                subgenreTitle={widgetTitle("roblox_subgenre_mix", "Most Played Subgenre Mix Estimated")}
+                subgenreSubtitle={widgetSubtitle("roblox_subgenre_mix", `Player-weighted subgenre share across the current Top ${mostPlayedMixLimit} most played Roblox experiences.`)}
                 showControls={
                   canAccessOption("roblox_genre_mix", "limit_25") ||
                   canAccessOption("roblox_genre_mix", "limit_50") ||
@@ -927,10 +1483,10 @@ export default function Home() {
               id="most-played-games-over-time"
               className="mb-6 grid scroll-mt-6 gap-6 lg:grid-cols-2"
             >
-              {canAccess("roblox_games_trend") && dashboardDataScope === "full" ? (
+              {canAccess("roblox_games_trend") ? (
                 <ChartCard
-                  title="Most Played Games Over Time"
-                  subtitle={`Top ${topGamesTrendLimit} experiences by current players, tracked across stored snapshot dates.`}
+                  title={widgetTitle("roblox_games_trend", "Most Played Games Over Time")}
+                  subtitle={widgetSubtitle("roblox_games_trend", `Top ${topGamesTrendLimit} experiences by current players, tracked across stored snapshot dates.`)}
                   panel={panel}
                   action={
                     true ? (
@@ -953,7 +1509,9 @@ export default function Home() {
                     (
                       <TimeWindowControls
                         timeWindow={effectiveTimeWindow("roblox_games_trend", topGamesTrendWindow)}
-                        onTimeWindowChange={setTopGamesTrendWindow}
+                        onTimeWindowChange={(windowKey: TrendTimeWindow) =>
+                          selectRobloxTrendWindow(windowKey, setTopGamesTrendWindow)
+                        }
                         accent={accent}
                         allowedValues={allowedTimeWindows("roblox_games_trend")}
                       />
@@ -970,10 +1528,10 @@ export default function Home() {
                 <LockedAccessCard itemKey="roblox_games_trend" panel={panel} />
               )}
 
-              {canAccess("roblox_genres_trend") && dashboardDataScope === "full" ? (
+              {canAccess("roblox_genres_trend") ? (
                 <ChartCard
-                  title="Most Played Genres Over Time"
-                  subtitle="Genre-level player curves using stored Roblox snapshot dates."
+                  title={widgetTitle("roblox_genres_trend", "Most Played Genres Over Time")}
+                  subtitle={widgetSubtitle("roblox_genres_trend", "Genre-level player curves using stored Roblox snapshot dates.")}
                   panel={panel}
                   action={
                     true ? (
@@ -992,7 +1550,9 @@ export default function Home() {
                     (
                       <TimeWindowControls
                         timeWindow={effectiveTimeWindow("roblox_genres_trend", genreTrendWindow)}
-                        onTimeWindowChange={setGenreTrendWindow}
+                        onTimeWindowChange={(windowKey: TrendTimeWindow) =>
+                          selectRobloxTrendWindow(windowKey, setGenreTrendWindow)
+                        }
                         accent={accent}
                         allowedValues={allowedTimeWindows("roblox_genres_trend")}
                       />
@@ -1011,10 +1571,10 @@ export default function Home() {
             </section>
 
             <section className="mb-6 grid gap-6 lg:grid-cols-3">
-              {canAccess("roblox_keyword_cloud") ? (
+              {canAccess("roblox_keyword_cloud") && isWidgetLoaded("roblox_keyword_cloud") ? (
 	              <KeywordCloudCard
-	                title="Top 25 Keyword Cloud"
-	                subtitle="Common title and description signals across the top 25 experiences"
+	                title={widgetTitle("roblox_keyword_cloud", "Top 25 Keyword Cloud")}
+	                subtitle={widgetSubtitle("roblox_keyword_cloud", "Common title and description signals across the top 25 experiences")}
 	                games={
                   activePlatform === "roblox"
                     ? topRobloxGames.slice(0, 25)
@@ -1023,14 +1583,24 @@ export default function Home() {
 	                panel={panel}
 	                accent={accent}
 	              />
+              ) : canAccess("roblox_keyword_cloud") ? (
+                <DeferredWidgetCard
+                  title={widgetTitle("roblox_keyword_cloud", "Top 25 Keyword Cloud")}
+                  description={widgetSubtitle("roblox_keyword_cloud", "Load title and description language signals from the current Roblox experiences.")}
+                  panel={panel}
+                  accent={accent}
+                  loading={loadingWidget === "roblox_keyword_cloud"}
+                  onLoad={() => void loadDeferredWidget("roblox_keyword_cloud")}
+                  className=""
+                />
               ) : (
                 <LockedAccessCard itemKey="roblox_keyword_cloud" panel={panel} />
               )}
 
-              {canAccess("roblox_common_structure") ? (
+              {canAccess("roblox_common_structure") && isWidgetLoaded("roblox_common_structure") ? (
 	              <TemplatePatternCard
-	                title="Common Description Structure"
-	                subtitle="Repeated description formula in the top set"
+	                title={widgetTitle("roblox_common_structure", "Common Description Structure")}
+	                subtitle={widgetSubtitle("roblox_common_structure", "Repeated description formula in the top set")}
                 template={buildCommonTemplate(
                   activePlatform === "roblox"
                     ? topRobloxGames.slice(0, 25)
@@ -1039,14 +1609,24 @@ export default function Home() {
                 panel={panel}
                 accent={accent}
               />
+              ) : canAccess("roblox_common_structure") ? (
+                <DeferredWidgetCard
+                  title={widgetTitle("roblox_common_structure", "Common Description Structure")}
+                  description={widgetSubtitle("roblox_common_structure", "Load the repeated description structure found across the current Roblox set.")}
+                  panel={panel}
+                  accent={accent}
+                  loading={loadingWidget === "roblox_common_structure"}
+                  onLoad={() => void loadDeferredWidget("roblox_common_structure")}
+                  className=""
+                />
               ) : (
                 <LockedAccessCard itemKey="roblox_common_structure" panel={panel} />
               )}
 
-              {canAccess("roblox_tile_colors") ? (
+              {canAccess("roblox_tile_colors") && isWidgetLoaded("roblox_tile_colors") ? (
 	              <ColorBreakdownCard
-	                title="Top Tile Colors"
-	                subtitle="Primary and secondary RGB colors across the top 25 experiences"
+	                title={widgetTitle("roblox_tile_colors", "Top Tile Colors")}
+	                subtitle={widgetSubtitle("roblox_tile_colors", "Primary and secondary RGB colors across the top 25 experiences")}
 	                games={
                   activePlatform === "roblox"
                     ? topRobloxGames.slice(0, 25)
@@ -1055,19 +1635,31 @@ export default function Home() {
                 panel={panel}
                 accent={accent}
               />
+              ) : canAccess("roblox_tile_colors") ? (
+                <DeferredWidgetCard
+                  title={widgetTitle("roblox_tile_colors", "Top Tile Colors")}
+                  description={widgetSubtitle("roblox_tile_colors", "Load primary and secondary color analysis from Roblox experience tiles.")}
+                  panel={panel}
+                  accent={accent}
+                  loading={loadingWidget === "roblox_tile_colors"}
+                  onLoad={() => void loadDeferredWidget("roblox_tile_colors")}
+                  className=""
+                />
               ) : (
                 <LockedAccessCard itemKey="roblox_tile_colors" panel={panel} />
               )}
             </section>
 
-            {canAccess("roblox_archetypes") ? (
+            {canAccess("roblox_archetypes") && isWidgetLoaded("roblox_archetypes") ? (
               <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold">Fictional Roblox Experience Archetypes</h2>
+                    <h2 className="text-2xl font-bold">
+                      {widgetTitle("roblox_archetypes", "Fictional Roblox Experience Archetypes")}
+                    </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Synthetic profiles built only from captured Roblox metrics and metadata in the selected window.
+                      {widgetSubtitle("roblox_archetypes", "Synthetic profiles built only from captured Roblox metrics and metadata in the selected window.")}
                     </p>
                   </div>
                   {
@@ -1092,11 +1684,20 @@ export default function Home() {
                 />
               </div>
               </section>
+            ) : canAccess("roblox_archetypes") ? (
+              <DeferredWidgetCard
+                title={widgetTitle("roblox_archetypes", "Fictional Roblox Experience Archetypes")}
+                description={widgetSubtitle("roblox_archetypes", "Load median, average, and outlier archetypes synthesized from captured Roblox data.")}
+                panel={panel}
+                accent={accent}
+                loading={loadingWidget === "roblox_archetypes"}
+                onLoad={() => void loadDeferredWidget("roblox_archetypes")}
+              />
             ) : (
               <LockedAccessSection itemKey="roblox_archetypes" panel={panel} />
             )}
 
-            {canAccess("roblox_template_generator") ? (
+            {canAccess("roblox_template_generator") && isWidgetLoaded("roblox_template_generator") ? (
               <GameTemplateGeneratorRow
                 items={topRobloxGames}
                 platform="roblox"
@@ -1109,12 +1710,23 @@ export default function Home() {
                   top10: canAccessOption("roblox_template_generator", "template_source"),
                   reroll: canAccessOption("roblox_template_generator", "template_reroll"),
                 }}
+                title={widgetTitle("roblox_template_generator", "Game Template Generator")}
+                subtitle={widgetSubtitle("roblox_template_generator", "Synthetic concept templates built only from the active Roblox dataset.")}
+              />
+            ) : canAccess("roblox_template_generator") ? (
+              <DeferredWidgetCard
+                title={widgetTitle("roblox_template_generator", "Game Template Generator")}
+                description={widgetSubtitle("roblox_template_generator", "Load the Roblox metadata used to generate research-based fictional game templates.")}
+                panel={panel}
+                accent={accent}
+                loading={loadingWidget === "roblox_template_generator"}
+                onLoad={() => void loadDeferredWidget("roblox_template_generator")}
               />
             ) : (
               <LockedAccessSection itemKey="roblox_template_generator" panel={panel} />
             )}
 
-            {(canAccess("roblox_idea_card") || canAccess("roblox_research_cards")) ? (
+            {(canAccess("roblox_idea_card") || canAccess("roblox_research_cards")) && isWidgetLoaded("roblox_idea_card") ? (
               <section
                 id="my-game-idea-is"
                 className="mb-6 grid scroll-mt-6 gap-4 lg:grid-cols-2"
@@ -1123,9 +1735,11 @@ export default function Home() {
                   <div className={`rounded-3xl border p-6 ${panel}`}>
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <h2 className="text-2xl font-bold">My Game Idea Is</h2>
+                        <h2 className="text-2xl font-bold">
+                          {widgetTitle("roblox_idea_card", "My Game Idea Is")}
+                        </h2>
                         <p className="mt-1 text-sm text-slate-500">
-                          Use this as a reflection tool to position your concept.
+                          {widgetSubtitle("roblox_idea_card", "Use this as a reflection tool to position your concept.")}
                         </p>
                       </div>
                       <TwoOptionTimeWindowControls
@@ -1217,7 +1831,8 @@ export default function Home() {
                 {canAccess("roblox_research_cards") ? (
                   <div className="grid gap-4">
                     <RecommendationBlock
-                      title="Design Cues"
+                      title={widgetTitle("roblox_research_cards", "Design Cues")}
+                      subtitle={widgetSubtitle("roblox_research_cards", "")}
                       panel={panel}
                       accent={accent}
                       readout={buildDesignCuesReadout(topTags(filteredIdeaItems), filteredIdeaItems.length)}
@@ -1255,13 +1870,22 @@ export default function Home() {
                   </div>
                 ) : null}
               </section>
+            ) : canAccess("roblox_idea_card") || canAccess("roblox_research_cards") ? (
+              <DeferredWidgetCard
+                title={widgetTitle("roblox_idea_card", "My Game Idea Is")}
+                description={widgetSubtitle("roblox_idea_card", "Load genre, subgenre, similar-experience, design-cue, and warning signals for idea research.")}
+                panel={panel}
+                accent={accent}
+                loading={loadingWidget === "roblox_idea_card"}
+                onLoad={() => void loadDeferredWidget("roblox_idea_card")}
+              />
             ) : null}
 
-            {canAccess("roblox_correlation") ? (
+            {canAccess("roblox_correlation") && isWidgetLoaded("roblox_correlation") ? (
               <section className="mb-6">
               <CorrelationAnalysisCard
-                title="Metric Correlation Analysis"
-                subtitle="Compare Roblox metrics by genre to see where engagement or player-pool signals concentrate."
+                title={widgetTitle("roblox_correlation", "Metric Correlation Analysis")}
+                subtitle={widgetSubtitle("roblox_correlation", "Compare Roblox metrics by genre to see where engagement or player-pool signals concentrate.")}
                 games={topRobloxGames}
                 panel={panel}
                 accent={accent}
@@ -1270,16 +1894,27 @@ export default function Home() {
                 defaultYMetricKey="genre"
               />
               </section>
+            ) : canAccess("roblox_correlation") ? (
+              <DeferredWidgetCard
+                title={widgetTitle("roblox_correlation", "Metric Correlation Analysis")}
+                description={widgetSubtitle("roblox_correlation", "Load the richer metric history used for genre comparisons, distributions, and statistical readouts.")}
+                panel={panel}
+                accent={accent}
+                loading={loadingWidget === "roblox_correlation"}
+                onLoad={() => void loadDeferredWidget("roblox_correlation")}
+              />
             ) : (
               <LockedAccessSection itemKey="roblox_correlation" panel={panel} />
             )}
 
-            {canAccess("roblox_directional_map") ? (
+            {canAccess("roblox_directional_map") && isWidgetLoaded("roblox_directional_map") ? (
               <section className="mb-6">
               <div className={`rounded-3xl border p-6 ${panel}`}>
-                <h2 className="text-2xl font-bold">Directional Research Map</h2>
+                <h2 className="text-2xl font-bold">
+                  {widgetTitle("roblox_directional_map", "Directional Research Map")}
+                </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
+                  {widgetSubtitle("roblox_directional_map", "Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.")}
                 </p>
                 <BlockHeatMap
                   items={activeGenreAnalysisItems}
@@ -1292,20 +1927,31 @@ export default function Home() {
                 />
               </div>
               </section>
+            ) : canAccess("roblox_directional_map") ? (
+              <DeferredWidgetCard
+                title={widgetTitle("roblox_directional_map", "Directional Research Map")}
+                description={widgetSubtitle("roblox_directional_map", "Load the demand, saturation, velocity, and estimated format-complexity research lenses.")}
+                panel={panel}
+                accent={accent}
+                loading={loadingWidget === "roblox_directional_map"}
+                onLoad={() => void loadDeferredWidget("roblox_directional_map")}
+              />
             ) : (
               <LockedAccessSection itemKey="roblox_directional_map" panel={panel} />
             )}
 
-            {canAccess("roblox_activity_landscape") ? (
+            {canAccess("roblox_activity_landscape") && isWidgetLoaded("roblox_activity_landscape") ? (
               <section
                 id="player-activity-landscape"
                 className={`mb-6 scroll-mt-6 rounded-3xl border p-6 ${panel}`}
               >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-bold">Player Activity Landscape</h2>
+                  <h2 className="text-2xl font-bold">
+                    {widgetTitle("roblox_activity_landscape", "Player Activity Landscape")}
+                  </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Tile size reflects captured player count in the selected window. Color shows whether that captured count increased or decreased between stored snapshots; snapshots are point-in-time signals, not full-day player averages.
+                    {widgetSubtitle("roblox_activity_landscape", "Tile size reflects captured player count in the selected window. Color shows whether that captured count increased or decreased between stored snapshots; snapshots are point-in-time signals, not full-day player averages.")}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-3">
@@ -1334,26 +1980,32 @@ export default function Home() {
                 <Unavailable text="Player activity landscape requires current-player data, which is not available from the current Fortnite source." />
               )}
               </section>
+            ) : canAccess("roblox_activity_landscape") ? (
+              <section id="player-activity-landscape" className="scroll-mt-6">
+                <DeferredWidgetCard
+                  title={widgetTitle("roblox_activity_landscape", "Player Activity Landscape")}
+                  description={widgetSubtitle("roblox_activity_landscape", "Load the activity treemap and selected-window player movement calculations.")}
+                  panel={panel}
+                  accent={accent}
+                  loading={loadingWidget === "roblox_activity_landscape"}
+                  onLoad={() => void loadDeferredWidget("roblox_activity_landscape")}
+                />
+              </section>
             ) : (
               <section id="player-activity-landscape" className="mb-6 scroll-mt-6">
                 <LockedAccessCard itemKey="roblox_activity_landscape" panel={panel} />
               </section>
             )}
 
-            {canAccess("roblox_experience_cards") ? (
+            {canAccess("roblox_experience_cards") && isWidgetLoaded("roblox_experience_cards") ? (
               <section className={`rounded-3xl border p-6 ${panel}`}>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold">
-                    Top 25{" "}
-                    {activePlatform === "roblox"
-                      ? "Roblox Experiences"
-                      : "Fortnite Islands"}
+                    {widgetTitle("roblox_experience_cards", "Top 25 Roblox Experiences")}
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    {activePlatform === "roblox"
-                      ? "Ranked by latest stored current player count."
-                      : "Metadata cards for imported Fortnite islands."}
+                    {widgetSubtitle("roblox_experience_cards", "Ranked by latest stored current player count.")}
                   </p>
                 </div>
                 {activePlatform === "roblox" &&
@@ -1406,11 +2058,20 @@ export default function Home() {
                 </div>
               )}
               </section>
+            ) : canAccess("roblox_experience_cards") ? (
+              <DeferredWidgetCard
+                title={widgetTitle("roblox_experience_cards", "Top 25 Roblox Experiences")}
+                description={widgetSubtitle("roblox_experience_cards", "Load the detailed experience cards, engagement metrics, classification sources, and list view.")}
+                panel={panel}
+                accent={accent}
+                loading={loadingWidget === "roblox_experience_cards"}
+                onLoad={() => void loadDeferredWidget("roblox_experience_cards")}
+              />
             ) : (
               <LockedAccessSection itemKey="roblox_experience_cards" panel={panel} />
             )}
 
-            {canAccess("roblox_forecasting_inputs") ? (
+            {canAccess("roblox_forecasting_inputs") && isWidgetLoaded("roblox_forecasting_inputs") ? (
 	            <PredictionMarketSignalsCard
 	              panel={panel}
 	              accent={accent}
@@ -1420,7 +2081,18 @@ export default function Home() {
 	              signals={predictionSignals}
 	              platform={activePlatform}
                 showSearch={canAccessOption("roblox_forecasting_inputs", "search")}
+	              title={widgetTitle("roblox_forecasting_inputs", "Forecasting Signal Inputs")}
+	              subtitle={widgetSubtitle("roblox_forecasting_inputs", "Eight measurable inputs for research questions around attention, momentum, persistence, and genre rotation. These inputs are not predictions, recommendations, or guarantees.")}
 	            />
+            ) : canAccess("roblox_forecasting_inputs") ? (
+              <DeferredWidgetCard
+                title={widgetTitle("roblox_forecasting_inputs", "Forecasting Signal Inputs")}
+                description={widgetSubtitle("roblox_forecasting_inputs", "Load the selected-game search and captured signals used for forecasting research.")}
+                panel={panel}
+                accent={accent}
+                loading={loadingWidget === "roblox_forecasting_inputs"}
+                onLoad={() => void loadDeferredWidget("roblox_forecasting_inputs")}
+              />
             ) : (
               <LockedAccessSection itemKey="roblox_forecasting_inputs" panel={panel} />
             )}
@@ -1437,46 +2109,37 @@ export default function Home() {
                 onClick={() => setShowTerms(true)}
                 className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
               >
-                Terms of service
+                {dashboardCopy.termsButton}
               </button>
               <button
                 type="button"
                 onClick={() => setShowGlossary(true)}
                 className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-100"
               >
-                Glossary
+                {dashboardCopy.glossaryButton}
               </button>
               {isInternalAdmin && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowPodcastConductor(true)}
-                    className="rounded-full border border-[#b9d6ea] bg-[#eaf5fd] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#0d4f82] transition hover:bg-[#d9edf9]"
-                  >
-                    Podcast conductor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdminPanel(true)}
-                    className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
-                  >
-                    Admin access
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPanel(true)}
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  {dashboardCopy.adminButton}
+                </button>
               )}
             </div>
             <div className="flex flex-col items-start gap-2 sm:items-end">
               <p className="text-xs font-semibold text-slate-400">
-                SnoutBoard is a trademark product of Forgotten Diamond Software, LLC.
+                {dashboardCopy.footerTrademark}
               </p>
               <p className="rounded-full bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-400">
-                v0.01
+                {dashboardCopy.footerVersion}
               </p>
             </div>
           </div>
           <div className="mt-8 flex justify-center overflow-x-auto">
             <p className="whitespace-nowrap text-center text-xs font-semibold leading-5 text-slate-400">
-              Snoutboard is independent and is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner.
+              {dashboardCopy.footerAffiliation}
             </p>
           </div>
         </footer>
@@ -1486,19 +2149,84 @@ export default function Home() {
           <AdminAccessModal
             settings={tierVisibility}
             onChange={setTierVisibility}
+            copy={dashboardCopy}
+            onCopyChange={setDashboardCopy}
+            widgetCopy={widgetCopyOverrides}
+            onWidgetCopyChange={setWidgetCopyOverrides}
+            widgetAutoLoad={widgetAutoLoadSettings}
+            onWidgetAutoLoadChange={setWidgetAutoLoadSettings}
             onClose={() => setShowAdminPanel(false)}
-          />
-        )}
-        {showPodcastConductor && isInternalAdmin && (
-          <PodcastConductorModal
-            robloxGames={topRobloxGames}
-            fortniteIslands={topFortniteIslands}
-            dataQualitySnapshots={dataQualitySnapshots}
-            onClose={() => setShowPodcastConductor(false)}
           />
         )}
       </div>
     </main>
+  );
+}
+
+function DashboardPrintGuard() {
+  return (
+    <>
+      <div
+        id="dashboard-print-blocker"
+        className="hidden"
+        aria-hidden="true"
+      >
+        <div>
+          <h1>Printing is disabled for this dashboard.</h1>
+          <p>
+            Snoutboard is intended for interactive research review. Please use
+            the dashboard in the browser.
+          </p>
+        </div>
+      </div>
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+
+          #dashboard-print-blocker,
+          #dashboard-print-blocker * {
+            visibility: visible !important;
+          }
+
+          #dashboard-print-blocker {
+            display: flex !important;
+            position: fixed;
+            inset: 0;
+            z-index: 2147483647;
+            align-items: center;
+            justify-content: center;
+            padding: 1in;
+            background: white;
+            color: #0f172a;
+            text-align: center;
+            font-family:
+              Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+              "Segoe UI", sans-serif;
+          }
+
+          #dashboard-print-blocker h1 {
+            margin: 0;
+            font-size: 22pt;
+            font-weight: 900;
+          }
+
+          #dashboard-print-blocker p {
+            margin: 12pt auto 0;
+            max-width: 5.5in;
+            font-size: 11pt;
+            line-height: 1.5;
+          }
+
+          body:has(#usage-copy-print) #dashboard-print-blocker,
+          body:has(#podcast-conductor-print) #dashboard-print-blocker {
+            display: none !important;
+            visibility: hidden !important;
+          }
+        }
+      `}</style>
+    </>
   );
 }
 
@@ -1539,6 +2267,7 @@ function FortniteDashboardView({ context }: any) {
     setFortniteGenreScoreboardWindow,
     setFortniteIpSignalWindow,
     setFortniteArchetypeWindow,
+    ensureFortniteHistory,
     selectedGenre,
     selectedSubgenre,
     setSelectedGenre,
@@ -1556,6 +2285,11 @@ function FortniteDashboardView({ context }: any) {
     canAccessOption,
     effectiveTimeWindow,
     allowedTimeWindows,
+    isWidgetLoaded,
+    loadDeferredWidget,
+    loadingWidget,
+    widgetTitle,
+    widgetSubtitle,
   } = context;
   const currentTopFortniteIslands = getFortniteIslandsBySnapshotRank(
     fortniteIslands,
@@ -1567,7 +2301,8 @@ function FortniteDashboardView({ context }: any) {
       <section className="mb-6 grid gap-4 lg:grid-cols-4">
         {canAccess("fortnite_data_source_health") ? (
           <DataSourceHealthCard
-            title="Data Source & Health"
+            title={widgetTitle("fortnite_data_source_health", "Data Source & Health")}
+            subtitle={widgetSubtitle("fortnite_data_source_health", "")}
             items={[
               `The data is pulled from: ${dataSourceHealth.source}.`,
               `API metadata is partial by nature; data capture coverage is ${dataSourceHealth.captureCoverage}%.`,
@@ -1599,7 +2334,7 @@ function FortniteDashboardView({ context }: any) {
                 subline: `Yesterday: ${yesterdayIsland?.title ?? "placeholder"}`,
                 badge: getFortniteIpSignal(island)?.label,
                 wrap: true,
-                href: island.url,
+                href: getFortniteIslandUrl(island),
               };
             })}
             panel={panel}
@@ -1609,8 +2344,8 @@ function FortniteDashboardView({ context }: any) {
 
         {canAccess("fortnite_genre_mix") ? (
           <GenreShareCard
-          title="Estimated Genre Mix"
-          subtitle={`By imported island appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`}
+          title={widgetTitle("fortnite_genre_mix", "Estimated Genre Mix")}
+          subtitle={widgetSubtitle("fortnite_genre_mix", `By imported island appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`)}
           items={buildFortniteCategoryScoreboard(
             fortniteIslands,
             "inferred_genre",
@@ -1620,7 +2355,10 @@ function FortniteDashboardView({ context }: any) {
             (
               <TimeWindowControls
                 timeWindow={effectiveTimeWindow("fortnite_genre_mix", fortniteGenreScoreboardWindow)}
-                onTimeWindowChange={setFortniteGenreScoreboardWindow}
+                onTimeWindowChange={(windowKey: TrendTimeWindow) => {
+                  setFortniteGenreScoreboardWindow(windowKey);
+                  ensureFortniteHistory(windowKey);
+                }}
                 accent={accent}
                 allowedValues={allowedTimeWindows("fortnite_genre_mix")}
               />
@@ -1633,10 +2371,10 @@ function FortniteDashboardView({ context }: any) {
           <LockedAccessCard itemKey="fortnite_genre_mix" panel={panel} />
         )}
 
-        {canAccess("fortnite_subgenre_mix") ? (
+        {canAccess("fortnite_subgenre_mix") && isWidgetLoaded("fortnite_subgenre_mix") ? (
           <GenreShareCard
-          title="Estimated Subgenre Mix"
-          subtitle={`By imported island appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`}
+          title={widgetTitle("fortnite_subgenre_mix", "Estimated Subgenre Mix")}
+          subtitle={widgetSubtitle("fortnite_subgenre_mix", `By imported island appearances across ${getTrendWindowLabel(fortniteGenreScoreboardWindow)}`)}
           items={buildFortniteCategoryScoreboard(
             fortniteIslands,
             "inferred_subgenre",
@@ -1646,7 +2384,10 @@ function FortniteDashboardView({ context }: any) {
             (
               <TimeWindowControls
                 timeWindow={effectiveTimeWindow("fortnite_subgenre_mix", fortniteGenreScoreboardWindow)}
-                onTimeWindowChange={setFortniteGenreScoreboardWindow}
+                onTimeWindowChange={(windowKey: TrendTimeWindow) => {
+                  setFortniteGenreScoreboardWindow(windowKey);
+                  ensureFortniteHistory(windowKey);
+                }}
                 accent={accent}
                 allowedValues={allowedTimeWindows("fortnite_subgenre_mix")}
               />
@@ -1655,14 +2396,24 @@ function FortniteDashboardView({ context }: any) {
           panel={panel}
           accent={accent}
           />
+        ) : canAccess("fortnite_subgenre_mix") ? (
+          <DeferredWidgetCard
+            title={widgetTitle("fortnite_subgenre_mix", "Estimated Subgenre Mix")}
+            description={widgetSubtitle("fortnite_subgenre_mix", "Load the estimated subgenre breakdown across imported Fortnite islands.")}
+            panel={panel}
+            accent={accent}
+            loading={loadingWidget === "fortnite_subgenre_mix"}
+            onLoad={() => void loadDeferredWidget("fortnite_subgenre_mix")}
+            className=""
+          />
         ) : (
           <LockedAccessCard itemKey="fortnite_subgenre_mix" panel={panel} />
         )}
 
         {canAccess("fortnite_primary_labels") ? (
           <FortniteLabelRankingsCard
-            title="Primary Label Usage"
-            subtitle="First surfaced label across imported islands"
+            title={widgetTitle("fortnite_primary_labels", "Primary Label Usage")}
+            subtitle={widgetSubtitle("fortnite_primary_labels", "First surfaced label across imported islands")}
             items={buildFortniteLabelRankings(fortniteIslands)}
             panel={panel}
             accent={accent}
@@ -1675,8 +2426,8 @@ function FortniteDashboardView({ context }: any) {
       {canAccess("fortnite_label_trend") ? (
         <section id="primary-label-usage-over-time" className="mb-6 scroll-mt-6">
         <ChartCard
-          title="Primary Label Usage Over Time"
-          subtitle={`${fortniteLabelTrendLimit} first-surfaced labels by island usage across stored snapshots.`}
+          title={widgetTitle("fortnite_label_trend", "Primary Label Usage Over Time")}
+          subtitle={widgetSubtitle("fortnite_label_trend", `${fortniteLabelTrendLimit} first-surfaced labels by island usage across stored snapshots.`)}
           panel={panel}
           action={
             true ? (
@@ -1695,7 +2446,10 @@ function FortniteDashboardView({ context }: any) {
             (
               <TimeWindowControls
                 timeWindow={effectiveTimeWindow("fortnite_label_trend", fortniteLabelTrendWindow)}
-                onTimeWindowChange={setFortniteLabelTrendWindow}
+                onTimeWindowChange={(windowKey: TrendTimeWindow) => {
+                  setFortniteLabelTrendWindow(windowKey);
+                  ensureFortniteHistory(windowKey);
+                }}
                 accent={accent}
                 allowedValues={allowedTimeWindows("fortnite_label_trend")}
               />
@@ -1733,14 +2487,17 @@ function FortniteDashboardView({ context }: any) {
       {canAccess("fortnite_genre_presence") ? (
         <section className="mb-6">
         <ChartCard
-          title="Estimated Genre / Format Presence Over Time"
-          subtitle="Count of tracked islands by estimated Fortnite genre or format."
+          title={widgetTitle("fortnite_genre_presence", "Estimated Genre / Format Presence Over Time")}
+          subtitle={widgetSubtitle("fortnite_genre_presence", "Count of tracked islands by estimated Fortnite genre or format.")}
           panel={panel}
           footerAction={
             (
               <TimeWindowControls
                 timeWindow={effectiveTimeWindow("fortnite_genre_presence", genreTrendWindow)}
-                onTimeWindowChange={setGenreTrendWindow}
+                onTimeWindowChange={(windowKey: TrendTimeWindow) => {
+                  setGenreTrendWindow(windowKey);
+                  ensureFortniteHistory(windowKey);
+                }}
                 accent={accent}
                 allowedValues={allowedTimeWindows("fortnite_genre_presence")}
               />
@@ -1782,14 +2539,24 @@ function FortniteDashboardView({ context }: any) {
       )}
 
       <section className="mb-6 grid gap-6 lg:grid-cols-3">
-        {canAccess("fortnite_keyword_cloud") ? (
+        {canAccess("fortnite_keyword_cloud") && isWidgetLoaded("fortnite_keyword_cloud") ? (
           <KeywordCloudCard
-            title="Fortnite Island Keyword Cloud"
-            subtitle="Common title and label signals across the latest imported island collection"
+            title={widgetTitle("fortnite_keyword_cloud", "Fortnite Island Keyword Cloud")}
+            subtitle={widgetSubtitle("fortnite_keyword_cloud", "Common title and label signals across the latest imported island collection")}
             games={buildFortniteKeywordSignalItems(topFortniteIslands.slice(0, 25))}
             panel={panel}
             accent={accent}
             combinedCloud={true}
+          />
+        ) : canAccess("fortnite_keyword_cloud") ? (
+          <DeferredWidgetCard
+            title={widgetTitle("fortnite_keyword_cloud", "Fortnite Island Keyword Cloud")}
+            description={widgetSubtitle("fortnite_keyword_cloud", "Load title, label, and description language signals from imported Fortnite islands.")}
+            panel={panel}
+            accent={accent}
+            loading={loadingWidget === "fortnite_keyword_cloud"}
+            onLoad={() => void loadDeferredWidget("fortnite_keyword_cloud")}
+            className=""
           />
         ) : (
           <LockedAccessCard itemKey="fortnite_keyword_cloud" panel={panel} />
@@ -1797,10 +2564,10 @@ function FortniteDashboardView({ context }: any) {
 
         {canAccess("fortnite_ip_signals") ? (
           <FortniteIpSignalsCard
-            title="IP / Collaboration Signals"
-            subtitle={`Primary labels and description cues across ${getTrendWindowLabel(
+            title={widgetTitle("fortnite_ip_signals", "IP / Collaboration Signals")}
+            subtitle={widgetSubtitle("fortnite_ip_signals", `Primary labels and description cues across ${getTrendWindowLabel(
               effectiveTimeWindow("fortnite_ip_signals", fortniteIpSignalWindow)
-            )}`}
+            )}`)}
             islands={getFortniteIslandsBySnapshotWindow(
               fortniteIslands,
               effectiveTimeWindow("fortnite_ip_signals", fortniteIpSignalWindow)
@@ -1810,7 +2577,10 @@ function FortniteDashboardView({ context }: any) {
             action={
               <TwoOptionTimeWindowControls
                 timeWindow={effectiveTimeWindow("fortnite_ip_signals", fortniteIpSignalWindow)}
-                onTimeWindowChange={setFortniteIpSignalWindow}
+                onTimeWindowChange={(windowKey: TrendTimeWindow) => {
+                  setFortniteIpSignalWindow(windowKey as "7d" | "30d");
+                  ensureFortniteHistory(windowKey);
+                }}
                 accent={accent}
                 allowedValues={allowedTimeWindows("fortnite_ip_signals", false)}
               />
@@ -1820,27 +2590,39 @@ function FortniteDashboardView({ context }: any) {
           <LockedAccessCard itemKey="fortnite_ip_signals" panel={panel} />
         )}
 
-        {canAccess("fortnite_tile_colors") ? (
+        {canAccess("fortnite_tile_colors") && isWidgetLoaded("fortnite_tile_colors") ? (
           <ColorBreakdownCard
-            title="Island Tile Colors"
-            subtitle="Primary and secondary RGB colors from the latest imported island collection"
+            title={widgetTitle("fortnite_tile_colors", "Island Tile Colors")}
+            subtitle={widgetSubtitle("fortnite_tile_colors", "Primary and secondary RGB colors from the latest imported island collection")}
             games={currentTopFortniteIslands.slice(0, 25)}
             panel={panel}
             accent={accent}
+          />
+        ) : canAccess("fortnite_tile_colors") ? (
+          <DeferredWidgetCard
+            title={widgetTitle("fortnite_tile_colors", "Island Tile Colors")}
+            description={widgetSubtitle("fortnite_tile_colors", "Load primary and secondary color analysis from imported Fortnite island tiles.")}
+            panel={panel}
+            accent={accent}
+            loading={loadingWidget === "fortnite_tile_colors"}
+            onLoad={() => void loadDeferredWidget("fortnite_tile_colors")}
+            className=""
           />
         ) : (
           <LockedAccessCard itemKey="fortnite_tile_colors" panel={panel} />
         )}
       </section>
 
-      {canAccess("fortnite_archetypes") ? (
+      {canAccess("fortnite_archetypes") && isWidgetLoaded("fortnite_archetypes") ? (
         <section className="mb-6">
         <div className={`rounded-3xl border p-6 ${panel}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold">Fictional Island Archetypes</h2>
+              <h2 className="text-2xl font-bold">
+                {widgetTitle("fortnite_archetypes", "Fictional Island Archetypes")}
+              </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Synthetic profiles built only from Fortnite source metadata and estimated fields derived from that metadata.
+                {widgetSubtitle("fortnite_archetypes", "Synthetic profiles built only from Fortnite source metadata and estimated fields derived from that metadata.")}
               </p>
             </div>
             {
@@ -1860,11 +2642,20 @@ function FortniteDashboardView({ context }: any) {
           />
         </div>
         </section>
+      ) : canAccess("fortnite_archetypes") ? (
+        <DeferredWidgetCard
+          title={widgetTitle("fortnite_archetypes", "Fictional Island Archetypes")}
+          description={widgetSubtitle("fortnite_archetypes", "Load median, average, and outlier archetypes synthesized from Fortnite metadata.")}
+          panel={panel}
+          accent={accent}
+          loading={loadingWidget === "fortnite_archetypes"}
+          onLoad={() => void loadDeferredWidget("fortnite_archetypes")}
+        />
       ) : (
         <LockedAccessSection itemKey="fortnite_archetypes" panel={panel} />
       )}
 
-      {canAccess("fortnite_template_generator") ? (
+      {canAccess("fortnite_template_generator") && isWidgetLoaded("fortnite_template_generator") ? (
         <GameTemplateGeneratorRow
           items={fortniteIslands}
           platform="fortnite"
@@ -1877,6 +2668,17 @@ function FortniteDashboardView({ context }: any) {
             top10: canAccessOption("fortnite_template_generator", "template_source"),
             reroll: canAccessOption("fortnite_template_generator", "template_reroll"),
           }}
+          title={widgetTitle("fortnite_template_generator", "Game Template Generator")}
+          subtitle={widgetSubtitle("fortnite_template_generator", "Synthetic concept templates built only from the active Fortnite dataset.")}
+        />
+      ) : canAccess("fortnite_template_generator") ? (
+        <DeferredWidgetCard
+          title={widgetTitle("fortnite_template_generator", "Game Template Generator")}
+          description={widgetSubtitle("fortnite_template_generator", "Load the Fortnite metadata used to generate fictional island research templates.")}
+          panel={panel}
+          accent={accent}
+          loading={loadingWidget === "fortnite_template_generator"}
+          onLoad={() => void loadDeferredWidget("fortnite_template_generator")}
         />
       ) : (
         <LockedAccessSection itemKey="fortnite_template_generator" panel={panel} />
@@ -1898,7 +2700,7 @@ function FortniteDashboardView({ context }: any) {
         </section>
       )}
 
-      {(canAccess("fortnite_idea_card") || canAccess("fortnite_research_cards")) ? (
+      {(canAccess("fortnite_idea_card") || canAccess("fortnite_research_cards")) && isWidgetLoaded("fortnite_idea_card") ? (
         <section
           id="my-fortnite-island-idea-is"
           className="mb-6 grid scroll-mt-6 gap-4 lg:grid-cols-2"
@@ -1907,9 +2709,11 @@ function FortniteDashboardView({ context }: any) {
             <div className={`rounded-3xl border p-6 ${panel}`}>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold">My Fortnite Island Idea Is</h2>
+                  <h2 className="text-2xl font-bold">
+                    {widgetTitle("fortnite_idea_card", "My Fortnite Island Idea Is")}
+                  </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Use this as a reflection tool to position your island concept.
+                    {widgetSubtitle("fortnite_idea_card", "Use this as a reflection tool to position your island concept.")}
                   </p>
                 </div>
                 <TwoOptionTimeWindowControls
@@ -1993,7 +2797,8 @@ function FortniteDashboardView({ context }: any) {
           {canAccess("fortnite_research_cards") ? (
             <div className="grid gap-4">
               <RecommendationBlock
-                title="Design Cues"
+                title={widgetTitle("fortnite_research_cards", "Design Cues")}
+                subtitle={widgetSubtitle("fortnite_research_cards", "")}
                 panel={panel}
                 accent={accent}
                 readout={buildDesignCuesReadout(topTags(filteredIdeaItems), filteredIdeaItems.length)}
@@ -2026,14 +2831,25 @@ function FortniteDashboardView({ context }: any) {
             </div>
           ) : null}
         </section>
+      ) : canAccess("fortnite_idea_card") || canAccess("fortnite_research_cards") ? (
+        <DeferredWidgetCard
+          title={widgetTitle("fortnite_idea_card", "My Fortnite Island Idea Is")}
+          description={widgetSubtitle("fortnite_idea_card", "Load estimated genres, subgenres, similar islands, design cues, and warnings for concept research.")}
+          panel={panel}
+          accent={accent}
+          loading={loadingWidget === "fortnite_idea_card"}
+          onLoad={() => void loadDeferredWidget("fortnite_idea_card")}
+        />
       ) : null}
 
-      {canAccess("fortnite_directional_map") ? (
+      {canAccess("fortnite_directional_map") && isWidgetLoaded("fortnite_directional_map") ? (
         <section className="mb-6">
         <div className={`rounded-3xl border p-6 ${panel}`}>
-          <h2 className="text-2xl font-bold">Directional Research Map</h2>
+          <h2 className="text-2xl font-bold">
+            {widgetTitle("fortnite_directional_map", "Directional Research Map")}
+          </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.
+            {widgetSubtitle("fortnite_directional_map", "Deeper blue indicates a stronger directional research signal; lighter blue indicates weaker signal strength or higher uncertainty.")}
           </p>
           <BlockHeatMap
             items={activeItems}
@@ -2046,15 +2862,26 @@ function FortniteDashboardView({ context }: any) {
           />
         </div>
         </section>
+      ) : canAccess("fortnite_directional_map") ? (
+        <DeferredWidgetCard
+          title={widgetTitle("fortnite_directional_map", "Directional Research Map")}
+          description={widgetSubtitle("fortnite_directional_map", "Load the Fortnite directional research lenses derived from imported metadata.")}
+          panel={panel}
+          accent={accent}
+          loading={loadingWidget === "fortnite_directional_map"}
+          onLoad={() => void loadDeferredWidget("fortnite_directional_map")}
+        />
       ) : (
         <LockedAccessSection itemKey="fortnite_directional_map" panel={panel} />
       )}
 
-      {canAccess("fortnite_island_cards") ? (
+      {canAccess("fortnite_island_cards") && isWidgetLoaded("fortnite_island_cards") ? (
         <section id="latest-imported-fortnite-islands" className={`scroll-mt-6 rounded-3xl border p-6 ${panel}`}>
-        <h2 className="text-2xl font-bold">Latest Imported Fortnite Islands</h2>
+        <h2 className="text-2xl font-bold">
+          {widgetTitle("fortnite_island_cards", "Latest Imported Fortnite Islands")}
+        </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Metadata cards from the latest imported source collection.
+          {widgetSubtitle("fortnite_island_cards", "Metadata cards from the latest imported source collection.")}
         </p>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -2069,13 +2896,22 @@ function FortniteDashboardView({ context }: any) {
           ))}
         </div>
         </section>
+      ) : canAccess("fortnite_island_cards") ? (
+        <DeferredWidgetCard
+          title={widgetTitle("fortnite_island_cards", "Latest Imported Fortnite Islands")}
+          description={widgetSubtitle("fortnite_island_cards", "Load the detailed cards and metadata for the latest imported island collection.")}
+          panel={panel}
+          accent={accent}
+          loading={loadingWidget === "fortnite_island_cards"}
+          onLoad={() => void loadDeferredWidget("fortnite_island_cards")}
+        />
       ) : (
         <section id="latest-imported-fortnite-islands" className="scroll-mt-6">
           <LockedAccessCard itemKey="fortnite_island_cards" panel={panel} />
         </section>
       )}
 
-      {canAccess("fortnite_forecasting_inputs") ? (
+      {canAccess("fortnite_forecasting_inputs") && isWidgetLoaded("fortnite_forecasting_inputs") ? (
       <PredictionMarketSignalsCard
         panel={panel}
         accent={accent}
@@ -2085,7 +2921,18 @@ function FortniteDashboardView({ context }: any) {
         signals={predictionSignals}
         platform={activePlatform}
         showSearch={canAccessOption("fortnite_forecasting_inputs", "search")}
+        title={widgetTitle("fortnite_forecasting_inputs", "Forecasting Signal Inputs")}
+        subtitle={widgetSubtitle("fortnite_forecasting_inputs", "Eight measurable inputs for research questions around attention, momentum, persistence, and genre rotation. These inputs are not predictions, recommendations, or guarantees.")}
       />
+      ) : canAccess("fortnite_forecasting_inputs") ? (
+        <DeferredWidgetCard
+          title={widgetTitle("fortnite_forecasting_inputs", "Forecasting Signal Inputs")}
+          description={widgetSubtitle("fortnite_forecasting_inputs", "Load search and captured island signals used for forecasting research.")}
+          panel={panel}
+          accent={accent}
+          loading={loadingWidget === "fortnite_forecasting_inputs"}
+          onLoad={() => void loadDeferredWidget("fortnite_forecasting_inputs")}
+        />
       ) : (
         <LockedAccessSection itemKey="fortnite_forecasting_inputs" panel={panel} />
       )}
@@ -2096,6 +2943,9 @@ function FortniteDashboardView({ context }: any) {
 function withLatestRobloxSnapshot(game: any) {
   const snapshots = game.roblox_chart_snapshots ?? [];
   const sorted = getDailyRobloxSnapshots(snapshots);
+  const rollup7 = game.roblox_rollups?.day_7;
+  const rollup30 = game.roblox_rollups?.day_30;
+  const rollupLatest = game.roblox_rollups?.latest;
   const metrics = [...(game.game_metrics ?? [])].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
@@ -2116,9 +2966,13 @@ function withLatestRobloxSnapshot(game: any) {
   const bestRankSnapshot = sorted
     .filter((snapshot) => snapshot.chart_rank)
     .sort((a, b) => (a.chart_rank ?? 9999) - (b.chart_rank ?? 9999))[0];
-  const high = Math.max(...sorted.map((s) => s.current_players ?? 0), 0);
+  const high =
+    rollup7?.maximum_players ??
+    Math.max(...sorted.map((s) => s.current_players ?? 0), 0);
   const gain =
-    earliest?.current_players && latest?.current_players
+    typeof rollup7?.player_change_percent === "number"
+      ? rollup7.player_change_percent
+      : earliest?.current_players && latest?.current_players
       ? ((latest.current_players - earliest.current_players) /
           Math.max(earliest.current_players, 1)) *
         100
@@ -2127,21 +2981,26 @@ function withLatestRobloxSnapshot(game: any) {
   return {
     ...game,
     snapshots: sorted,
-    latestPlayers: latest?.current_players ?? 0,
+    latestPlayers:
+      rollupLatest?.current_players ?? latest?.current_players ?? 0,
     playerGainPercent: gain,
     periodHigh: high,
-    latestRank: latest?.chart_rank ?? null,
-    latestSort: latest?.sort_name ?? null,
-    bestRank: bestRankSnapshot?.chart_rank ?? null,
-    bestRankSort: bestRankSnapshot?.sort_name ?? null,
-    averagePlayerGain7Days: getAveragePlayerGain(snapshots, 7),
+    latestRank: rollupLatest?.chart_rank ?? latest?.chart_rank ?? null,
+    latestSort: rollupLatest?.sort_name ?? latest?.sort_name ?? null,
+    bestRank: rollup30?.best_rank ?? bestRankSnapshot?.chart_rank ?? null,
+    bestRankSort:
+      rollup30?.best_rank_sort ?? bestRankSnapshot?.sort_name ?? null,
+    averagePlayerGain7Days:
+      rollup7?.average_daily_change ?? getAveragePlayerGain(snapshots, 7),
     visits: latestEngagementMetric?.visits ?? game.visits ?? null,
     favorites: latestEngagementMetric?.favorites ?? game.favorites ?? null,
     upVotes: latestEngagementMetric?.up_votes ?? null,
     downVotes: latestEngagementMetric?.down_votes ?? null,
     likeRatio: latest?.like_ratio ?? latestEngagementMetric?.like_ratio ?? null,
     rankGain:
-      earliestRanked?.chart_rank && latest?.chart_rank
+      typeof rollup7?.rank_change === "number"
+        ? rollup7.rank_change
+        : earliestRanked?.chart_rank && latest?.chart_rank
         ? earliestRanked.chart_rank - latest.chart_rank
         : 0,
   };
@@ -2175,13 +3034,15 @@ function withLatestFortniteSnapshot(island: any) {
   const snapshots = island.fortnite_island_snapshots ?? [];
   const sorted = [...snapshots].sort(
     (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      new Date(a.created_at ?? a.snapshot_date).getTime() -
+      new Date(b.created_at ?? b.snapshot_date).getTime()
   );
-  const latest = sorted[sorted.length - 1];
+  const latestSnapshot = sorted[sorted.length - 1];
+  const latest = island.fortnite_rollups?.latest ?? latestSnapshot;
 
   return {
     ...island,
-    raw: island.raw_latest ?? latest?.raw_payload ?? {},
+    raw: island.raw_latest ?? latestSnapshot?.raw_payload ?? {},
     snapshots: sorted,
     latestRank: getFortniteSnapshotRank(latest),
     latestPlays: latest?.plays ?? null,
@@ -2725,7 +3586,7 @@ function buildFortniteCategoryScoreboard(
   let total = 0;
 
   islands.forEach((island) => {
-    const label = island[field] ?? (field === "inferred_subgenre" ? "General" : "Other");
+    const label = getFortniteCategoryDisplayLabel(island[field], field);
     const seenDateKeys = new Set<string>();
 
     if (!map[label]) {
@@ -2754,7 +3615,7 @@ function buildFortniteCategoryScoreboard(
 
   if (!total) {
     islands.forEach((island) => {
-      const label = island[field] ?? (field === "inferred_subgenre" ? "General" : "Other");
+      const label = getFortniteCategoryDisplayLabel(island[field], field);
 
       if (!map[label]) {
         map[label] = { label, count: 0 };
@@ -2775,6 +3636,23 @@ function buildFortniteCategoryScoreboard(
     }))
     .sort((a, b) => b.rawValue - a.rawValue)
     .slice(0, 3);
+}
+
+function getFortniteCategoryDisplayLabel(
+  value: string | null | undefined,
+  field: "inferred_genre" | "inferred_subgenre"
+) {
+  const label = String(value ?? "").trim();
+
+  if (field === "inferred_genre" && (!label || label === "Other")) {
+    return "Unclassified / Mixed";
+  }
+
+  if (field === "inferred_subgenre" && (!label || label === "General")) {
+    return "General / Unclassified";
+  }
+
+  return label;
 }
 
 function buildFortniteGenreScoreboard(islands: any[]) {
@@ -3843,6 +4721,7 @@ function formatUtcTimestamp(value?: string) {
 
 function DataSourceHealthCard({
   title,
+  subtitle,
   items,
   lastRunLabel,
   panel,
@@ -3851,6 +4730,7 @@ function DataSourceHealthCard({
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
       <p className="text-sm font-semibold text-slate-500">{title}</p>
+      {subtitle ? <p className="mt-1 text-xs text-slate-400">{subtitle}</p> : null}
       <ul className="mt-4 space-y-3 text-sm leading-6">
         {items.map((item: string) => (
           <li key={item} className="flex gap-2">
@@ -4067,6 +4947,11 @@ function MostPlayedGenrePieRow({
   allowedLimits,
   showGenre = true,
   showSubgenre = true,
+  subgenreFallback,
+  genreTitle = "Most Played Genre Mix Estimated",
+  genreSubtitle,
+  subgenreTitle = "Most Played Subgenre Mix Estimated",
+  subgenreSubtitle,
 }: any) {
   const colors = [accent, "#d6a06d", "#5b5d78", "#94a3b8", "#cbd5e1"];
   const note =
@@ -4080,8 +4965,8 @@ function MostPlayedGenrePieRow({
     <section className="mb-6 grid gap-4 lg:grid-cols-2">
       {showGenre ? (
         <MostPlayedClassificationPieCard
-          title="Most Played Genre Mix Estimated"
-          subtitle={`Player-weighted genre share across the current Top ${limit} most played Roblox experiences.`}
+          title={genreTitle}
+          subtitle={genreSubtitle ?? `Player-weighted genre share across the current Top ${limit} most played Roblox experiences.`}
           note={note}
           panel={panel}
           action={
@@ -4108,8 +4993,8 @@ function MostPlayedGenrePieRow({
 
       {showSubgenre ? (
         <MostPlayedClassificationPieCard
-          title="Most Played Subgenre Mix Estimated"
-          subtitle={`Player-weighted subgenre share across the current Top ${limit} most played Roblox experiences.`}
+          title={subgenreTitle}
+          subtitle={subgenreSubtitle ?? `Player-weighted subgenre share across the current Top ${limit} most played Roblox experiences.`}
           note={note}
           panel={panel}
           action={
@@ -4131,7 +5016,7 @@ function MostPlayedGenrePieRow({
           />
         </MostPlayedClassificationPieCard>
       ) : (
-        <LockedAccessCard itemKey="roblox_subgenre_mix" panel={panel} />
+        subgenreFallback ?? <LockedAccessCard itemKey="roblox_subgenre_mix" panel={panel} />
       )}
     </section>
   );
@@ -4340,10 +5225,11 @@ function FortniteIpSignalsCard({ title, subtitle, islands, panel, accent, action
   );
 }
 
-function TrendingCard({ title, items, panel }: any) {
+function TrendingCard({ title, subtitle, items, panel }: any) {
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
       <p className="text-sm font-semibold text-slate-500">{title}</p>
+      {subtitle ? <p className="mt-1 text-xs text-slate-400">{subtitle}</p> : null}
       <div className="mt-4 space-y-3">
         {items.map((item: any, index: number) => {
           const isDown = item.direction === "down";
@@ -4651,7 +5537,7 @@ function CandleVisual({ data, accent }: any) {
 function EmergingGameVisual({ game, accent, metadataOnly = false }: any) {
   if (!game) return <Unavailable text="No emerging game available." />;
 
-  const href = game.url ?? `https://fortnite.gg/island?code=${game.island_code}`;
+  const href = game.url ?? `https://www.roblox.com/games/${game.id}`;
   const metric = metadataOnly
     ? game.design_pattern ?? "Metadata"
     : `${Math.round(game.playerGainPercent ?? 0)}% ▲`;
@@ -5861,6 +6747,17 @@ function CorrelationAnalysisCard({
     () => buildCorrelationAnalysis(scopedGames, xMetric, yMetric),
     [scopedGames, xMetric, yMetric, categoricalY]
   );
+  if (!xMetric || !yMetric) {
+    return (
+      <div className={`rounded-3xl border p-6 ${panel}`}>
+        <h2 className="text-2xl font-bold">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+        <div className="mt-5">
+          <Unavailable text="Not enough classified data is available to build the metric correlation view yet." />
+        </div>
+      </div>
+    );
+  }
   const lineColor =
     analysis.correlation == null
       ? "#94a3b8"
@@ -6510,6 +7407,28 @@ function MetricStat({ label, value }: any) {
 }
 
 function buildCorrelationAnalysis(games: any[], xMetric: any, yMetric: any) {
+  if (!xMetric || !yMetric) {
+    return {
+      points: [],
+      correlation: null,
+      slope: 0,
+      intercept: 0,
+      xMean: 0,
+      yMean: 0,
+      xStdDev: 0,
+      yStdDev: 0,
+      xMin: 0,
+      xMax: 1,
+      yMin: 0,
+      yMax: 1,
+      yCategories: [],
+      inGroupMean: null,
+      outGroupMean: null,
+      inGroupValues: [],
+      outGroupValues: [],
+    };
+  }
+
   const points = games
     .map((game) => ({
       id: game.id,
@@ -7075,13 +7994,14 @@ function isMonetizedItem(item: any, platform: Platform) {
   );
 }
 
-function RecommendationBlock({ title, text, bullets, tags, panel, accent, readout }: any) {
+function RecommendationBlock({ title, subtitle, text, bullets, tags, panel, accent, readout }: any) {
   const total = tags?.reduce((sum: number, tag: any) => sum + tag.value, 0) ?? 0;
   const pieColors = [accent, "#d6a06d", "#5b5d78", "#94a3b8", "#cbd5e1"];
 
   return (
     <div className={`rounded-3xl border p-5 ${panel}`}>
       <h3 className="text-xl font-bold">{title}</h3>
+      {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
       {readout ? (
         <p className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
           {readout}
@@ -7142,6 +8062,8 @@ function GameTemplateGeneratorRow({
   panel,
   accent,
   allowedTemplateOptions,
+  title = "Game Template Generator",
+  subtitle = "Synthetic concept templates built only from the active platform dataset.",
 }: any) {
   const templateOptions = allowedTemplateOptions ?? {
     mainstream: true,
@@ -7174,9 +8096,9 @@ function GameTemplateGeneratorRow({
     <section className="mb-6">
       <div className={`rounded-3xl border p-6 ${panel}`}>
         <div className="mb-5">
-          <h2 className="text-2xl font-bold">Game Template Generator</h2>
+          <h2 className="text-2xl font-bold">{title}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Synthetic concept templates built only from the active platform dataset.
+            {subtitle}
           </p>
         </div>
 
@@ -7817,7 +8739,7 @@ function GameMarketCard({ item, rank, platform, panel }: any) {
 
   return (
     <a
-      href={item.url ?? `https://fortnite.gg/island?code=${item.island_code}`}
+      href={item.url ?? `https://www.roblox.com/games/${item.id}`}
       target="_blank"
       rel="noreferrer"
       className={`rounded-3xl border p-4 shadow-sm transition hover:-translate-y-0.5 ${panel}`}
@@ -8064,7 +8986,7 @@ function RobloxExperienceListRow({ item, rank, panel }: any) {
 }
 
 function FortniteMarketCard({ item, rank, panel }: any) {
-  const href = item.url ?? `https://fortnite.gg/island?code=${item.island_code}`;
+  const href = getFortniteIslandUrl(item);
   const genre = item.inferred_genre ?? "Unclassified";
   const subgenre = item.inferred_subgenre ?? "General";
   const intent = item.player_intent ?? item.audience_signal ?? "Not classified yet";
@@ -8562,9 +9484,24 @@ function getAverageLabelFrequency(island: any, labelCounts: Record<string, numbe
   return labels.reduce((sum, label) => sum + (labelCounts[label] ?? 0), 0) / labels.length;
 }
 
+function getFortniteIslandUrl(item: any) {
+  const code = String(item?.island_code ?? item?.code ?? "").trim();
+
+  if (/^\d{4}-\d{4}-\d{4}$/.test(code)) {
+    return `https://www.fortnite.com/creative/island-codes/${encodeURIComponent(
+      code
+    )}`;
+  }
+
+  return "https://www.fortnite.com/discover";
+}
+
 function MiniSimilarGameCard({ item, rank, platform }: any) {
   const positive = (item.playerGainPercent ?? 0) >= 0;
-  const href = item.url ?? `https://fortnite.gg/island?code=${item.island_code}`;
+  const href =
+    platform === "fortnite"
+      ? getFortniteIslandUrl(item)
+      : item.url ?? `https://www.roblox.com/games/${item.id}`;
 
   return (
     <a
@@ -8611,7 +9548,10 @@ function MiniSimilarGameCard({ item, rank, platform }: any) {
 
 function ResearchExampleSuggestion({ item, platform }: any) {
   const positive = (item.playerGainPercent ?? 0) >= 0;
-  const href = item.url ?? `https://fortnite.gg/island?code=${item.island_code}`;
+  const href =
+    platform === "fortnite"
+      ? getFortniteIslandUrl(item)
+      : item.url ?? `https://www.roblox.com/games/${item.id}`;
   const genre = getDisplayGenre(item, platform);
   const subgenre = getDisplaySubgenre(item, platform);
 
@@ -8869,6 +9809,8 @@ function PredictionMarketSignalsCard({
   signals,
   platform,
   showSearch = true,
+  title = "Forecasting Signal Inputs",
+  subtitle = "Eight measurable inputs for research questions around attention, momentum, persistence, and genre rotation. These inputs are not predictions, recommendations, or guarantees.",
 }: any) {
   return (
     <section className={`mt-6 rounded-3xl border p-6 ${panel}`}>
@@ -8877,11 +9819,9 @@ function PredictionMarketSignalsCard({
           <p className="text-sm font-black uppercase tracking-wide text-slate-400">
             Research Layer
           </p>
-          <h2 className="text-2xl font-bold">Forecasting Signal Inputs</h2>
+          <h2 className="text-2xl font-bold">{title}</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-            Eight measurable inputs for research questions around attention,
-            momentum, persistence, and genre rotation. These inputs are not
-            predictions, recommendations, or guarantees.
+            {subtitle}
           </p>
         </div>
 
@@ -9416,9 +10356,361 @@ function ThemeModeButton({ darkMode, onClick, accent }: any) {
   );
 }
 
+function PlatformDataLoadingCard({
+  accent,
+  started,
+  progress,
+  message,
+}: {
+  accent: string;
+  started: boolean;
+  progress: number;
+  message: string;
+}) {
+  const safeProgress = Math.max(0, Math.min(100, Math.round(progress)));
+
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+            Loading platform data
+          </p>
+          <h2 className="mt-1 text-2xl font-black text-slate-900">
+            Preparing the dashboard
+          </h2>
+        </div>
+        <div className="text-3xl font-black" style={{ color: accent }}>
+          {started ? `${safeProgress}%` : "Starting"}
+        </div>
+      </div>
+
+      <div className="mt-5 h-4 overflow-hidden rounded-full bg-slate-100">
+        {started ? (
+          <div
+            className="h-full rounded-full transition-all duration-500 ease-out"
+            style={{
+              width: `${safeProgress}%`,
+              backgroundColor: accent,
+            }}
+          />
+        ) : (
+          <div className="h-full w-full overflow-hidden rounded-full">
+            <div
+              className="h-full w-1/2 rounded-full"
+              style={{
+                backgroundColor: accent,
+                animation: "loading-sweep 1.2s ease-in-out infinite",
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <p className="mt-4 text-sm font-bold text-slate-600">{message}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-400">
+        Mobile devices use a lighter dashboard payload, but the first load can
+        still take a moment while the browser prepares the charts.
+      </p>
+      <style jsx>{`
+        @keyframes loading-sweep {
+          0% {
+            transform: translateX(-110%);
+          }
+          50% {
+            transform: translateX(60%);
+          }
+          100% {
+            transform: translateX(220%);
+          }
+        }
+      `}</style>
+    </section>
+  );
+}
+
+function DashboardDisclaimerCard({
+  copy,
+  dashboardStarted,
+  loading,
+  activePlatform,
+  error,
+  onLoadPlatform,
+}: {
+  copy: DashboardCopySettings;
+  dashboardStarted: boolean;
+  loading: boolean;
+  activePlatform: Platform;
+  error: string;
+  onLoadPlatform: (platform: Platform) => void;
+}) {
+  return (
+    <section className="mb-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-wide text-[#0d69ac]">
+            Disclaimer & acknowledgement
+          </p>
+          <h2 className="mt-1 text-base font-black text-slate-900">
+            {copy.disclaimerTitle}
+          </h2>
+        </div>
+        <p className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wide text-slate-400">
+          {DISCLAIMER_VERSION}
+        </p>
+      </div>
+
+      <div
+        className={`mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600 ${
+          dashboardStarted
+            ? "max-h-40 overflow-y-auto sm:max-h-32"
+            : "max-h-none overflow-visible"
+        }`}
+      >
+        <p>{copy.disclaimerBody}</p>
+        <p className="mt-3">{copy.disclaimerAffiliation}</p>
+        <p className="mt-3 font-semibold text-slate-700">
+          By using this dashboard, you confirm that you understand these
+          limitations and accept responsibility for how you interpret and use
+          the displayed research.
+        </p>
+      </div>
+
+      {!dashboardStarted ? (
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <p className="text-sm font-bold text-slate-700">
+            Acknowledge the disclaimer and choose which platform data to load.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => onLoadPlatform("roblox")}
+              disabled={loading}
+              className="rounded-xl bg-[#0d69ac] px-5 py-3 text-sm font-black text-white transition hover:bg-[#0b5a93] disabled:cursor-wait disabled:opacity-60"
+            >
+              {loading && activePlatform === "roblox" ? "Loading Roblox..." : "Acknowledge & Load Roblox"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onLoadPlatform("fortnite")}
+              disabled={loading}
+              className="rounded-xl bg-[#7c3aed] px-5 py-3 text-sm font-black text-white transition hover:bg-[#6d28d9] disabled:cursor-wait disabled:opacity-60"
+            >
+              {loading && activePlatform === "fortnite" ? "Loading Fortnite..." : "Acknowledge & Load Fortnite"}
+            </button>
+          </div>
+          {error ? <p className="mt-3 text-sm font-bold text-red-600">{error}</p> : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DeferredWidgetCard({
+  title,
+  description,
+  panel,
+  accent,
+  loading,
+  onLoad,
+  className = "mb-6",
+}: {
+  title: string;
+  description: string;
+  panel: string;
+  accent: string;
+  loading: boolean;
+  onLoad: () => void;
+  className?: string;
+}) {
+  return (
+    <section className={className}>
+      <div className={`rounded-3xl border p-6 ${panel}`}>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="max-w-2xl">
+            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+              Loads on request
+            </p>
+            <h2 className="mt-1 text-xl font-bold">{title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onLoad}
+            disabled={loading}
+            className="rounded-xl px-5 py-3 text-sm font-black text-white transition disabled:cursor-wait disabled:opacity-60"
+            style={{ backgroundColor: accent }}
+          >
+            {loading ? "Loading data..." : "Load data"}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DisclaimerGate({
+  copy,
+  onAcknowledge,
+}: {
+  copy: DashboardCopySettings;
+  onAcknowledge: () => void;
+}) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const disclaimerAlign =
+    copy.disclaimerTextAlign === "left"
+      ? "text-left"
+      : copy.disclaimerTextAlign === "right"
+        ? "text-right"
+        : "text-center";
+  const iconJustify =
+    copy.disclaimerTextAlign === "left"
+      ? "mr-auto"
+      : copy.disclaimerTextAlign === "right"
+        ? "ml-auto"
+        : "mx-auto";
+  const bodyStyle =
+    copy.disclaimerBodyStyle === "emphasis"
+      ? "font-semibold text-slate-700"
+      : "font-normal text-slate-600";
+  const affiliationStyle =
+    copy.disclaimerAffiliationStyle === "emphasis"
+      ? "font-semibold text-slate-700"
+      : "font-normal text-slate-600";
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    titleRef.current?.focus({ preventScroll: true });
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  return (
+    <div
+      className="disclaimer-gate fixed inset-0 z-[100] hidden h-dvh items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/75 p-3 backdrop-blur-sm sm:p-4 lg:flex"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="disclaimer-gate-title"
+      aria-describedby="disclaimer-gate-description"
+    >
+      <div className="my-3 w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl md:my-auto sm:p-8">
+        {copy.disclaimerImageUrl ? (
+          <div
+            className={`flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-[#b9d6ea] bg-[#eaf5fd] ${iconJustify}`}
+          >
+            <img
+              src={copy.disclaimerImageUrl}
+              alt=""
+              className="h-full w-full object-contain"
+            />
+          </div>
+        ) : (
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-full bg-[#eaf5fd] text-xl font-black text-[#0d69ac] ${iconJustify}`}
+          >
+            !
+          </div>
+        )}
+        <div className={`mt-5 ${disclaimerAlign}`}>
+          <p className="text-xs font-black uppercase tracking-wide text-[#0d69ac]">
+            Required acknowledgement
+          </p>
+          <h2
+            ref={titleRef}
+            id="disclaimer-gate-title"
+            tabIndex={-1}
+            className="mt-2 text-2xl font-black text-slate-900"
+          >
+            {copy.disclaimerTitle}
+          </h2>
+        </div>
+
+        <div
+          id="disclaimer-gate-description"
+          className={`mt-6 space-y-4 text-sm leading-6 ${disclaimerAlign}`}
+        >
+          <p className={bodyStyle}>{copy.disclaimerBody}</p>
+          <p className={affiliationStyle}>{copy.disclaimerAffiliation}</p>
+          <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-700">
+            By entering, you confirm that you understand these limitations and
+            accept responsibility for how you interpret and use the displayed
+            research.
+          </p>
+        </div>
+
+        <div className="mt-5 flex justify-center">
+          <details className="w-full rounded-2xl border border-slate-200 bg-white">
+            <summary className="cursor-pointer list-none rounded-2xl px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50">
+              {copy.termsButton}
+            </summary>
+            <div className="max-h-64 space-y-4 overflow-y-auto border-t border-slate-200 px-4 py-4 text-left text-xs leading-5 text-slate-600">
+              {TERMS_SECTIONS.map((section) => (
+                <section key={section.title}>
+                  <h3 className="font-black text-slate-800">{section.title}</h3>
+                  <p className="mt-1">{section.body}</p>
+                </section>
+              ))}
+            </div>
+          </details>
+        </div>
+
+        <div className="sticky bottom-0 -mx-6 mt-6 bg-white/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:-mx-8 sm:px-8">
+          <form
+            action="/#dashboard"
+            method="get"
+            onSubmit={() => {
+              onAcknowledge();
+              try {
+                window.localStorage.setItem(
+                  DISCLAIMER_ACKNOWLEDGEMENT_STORAGE_KEY,
+                  JSON.stringify({
+                    version: DISCLAIMER_VERSION,
+                    acknowledgedAt: new Date().toISOString(),
+                  })
+                );
+              } catch (error) {
+                console.warn("Disclaimer acknowledgement could not be stored:", error);
+              }
+            }}
+          >
+            <input
+              type="hidden"
+              name={DISCLAIMER_ACKNOWLEDGEMENT_QUERY_KEY}
+              value={DISCLAIMER_VERSION}
+            />
+            <button
+              type="submit"
+              className="block w-full touch-manipulation rounded-2xl bg-[#0d69ac] px-5 py-4 text-center text-sm font-black uppercase tracking-wide text-white transition hover:bg-[#0a548a] active:bg-[#083f68]"
+            >
+              {copy.disclaimerButton}
+            </button>
+          </form>
+
+          <p className="mt-3 text-center text-xs leading-5 text-slate-400">
+            Acknowledgement version {DISCLAIMER_VERSION}. A timestamp is stored
+            in this browser.
+          </p>
+          <p className="mt-2 text-center text-xs leading-5 text-slate-400">
+            Manual entry URL: /?{DISCLAIMER_ACKNOWLEDGEMENT_QUERY_KEY}=
+            {DISCLAIMER_VERSION}#dashboard
+          </p>
+        </div>
+      </div>
+      <style jsx global>{`
+        #dashboard:target .disclaimer-gate {
+          display: none !important;
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function ModalShell({ children, onClose }: any) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/50 p-4">
       <button
         type="button"
         aria-label="Close modal"
@@ -9433,13 +10725,26 @@ function ModalShell({ children, onClose }: any) {
 function AdminAccessModal({
   settings,
   onChange,
+  copy,
+  onCopyChange,
+  widgetCopy,
+  onWidgetCopyChange,
+  widgetAutoLoad,
+  onWidgetAutoLoadChange,
   onClose,
 }: {
   settings: TierVisibilitySettings;
   onChange: (settings: TierVisibilitySettings) => void;
+  copy: DashboardCopySettings;
+  onCopyChange: (copy: DashboardCopySettings) => void;
+  widgetCopy: WidgetCopyOverrides;
+  onWidgetCopyChange: (copy: WidgetCopyOverrides) => void;
+  widgetAutoLoad: WidgetAutoLoadSettings;
+  onWidgetAutoLoadChange: (settings: WidgetAutoLoadSettings) => void;
   onClose: () => void;
 }) {
   const selectedTier = INTERNAL_DASHBOARD_SETTINGS_TIER;
+  const [showUsageCopyReview, setShowUsageCopyReview] = useState(false);
 
   function setAccess(tier: TierAssignable, key: string, value: boolean) {
     onChange({
@@ -9486,6 +10791,13 @@ function AdminAccessModal({
           <div className="flex gap-2">
             <button
               type="button"
+              onClick={() => setShowUsageCopyReview(true)}
+              className="rounded-full border border-[#b9d6ea] bg-[#eaf5fd] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#0d4f82] transition hover:bg-[#d9edf9]"
+            >
+              Print usage copy
+            </button>
+            <button
+              type="button"
               onClick={() => setAll(selectedTier, true)}
               className="rounded-full bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700"
             >
@@ -9507,9 +10819,359 @@ function AdminAccessModal({
           selectedTier={selectedTier}
           settings={settings}
           onToggle={setAccess}
+          widgetCopy={widgetCopy}
+          onWidgetCopyChange={onWidgetCopyChange}
+          widgetAutoLoad={widgetAutoLoad}
+          onWidgetAutoLoadChange={onWidgetAutoLoadChange}
         />
+
+        <AdminCopySection copy={copy} onChange={onCopyChange} />
       </div>
+      {showUsageCopyReview && (
+        <UsageCopyReviewModal
+          copy={copy}
+          onClose={() => setShowUsageCopyReview(false)}
+        />
+      )}
     </ModalShell>
+  );
+}
+
+function AdminCopySection({
+  copy,
+  onChange,
+}: {
+  copy: DashboardCopySettings;
+  onChange: (copy: DashboardCopySettings) => void;
+}) {
+  const fields: Array<{
+    key: keyof DashboardCopySettings;
+    label: string;
+    description: string;
+    multiline?: boolean;
+  }> = [
+    {
+      key: "disclaimerTitle",
+      label: "Disclaimer title",
+      description: "Main heading in the required entry acknowledgement.",
+    },
+    {
+      key: "disclaimerBody",
+      label: "Disclaimer body",
+      description: "Primary research and data-limit disclosure.",
+      multiline: true,
+    },
+    {
+      key: "disclaimerAffiliation",
+      label: "Disclaimer affiliation line",
+      description: "Advice, outcome, and platform-affiliation disclosure.",
+      multiline: true,
+    },
+    {
+      key: "disclaimerButton",
+      label: "Disclaimer acknowledgement button",
+      description:
+        "Button used to acknowledge the disclaimer and enter the dashboard.",
+    },
+    {
+      key: "mobileDisclaimerVersion",
+      label: "Mobile disclaimer version",
+      description:
+        "Change this value whenever the mobile disclaimer is materially revised to require a new acknowledgement.",
+    },
+    {
+      key: "mobileDisclaimerTitle",
+      label: "Mobile disclaimer title",
+      description: "Heading displayed before mobile research data is requested.",
+    },
+    {
+      key: "mobileDisclaimerIndependence",
+      label: "Mobile independence statement",
+      description: "Platform independence and non-affiliation disclosure.",
+      multiline: true,
+    },
+    {
+      key: "mobileDisclaimerDataLimits",
+      label: "Mobile data limitations",
+      description: "Processing, completeness, estimation, and advice limitations.",
+      multiline: true,
+    },
+    {
+      key: "mobileDisclaimerOutcomes",
+      label: "Mobile outcome limitations",
+      description: "No-guarantee and independent-verification statement.",
+      multiline: true,
+    },
+    {
+      key: "mobileDisclaimerAcknowledgement",
+      label: "Mobile acknowledgement statement",
+      description: "Text shown immediately above the mobile platform buttons.",
+      multiline: true,
+    },
+    {
+      key: "mobileDisclaimerRobloxButton",
+      label: "Mobile Roblox acknowledgement button",
+      description: "Button that acknowledges the notice and requests Roblox data.",
+    },
+    {
+      key: "mobileDisclaimerFortniteButton",
+      label: "Mobile Fortnite acknowledgement button",
+      description: "Button that acknowledges the notice and requests Fortnite data.",
+    },
+    {
+      key: "mobileDisclaimerStorageNote",
+      label: "Mobile acknowledgement storage note",
+      description: "Explains how the acknowledgement is remembered on the device.",
+      multiline: true,
+    },
+    {
+      key: "termsButton",
+      label: "Terms button",
+      description: "Footer button that opens the Terms of Service.",
+    },
+    {
+      key: "glossaryButton",
+      label: "Glossary button",
+      description: "Footer button that opens the glossary.",
+    },
+    {
+      key: "adminButton",
+      label: "Admin access button",
+      description: "Internal-only footer button label.",
+    },
+    {
+      key: "footerTrademark",
+      label: "Footer trademark line",
+      description: "Small footer text near the version number.",
+      multiline: true,
+    },
+    {
+      key: "footerVersion",
+      label: "Footer version",
+      description: "Version pill text.",
+    },
+    {
+      key: "footerAffiliation",
+      label: "Footer affiliation notice",
+      description: "Centered affiliation notice at the bottom of the dashboard.",
+      multiline: true,
+    },
+    {
+      key: "dataStrategySessionUrl",
+      label: "Data Strategy Session URL",
+      description: "Booking link used by the Data Strategy Session CTA button.",
+    },
+    {
+      key: "youtubeUrl",
+      label: "YouTube URL",
+      description: "Destination for the YouTube social icon.",
+    },
+    {
+      key: "tiktokUrl",
+      label: "TikTok URL",
+      description: "Destination for the TikTok social icon.",
+    },
+    {
+      key: "twitterUrl",
+      label: "X / Twitter URL",
+      description: "Destination for the X / Twitter social icon.",
+    },
+  ];
+
+  function updateCopy(key: keyof DashboardCopySettings, value: string) {
+    onChange({
+      ...copy,
+      [key]: value,
+    });
+  }
+
+  function updateDisclaimerImage(file: File | null) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        updateCopy("disclaimerImageUrl", reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const alignmentOptions = [
+    { key: "left", label: "Left" },
+    { key: "center", label: "Middle" },
+    { key: "right", label: "Right" },
+  ];
+  const textStyleOptions = [
+    { key: "regular", label: "Regular" },
+    { key: "emphasis", label: "Emphasis" },
+  ];
+
+  return (
+    <section className="mt-8 border-t border-slate-200 pt-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-400">
+            Editable Dashboard Text
+          </h3>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+            Local-only copy controls for wording you may want to adjust while
+            presenting or testing. These values are stored in this browser.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange(DEFAULT_DASHBOARD_COPY)}
+          className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-200"
+        >
+          Reset text
+        </button>
+      </div>
+
+      <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+        <h4 className="text-sm font-black text-slate-800">
+          Disclaimer presentation
+        </h4>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          Local visual controls for the acknowledgement portal.
+        </p>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+              Text alignment
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {alignmentOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => updateCopy("disclaimerTextAlign", option.key)}
+                  className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wide transition ${
+                    copy.disclaimerTextAlign === option.key
+                      ? "bg-[#0d69ac] text-white"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+              Paragraph style
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {[
+                ["disclaimerBodyStyle", "Body paragraph"],
+                ["disclaimerAffiliationStyle", "Affiliation paragraph"],
+              ].map(([key, label]) => (
+                <label key={key} className="block">
+                  <span className="text-xs font-bold text-slate-500">
+                    {label}
+                  </span>
+                  <select
+                    value={copy[key as keyof DashboardCopySettings]}
+                    onChange={(event) =>
+                      updateCopy(
+                        key as keyof DashboardCopySettings,
+                        event.target.value
+                      )
+                    }
+                    className="mt-2 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600 outline-none transition focus:border-[#0d69ac] focus:bg-white"
+                  >
+                    {textStyleOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-4 lg:col-span-2">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                  Picture box
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Upload an image to replace the exclamation mark. The image is
+                  saved in this browser only.
+                </p>
+              </div>
+              {copy.disclaimerImageUrl ? (
+                <button
+                  type="button"
+                  onClick={() => updateCopy("disclaimerImageUrl", "")}
+                  className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-200"
+                >
+                  Remove image
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-4">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-xl font-black text-slate-300">
+                {copy.disclaimerImageUrl ? (
+                  <img
+                    src={copy.disclaimerImageUrl}
+                    alt=""
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  "!"
+                )}
+              </div>
+              <label className="inline-flex cursor-pointer rounded-full bg-[#eaf5fd] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#0d4f82] transition hover:bg-[#d9edf9]">
+                Add image file
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    updateDisclaimerImage(event.target.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        {fields.map((field) => (
+          <label key={field.key} className="block rounded-2xl border border-slate-200 p-4">
+            <span className="text-sm font-black text-slate-800">
+              {field.label}
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500">
+              {field.description}
+            </span>
+            {field.multiline ? (
+              <textarea
+                value={copy[field.key]}
+                onChange={(event) => updateCopy(field.key, event.target.value)}
+                rows={4}
+                className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+              />
+            ) : (
+              <input
+                type="text"
+                value={copy[field.key]}
+                onChange={(event) => updateCopy(field.key, event.target.value)}
+                className="mt-3 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+              />
+            )}
+          </label>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -9519,13 +11181,41 @@ function AdminAccessSection({
   selectedTier,
   settings,
   onToggle,
+  widgetCopy,
+  onWidgetCopyChange,
+  widgetAutoLoad,
+  onWidgetAutoLoadChange,
 }: {
   title: string;
   items: AccessItem[];
   selectedTier: TierAssignable;
   settings: TierVisibilitySettings;
   onToggle: (tier: TierAssignable, key: string, value: boolean) => void;
+  widgetCopy: WidgetCopyOverrides;
+  onWidgetCopyChange: (copy: WidgetCopyOverrides) => void;
+  widgetAutoLoad: WidgetAutoLoadSettings;
+  onWidgetAutoLoadChange: (settings: WidgetAutoLoadSettings) => void;
 }) {
+  function updateWidgetCopy(
+    itemKey: string,
+    field: keyof WidgetCopyOverride,
+    value: string
+  ) {
+    onWidgetCopyChange({
+      ...widgetCopy,
+      [itemKey]: {
+        ...widgetCopy[itemKey],
+        [field]: value,
+      },
+    });
+  }
+
+  function resetWidgetCopy(itemKey: string) {
+    const next = { ...widgetCopy };
+    delete next[itemKey];
+    onWidgetCopyChange(next);
+  }
+
   return (
     <section className="mt-6">
       <h3 className="text-sm font-black uppercase tracking-wide text-slate-400">
@@ -9533,61 +11223,142 @@ function AdminAccessSection({
       </h3>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         {items.map((item) => (
-          <label
+          <div
             key={item.key}
-            className="flex cursor-pointer gap-3 rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
+            className="rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
           >
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 accent-emerald-600"
-              checked={Boolean(settings[selectedTier][item.key])}
-              onChange={(event) =>
-                onToggle(selectedTier, item.key, event.target.checked)
-              }
-            />
-            <span>
-              <span className="flex flex-wrap items-center gap-2 text-sm font-black text-slate-800">
-                {item.label}
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-500">
-                  {item.platform}
+            <div className="flex items-start justify-between gap-3">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-emerald-600"
+                  checked={Boolean(settings[selectedTier][item.key])}
+                  onChange={(event) =>
+                    onToggle(selectedTier, item.key, event.target.checked)
+                  }
+                />
+                <span>
+                  <span className="flex flex-wrap items-center gap-2 text-sm font-black text-slate-800">
+                    {item.label}
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-500">
+                      {item.platform}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    {item.description}
+                  </span>
                 </span>
-              </span>
-              <span className="mt-1 block text-xs leading-5 text-slate-500">
-                {item.description}
-              </span>
-              {item.options?.length ? (
-                <span className="mt-3 grid gap-2">
-                  {item.options.map((option) => {
-                    const optionSettingKey = getAccessOptionKey(item.key, option.key);
-                    return (
-                      <span
-                        key={option.key}
-                        className="flex gap-2 rounded-xl bg-slate-50 px-3 py-2"
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 h-3.5 w-3.5 accent-emerald-600"
-                          checked={Boolean(settings[selectedTier][optionSettingKey])}
-                          disabled={!settings[selectedTier][item.key]}
-                          onChange={(event) =>
-                            onToggle(selectedTier, optionSettingKey, event.target.checked)
-                          }
-                        />
-                        <span>
-                          <span className="block text-xs font-black text-slate-700">
-                            {option.label}
-                          </span>
-                          <span className="block text-[11px] leading-4 text-slate-400">
-                            {option.description}
-                          </span>
+              </label>
+              {widgetCopy[item.key] ? (
+                <button
+                  type="button"
+                  onClick={() => resetWidgetCopy(item.key)}
+                  className="flex-none rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-200"
+                >
+                  Reset copy
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                  Card title
+                </span>
+                <input
+                  type="text"
+                  value={widgetCopy[item.key]?.title ?? ""}
+                  placeholder={item.label}
+                  onChange={(event) =>
+                    updateWidgetCopy(item.key, "title", event.target.value)
+                  }
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none transition focus:border-emerald-300"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                  Card subtitle
+                </span>
+                <input
+                  type="text"
+                  value={widgetCopy[item.key]?.subtitle ?? ""}
+                  placeholder={item.description}
+                  onChange={(event) =>
+                    updateWidgetCopy(item.key, "subtitle", event.target.value)
+                  }
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              {DEFERRED_WIDGET_KEYS.has(item.key) ? (
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-[#0d69ac]"
+                    checked={Boolean(widgetAutoLoad[item.key])}
+                    onChange={(event) =>
+                      onWidgetAutoLoadChange({
+                        ...widgetAutoLoad,
+                        [item.key]: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>
+                    <span className="block text-xs font-black text-slate-700">
+                      Load automatically
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-4 text-slate-400">
+                      Load this card after the user acknowledges the notice and
+                      chooses {item.platform === "roblox" ? "Roblox" : "Fortnite"}.
+                    </span>
+                  </span>
+                </label>
+              ) : (
+                <div>
+                  <span className="block text-xs font-black text-slate-500">
+                    Loads with platform overview
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-4 text-slate-400">
+                    This lightweight card uses the shared initial platform request.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {item.options?.length ? (
+              <div className="mt-3 grid gap-2">
+                {item.options.map((option) => {
+                  const optionSettingKey = getAccessOptionKey(item.key, option.key);
+                  return (
+                    <label
+                      key={option.key}
+                      className="flex cursor-pointer gap-2 rounded-xl bg-slate-50 px-3 py-2"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-3.5 w-3.5 accent-emerald-600"
+                        checked={Boolean(settings[selectedTier][optionSettingKey])}
+                        disabled={!settings[selectedTier][item.key]}
+                        onChange={(event) =>
+                          onToggle(selectedTier, optionSettingKey, event.target.checked)
+                        }
+                      />
+                      <span>
+                        <span className="block text-xs font-black text-slate-700">
+                          {option.label}
+                        </span>
+                        <span className="block text-[11px] leading-4 text-slate-400">
+                          {option.description}
                         </span>
                       </span>
-                    );
-                  })}
-                </span>
-              ) : null}
-            </span>
-          </label>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
         ))}
       </div>
     </section>
@@ -10181,47 +11952,400 @@ function LockedAccessSection({ itemKey, panel }: { itemKey: string; panel: strin
   );
 }
 
-function TermsModal({ onClose }: any) {
+function UsageCopyReviewModal({
+  copy,
+  onClose,
+}: {
+  copy: DashboardCopySettings;
+  onClose: () => void;
+}) {
+  const generatedDate = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "long",
+    timeZone: "UTC",
+  }).format(new Date());
+
+  return (
+    <div className="usage-copy-print-overlay fixed inset-0 z-[120] overflow-y-auto bg-slate-950/60 p-4">
+      <div className="usage-copy-print-card mx-auto w-full max-w-4xl rounded-3xl bg-white shadow-2xl">
+        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-t-3xl border-b border-slate-200 bg-white px-6 py-4 print:hidden">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-[#0d69ac]">
+              Admin legal review
+            </p>
+            <h2 className="mt-1 text-xl font-black text-slate-900">
+              Usage Language Print Review
+            </h2>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => printUsageCopyDocument(copy, generatedDate)}
+              className="rounded-full bg-[#0d69ac] px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-[#0a548a]"
+            >
+              Print document
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <article
+          id="usage-copy-review"
+          className="usage-copy-print space-y-8 px-8 py-10 text-slate-900"
+        >
+          <header className="border-b-2 border-slate-900 pb-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Attorney language review copy
+            </p>
+            <h1 className="mt-2 text-3xl font-black">
+              Snoutboard - UGC Research Dashboard
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Static product-usage language only. This document intentionally
+              excludes game names, fetched records, rankings, player counts,
+              charts, and other live or stored dashboard data.
+            </p>
+            <dl className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
+              <div>
+                <dt className="font-black uppercase">Generated</dt>
+                <dd>{generatedDate} UTC</dd>
+              </div>
+              <div>
+                <dt className="font-black uppercase">Acknowledgement version</dt>
+                <dd>{DISCLAIMER_VERSION}</dd>
+              </div>
+            </dl>
+          </header>
+
+          <PrintCopySection title="Entry Disclaimer">
+            <PrintCopyItem title="Heading" body={copy.disclaimerTitle} />
+            <PrintCopyItem title="Research and data limitations" body={copy.disclaimerBody} />
+            <PrintCopyItem title="Advice, outcomes, and affiliation" body={copy.disclaimerAffiliation} />
+            <PrintCopyItem
+              title="Entry responsibility statement"
+              body="By entering, you confirm that you understand these limitations and accept responsibility for how you interpret and use the displayed research."
+            />
+            <PrintCopyItem title="Entry action" body={copy.disclaimerButton} />
+            <PrintCopyItem
+              title="Browser record notice"
+              body={`Acknowledgement version ${DISCLAIMER_VERSION}. A timestamp is stored in this browser.`}
+            />
+          </PrintCopySection>
+
+          <PrintCopySection title="Mobile Entry Disclaimer">
+            <PrintCopyItem title="Mobile acknowledgement version" body={copy.mobileDisclaimerVersion} />
+            <PrintCopyItem title="Heading" body={copy.mobileDisclaimerTitle} />
+            <PrintCopyItem title="Independence and affiliation" body={copy.mobileDisclaimerIndependence} />
+            <PrintCopyItem title="Data and advice limitations" body={copy.mobileDisclaimerDataLimits} />
+            <PrintCopyItem title="Outcome limitations" body={copy.mobileDisclaimerOutcomes} />
+            <PrintCopyItem title="Acknowledgement statement" body={copy.mobileDisclaimerAcknowledgement} />
+            <PrintCopyItem title="Roblox entry action" body={copy.mobileDisclaimerRobloxButton} />
+            <PrintCopyItem title="Fortnite entry action" body={copy.mobileDisclaimerFortniteButton} />
+            <PrintCopyItem title="Browser storage notice" body={copy.mobileDisclaimerStorageNote} />
+          </PrintCopySection>
+
+          <PrintCopySection title="Terms of Service">
+            <p className="text-sm leading-6 text-slate-600">
+              This summary is designed to make the product boundaries clear. A
+              lawyer should review the final Terms before public launch.
+            </p>
+            {TERMS_SECTIONS.map((section) => (
+              <PrintCopyItem
+                key={section.title}
+                title={section.title}
+                body={section.body}
+              />
+            ))}
+            <PrintCopyItem
+              title="Terms review note"
+              body="Last updated: June 10, 2026. This beta summary does not replace a lawyer-reviewed agreement, privacy policy, or subscription terms."
+            />
+          </PrintCopySection>
+
+          <PrintCopySection title="Glossary and Interpretation Definitions">
+            {GLOSSARY_TERMS.map((term) => (
+              <PrintCopyItem key={term.title} title={term.title} body={term.body} />
+            ))}
+          </PrintCopySection>
+
+          <PrintCopySection title="Recurring Dashboard Usage Notices">
+            {USAGE_REVIEW_NOTICES.map((notice) => (
+              <PrintCopyItem
+                key={notice.title}
+                title={notice.title}
+                body={notice.body}
+              />
+            ))}
+          </PrintCopySection>
+
+          <PrintCopySection title="Footer and Product Identification">
+            <PrintCopyItem title="Trademark notice" body={copy.footerTrademark} />
+            <PrintCopyItem title="Build version" body={copy.footerVersion} />
+            <PrintCopyItem title="Affiliation notice" body={copy.footerAffiliation} />
+          </PrintCopySection>
+        </article>
+      </div>
+    </div>
+  );
+}
+
+function printUsageCopyDocument(copy: DashboardCopySettings, generatedDate: string) {
+  const printWindow = window.open("", "_blank", "width=900,height=1100");
+
+  if (!printWindow) {
+    window.print();
+    return;
+  }
+
   const sections = [
     {
-      title: "Independent research tool",
-      body:
-        "Snoutboard - UGC Research Dashboard is an independent research product that provides processed data summaries, interpreted signals, automated classifications, and creative research tools. It is not an official product, partner portal, agency service, marketplace, or platform-operated analytics tool.",
+      title: "Entry Disclaimer",
+      items: [
+        ["Heading", copy.disclaimerTitle],
+        ["Research and data limitations", copy.disclaimerBody],
+        ["Advice, outcomes, and affiliation", copy.disclaimerAffiliation],
+        [
+          "Entry responsibility statement",
+          "By entering, you confirm that you understand these limitations and accept responsibility for how you interpret and use the displayed research.",
+        ],
+        ["Entry action", copy.disclaimerButton],
+        [
+          "Browser record notice",
+          `Acknowledgement version ${DISCLAIMER_VERSION}. A timestamp is stored in this browser.`,
+        ],
+      ],
     },
     {
-      title: "No platform affiliation or endorsement",
-      body:
-        "Snoutboard is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner. Platform names, game names, island names, experience names, thumbnails, labels, and other references are used only to identify the source context of the processed research data.",
+      title: "Terms of Service",
+      intro:
+        "This summary is designed to make the product boundaries clear. A lawyer should review the final Terms before public launch.",
+      items: [
+        ...TERMS_SECTIONS.map((section) => [section.title, section.body]),
+        [
+          "Terms review note",
+          "Last updated: June 10, 2026. This beta summary does not replace a lawyer-reviewed agreement, privacy policy, or subscription terms.",
+        ],
+      ],
     },
     {
-      title: "Informational use only",
-      body:
-        "The dashboard does not provide legal, financial, investment, business, production, publishing, or professional advice. It does not guarantee revenue, profit, player growth, audience retention, discoverability, platform placement, publishing success, or any specific creative or business result. Users are solely responsible for their own creative, production, publishing, investment, and business decisions.",
+      title: "Mobile Entry Disclaimer",
+      items: [
+        ["Mobile acknowledgement version", copy.mobileDisclaimerVersion],
+        ["Heading", copy.mobileDisclaimerTitle],
+        ["Independence and affiliation", copy.mobileDisclaimerIndependence],
+        ["Data and advice limitations", copy.mobileDisclaimerDataLimits],
+        ["Outcome limitations", copy.mobileDisclaimerOutcomes],
+        ["Acknowledgement statement", copy.mobileDisclaimerAcknowledgement],
+        ["Roblox entry action", copy.mobileDisclaimerRobloxButton],
+        ["Fortnite entry action", copy.mobileDisclaimerFortniteButton],
+        ["Browser storage notice", copy.mobileDisclaimerStorageNote],
+      ],
     },
     {
-      title: "Processed and interpreted data",
-      body:
-        "Displayed information is processed from available source data and may be incomplete, delayed, inferred, automatically classified, experimental, or inaccurate. Scores, maps, labels, source positions, trend lines, and forecasts are Snoutboard research signals only and should be independently reviewed before use.",
+      title: "Glossary and Interpretation Definitions",
+      items: GLOSSARY_TERMS.map((term) => [term.title, term.body]),
     },
     {
-      title: "No raw source redistribution",
-      body:
-        "Snoutboard users may not misuse, scrape, bulk export, resell, redistribute, or present Snoutboard outputs as official platform data, guaranteed business advice, or a substitute for reviewing the original platform source. Access is intended for viewing processed dashboard research, not for obtaining a raw data feed.",
+      title: "Recurring Dashboard Usage Notices",
+      items: USAGE_REVIEW_NOTICES.map((notice) => [notice.title, notice.body]),
     },
     {
-      title: "Dashboard access",
-      body:
-        "These terms apply to dashboard use and newsletter content. All information is informational and does not provide business advice, official platform guidance, or guaranteed outcomes.",
-    },
-    {
-      title: "Beta product",
-      body:
-        "Snoutboard is currently in beta. Features, data sources, calculations, labels, and product direction may change as the dashboard develops. Continued use of the dashboard means you understand these limitations.",
+      title: "Footer and Product Identification",
+      items: [
+        ["Trademark notice", copy.footerTrademark],
+        ["Build version", copy.footerVersion],
+        ["Affiliation notice", copy.footerAffiliation],
+      ],
     },
   ];
 
+  const body = sections
+    .map(
+      (section) => `
+        <section>
+          <h2>${escapeHtml(section.title)}</h2>
+          ${
+            section.intro
+              ? `<p class="section-intro">${escapeHtml(section.intro)}</p>`
+              : ""
+          }
+          ${section.items
+            .map(
+              ([title, text]) => `
+                <article>
+                  <h3>${escapeHtml(title)}</h3>
+                  <p>${escapeHtml(text)}</p>
+                </article>
+              `
+            )
+            .join("")}
+        </section>
+      `
+    )
+    .join("");
+
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Snoutboard - UGC Research Dashboard</title>
+        <style>
+          @page { margin: 0.65in; }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            color: #111827;
+            background: #ffffff;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 10.5pt;
+            line-height: 1.45;
+          }
+          header {
+            border-bottom: 2px solid #111827;
+            margin-bottom: 24pt;
+            padding-bottom: 14pt;
+          }
+          .eyebrow {
+            margin: 0;
+            color: #64748b;
+            font-size: 8pt;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+          }
+          h1 {
+            margin: 5pt 0 8pt;
+            font-size: 23pt;
+            line-height: 1.08;
+          }
+          .summary {
+            max-width: 6.6in;
+            margin: 0;
+            color: #475569;
+          }
+          dl {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8pt 18pt;
+            margin: 14pt 0 0;
+            color: #475569;
+            font-size: 8.5pt;
+          }
+          dt {
+            color: #64748b;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+          }
+          dd { margin: 2pt 0 0; }
+          section {
+            margin: 0 0 24pt;
+            break-inside: auto;
+          }
+          h2 {
+            margin: 0 0 10pt;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 5pt;
+            font-size: 16pt;
+            line-height: 1.15;
+          }
+          .section-intro {
+            margin: 0 0 12pt;
+            color: #475569;
+          }
+          article {
+            margin: 0 0 12pt;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          h3 {
+            margin: 0 0 3pt;
+            color: #1f2937;
+            font-size: 10.5pt;
+            line-height: 1.25;
+          }
+          p {
+            margin: 0;
+            color: #334155;
+            white-space: pre-wrap;
+          }
+        </style>
+      </head>
+      <body>
+        <header>
+          <p class="eyebrow">Attorney language review copy</p>
+          <h1>Snoutboard - UGC Research Dashboard</h1>
+          <p class="summary">
+            Static product-usage language only. This document intentionally excludes game names, fetched records, rankings, player counts, charts, and other live or stored dashboard data.
+          </p>
+          <dl>
+            <div>
+              <dt>Generated</dt>
+              <dd>${escapeHtml(generatedDate)} UTC</dd>
+            </div>
+            <div>
+              <dt>Acknowledgement version</dt>
+              <dd>${escapeHtml(DISCLAIMER_VERSION)}</dd>
+            </div>
+          </dl>
+        </header>
+        ${body}
+        <script>
+          window.addEventListener("load", () => {
+            window.focus();
+            window.setTimeout(() => window.print(), 250);
+          });
+        </script>
+      </body>
+    </html>`);
+  printWindow.document.close();
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function PrintCopySection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+    <section>
+      <h2 className="border-b border-slate-300 pb-2 text-xl font-black">
+        {title}
+      </h2>
+      <div className="mt-4 space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function PrintCopyItem({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="break-inside-avoid">
+      <h3 className="text-sm font-black text-slate-800">{title}</h3>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
+    </div>
+  );
+}
+
+function TermsModal({ onClose }: any) {
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/50 p-4">
       <div className="max-h-[86vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -10246,7 +12370,7 @@ function TermsModal({ onClose }: any) {
         </div>
 
         <div className="mt-6 space-y-4">
-          {sections.map((section) => (
+          {TERMS_SECTIONS.map((section) => (
             <div key={section.title} className="rounded-2xl bg-slate-50 p-4">
               <h3 className="text-sm font-black text-slate-800">
                 {section.title}
@@ -10259,7 +12383,7 @@ function TermsModal({ onClose }: any) {
         </div>
 
         <p className="mt-5 text-xs leading-5 text-slate-400">
-          Last updated: May 8, 2026. This beta summary does not replace a
+          Last updated: June 10, 2026. This beta summary does not replace a
           lawyer-reviewed agreement, privacy policy, or subscription terms.
         </p>
       </div>
@@ -10268,71 +12392,8 @@ function TermsModal({ onClose }: any) {
 }
 
 function GlossaryModal({ onClose }: any) {
-  const terms = [
-    {
-      title: "Current players",
-      body:
-        "A processed dashboard field showing the latest stored concurrent player count for a Roblox experience when that metric is available from the captured source data.",
-    },
-    {
-      title: "Source position",
-      body:
-        "A processed dashboard field showing the position captured from a source list or imported source order. It should not be read as an official popularity ranking unless the source explicitly provides that meaning.",
-    },
-    {
-      title: "Focused source set",
-      body:
-        "A processed and filtered view of entries selected from imported source data for the active platform. The set is used for research comparisons inside Snoutboard.",
-    },
-    {
-      title: "Data capture coverage",
-      body:
-        "A processed completeness score: the share of expected source and dashboard fields captured across the current dataset. Missing expected fields reduce the score. This measures field completeness, not whether an interpretation or classification is correct.",
-    },
-    {
-      title: "Heuristic fallback",
-      body:
-        "A processed classification label shown when source taxonomy is unavailable and Snoutboard estimates classification from title, description, source context, or stored metadata.",
-    },
-    {
-      title: "Primary label",
-      body:
-        "A processed Fortnite field based on the first surfaced label captured from island metadata. It can suggest format, theme, or collaboration context, but it is not an official endorsement or partnership signal.",
-    },
-    {
-      title: "IP / Collaboration signal",
-      body:
-        "A processed detection of a recognizable franchise, brand, or collaboration reference in labels, titles, or descriptions. It identifies textual context only and does not imply Snoutboard has any relationship with that rights holder.",
-    },
-    {
-      title: "Directional research map",
-      body:
-        "A processed visual research aid that compares categories across interpreted signals. It is not an official platform tool, prediction, recommendation guarantee, or business instruction.",
-    },
-    {
-      title: "Demand",
-      body:
-        "A processed and interpreted measure of player activity or audience concentration in a category based on available snapshot data.",
-    },
-    {
-      title: "Saturation",
-      body:
-        "A processed and interpreted measure of how many imported games or islands occupy a similar category or format in the captured dataset.",
-    },
-    {
-      title: "Estimated game format complexity",
-      body:
-        "A processed directional estimate of how complex a category or format appears from genre, subgenre, labels, and observed design patterns. It is not an official platform classification or engineering cost estimate.",
-    },
-    {
-      title: "Prediction market signals",
-      body:
-        "Processed research-oriented signals that may help observe momentum, volatility, category concentration, and outlier behavior. They are informational only and do not predict or guarantee outcomes.",
-    },
-  ];
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/50 p-4">
       <div className="max-h-[86vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -10357,7 +12418,7 @@ function GlossaryModal({ onClose }: any) {
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {terms.map((term) => (
+          {GLOSSARY_TERMS.map((term) => (
             <div key={term.title} className="rounded-2xl bg-slate-50 p-4">
               <h3 className="text-sm font-black text-slate-800">
                 {term.title}
@@ -10553,7 +12614,10 @@ function PodcastConductorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-      <div className="max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+      <div
+        id="podcast-conductor-print"
+        className="max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-black uppercase tracking-wide text-[#0d69ac]">
@@ -10564,10 +12628,18 @@ function PodcastConductorModal({
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
               A private 15-minute show guide generated from the current dashboard
-              data. Use it as host notes for a Patreon-facing research episode.
+              data for the paid Patreon episode. Use it as host notes; public
+              clips should remain short excerpts only.
             </p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2 print:hidden">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="rounded-full border border-[#b9d6ea] bg-[#eaf5fd] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#0d4f82] transition hover:bg-[#d9edf9]"
+            >
+              Print conductor
+            </button>
             <button
               type="button"
               onClick={copyConductor}
@@ -10626,6 +12698,16 @@ function PodcastConductorModal({
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 {section.narrative}
               </p>
+              {section.clipPotential ? (
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-xs font-black uppercase tracking-wide text-amber-700">
+                    Clip potential
+                  </p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-amber-950">
+                    {section.clipPotential}
+                  </p>
+                </div>
+              ) : null}
               <p className="mt-4 text-xs font-black uppercase tracking-wide text-slate-400">
                 Producer notes
               </p>
@@ -10654,6 +12736,48 @@ function PodcastConductorModal({
           ))}
         </div>
 
+        <section className="mt-8 rounded-3xl border border-[#b9d6ea] bg-[#f4f9fd] p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-[#0d69ac]">
+                Complete host transcript
+              </p>
+              <h3 className="mt-1 text-xl font-black text-slate-900">
+                Readable 12–15 Minute Monologue
+              </h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                A conversational walkthrough generated from the same current
+                dashboard outputs used above. Review the numbers before
+                recording and keep the highlighted directions off-air.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                Estimated runtime
+              </p>
+              <p className="mt-1 text-lg font-black text-[#0d69ac]">
+                {conductor.transcript.estimatedMinutes}
+              </p>
+              <p className="text-xs font-semibold text-slate-500">
+                {formatNumber(conductor.transcript.wordCount)} words
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-6">
+            {conductor.transcript.sections.map((section) => (
+              <div key={section.title}>
+                <h4 className="text-sm font-black uppercase tracking-wide text-slate-400">
+                  {section.title}
+                </h4>
+                <p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-slate-700">
+                  {section.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <div className="mt-6 rounded-3xl border border-[#b9d6ea] bg-[#eaf5fd] p-5">
           <p className="text-sm font-black text-[#0d4f82]">
             Host reminder
@@ -10664,6 +12788,45 @@ function PodcastConductorModal({
             raw source redistribution.
           </p>
         </div>
+
+        <style jsx global>{`
+          @media print {
+            @page {
+              margin: 0.6in;
+            }
+
+            body * {
+              visibility: hidden !important;
+            }
+
+            #podcast-conductor-print,
+            #podcast-conductor-print * {
+              visibility: visible !important;
+            }
+
+            #podcast-conductor-print {
+              position: absolute;
+              inset: 0;
+              width: 100%;
+              max-width: none;
+              max-height: none;
+              overflow: visible;
+              border: 0;
+              border-radius: 0;
+              padding: 0;
+              box-shadow: none;
+              background: white;
+            }
+
+            #podcast-conductor-print .print\\:hidden {
+              display: none !important;
+            }
+
+            #podcast-conductor-print section {
+              break-inside: avoid;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
@@ -11317,7 +13480,7 @@ function mergeFortniteGenreTrends(islands: any[]) {
   const byGenreTotals: Record<string, number> = {};
 
   islands.forEach((island) => {
-    const genre = island.inferred_genre ?? "Other";
+    const genre = getFortniteCategoryDisplayLabel(island.inferred_genre, "inferred_genre");
     byGenreTotals[genre] =
       (byGenreTotals[genre] ?? 0) + (island.latestActivityValue ?? 0);
   });
@@ -11337,7 +13500,7 @@ function mergeFortniteGenreTrends(islands: any[]) {
 
         const dateKey = getSnapshotDateKey(snapshot.created_at);
         if (!dateKey) return;
-        const genre = island.inferred_genre ?? "Other";
+      const genre = getFortniteCategoryDisplayLabel(island.inferred_genre, "inferred_genre");
         if (!byDate[dateKey]) {
           byDate[dateKey] = {
             date: formatShortDate(snapshot.created_at),
@@ -11606,13 +13769,15 @@ function buildPodcastConductorReadout(
   dataQualitySnapshots: DataQualitySnapshot[]
 ) {
   const robloxTopFive = robloxGames.slice(0, 5);
-  const robloxGenres = buildTopGenreScoreboard(robloxGames).slice(0, 3);
+  const robloxGenres = buildTopGenreScoreboard(robloxGames.slice(0, 25)).slice(0, 3);
   const robloxMovers = buildTrendingHighlights(robloxGames, "roblox");
   const robloxArchetype = buildRobloxArchetypes(robloxGames, "7d").find((item: any) =>
     /average/i.test(item.kind)
   );
   const fortniteLabels = buildFortniteLabelRankings(fortniteIslands).slice(0, 5);
-  const fortniteIpSignals = buildFortniteIpSignals(fortniteIslands).slice(0, 3);
+  const fortniteIpSignals = buildFortniteIpSignals(
+    getFortniteIslandsBySnapshotWindow(fortniteIslands, "7d")
+  ).slice(0, 3);
   const robloxCoverage = getLatestNonEmptySnapshotCoverage("roblox", robloxGames);
   const fortniteCoverage = getLatestNonEmptySnapshotCoverage("fortnite", fortniteIslands);
   const latestAudit = [...dataQualitySnapshots].sort((a, b) =>
@@ -11621,6 +13786,16 @@ function buildPodcastConductorReadout(
   const topGame = robloxTopFive[0];
   const strongestGenre = robloxGenres[0];
   const strongestFortniteLabel = fortniteLabels[0];
+  const strongestRobloxClip = topGame
+    ? `Clip A - Market pulse: open with ${topGame.title} at ${formatNumber(
+        topGame.latestPlayers
+      )} captured players, then pivot to "attention is not opportunity."`
+    : "Clip A - Market pulse: use the strongest visible Roblox player signal, then pivot to attention versus opportunity.";
+  const creatorTakeawayClip = strongestGenre
+    ? `Clip B - Creator takeaway: ${strongestGenre.rawGenre} is the strongest genre signal, but the useful lesson is to study subgenre mechanics instead of copying the surface theme.`
+    : "Clip B - Creator takeaway: show how to move from broad market signal to a more specific design question.";
+  const transparencyClip =
+    "Clip C - Trust beat: explain that the dashboard uses stored snapshots and processed fields, so it is a research tool, not a guarantee of success.";
 
   const summaryCards = [
     {
@@ -11652,6 +13827,7 @@ function buildPodcastConductorReadout(
       tools: ["Top 5 Most Played Games", "Data Source & Health", "Player Activity Landscape"],
       narrative:
         `[Start on the Roblox page. Keep the Top 5 Most Played Games visible.] Today I want to look at the market from the creator's side: not as a promise of what will work, but as a way to ask better questions before building. The biggest captured Roblox signal right now is ${topGame?.title ?? "the leading captured experience"}, sitting at ${formatNumber(topGame?.latestPlayers)} captured players. The question for this episode is simple: what does today's data suggest creators should study before they commit to a new idea?`,
+      clipPotential: strongestRobloxClip,
       reflection:
         "Something to reflect on is the difference between attention and opportunity: a large audience signal shows where players are gathering, but it does not automatically reveal what a new creator should build.",
       points: [
@@ -11674,6 +13850,8 @@ function buildPodcastConductorReadout(
               `${index + 1}. ${game.title}, with ${formatNumber(game.latestPlayers)} players`
           )
         )}. I do not want to treat this as a list of games to copy. I want to treat it as a list of player promises to study: what is the fantasy, what is the loop, and how quickly does the player understand why they should click?`,
+      clipPotential:
+        "Good secondary clip if the top-five list has a surprising mix: frame it as 'study the player promise, not the game title.'",
       reflection:
         "Remember that a median profile is different from an average profile: the median shows a middle example, while the average blends the dataset into a composite that may not exist as a real game.",
       points: [
@@ -11699,6 +13877,8 @@ function buildPodcastConductorReadout(
       tools: ["Trending Games", "Most Played Games Over Time", "Player Activity Landscape"],
       narrative:
         `[Scroll back to Trending Games, then open Most Played Games Over Time.] Now I want to separate size from movement. A game can be huge and slowing down, or smaller and moving quickly. The movement panel gives me three useful prompts today: ${robloxMovers[0]?.title ?? "no clear entry"} for player gain, ${robloxMovers[1]?.title ?? "no clear entry"} for position gain, and ${robloxMovers[2]?.title ?? "no clear entry"} for player loss. I would present these as research leads, not forecasts. The job is to ask why the audience is moving, not to pretend we already know where they will go next.`,
+      clipPotential:
+        "Strong short-form candidate when there is a clear mover: contrast a large game with a fast-moving game and say, 'size and momentum are not the same signal.'",
       reflection:
         "Something to reflect on is momentum versus durability: a spike can reveal curiosity, but sustained activity is what usually deserves deeper design study.",
       points: [
@@ -11715,6 +13895,10 @@ function buildPodcastConductorReadout(
       tools: ["Primary Label Usage Over Time", "IP / Collaboration Signals", "Latest Imported Fortnite Islands"],
       narrative:
         `[Switch to the Fortnite page. Start on Primary Label Usage Over Time.] The Fortnite side needs a different tone. I am not reading this as a popularity chart; I am reading it as metadata, packaging, and positioning. The strongest captured label signal right now is ${strongestFortniteLabel?.label ?? "not clear enough to call"}, and that tells me what kind of language or format is showing up repeatedly in the imported island set. [Scroll down to IP / Collaboration Signals.] If an IP or collaboration signal appears, I would treat it as a theme watchlist, not as proof of demand.`,
+      clipPotential:
+        strongestFortniteLabel
+          ? `Potential Fortnite clip: ${strongestFortniteLabel.label} is a packaging signal to watch, not proof of popularity.`
+          : "Potential Fortnite clip: explain why Fortnite labels are packaging signals, not popularity claims.",
       reflection:
         "Remember that labels describe how an island is packaged, not necessarily why players stay. A strong label can suggest positioning, but it should be paired with design and retention questions.",
       points: [
@@ -11748,6 +13932,7 @@ function buildPodcastConductorReadout(
             ? `For today, ${strongestGenre.rawGenre} is the biggest genre signal I would keep in mind, but I would use the subgenre and design cues to avoid staying too broad.`
             : "For today, the safest read is to compare player activity against the available genre and subgenre signals before forming a concept."
         } [Scroll down to the Example Card or suggested games if you want a concrete reference point.]`,
+      clipPotential: creatorTakeawayClip,
       reflection:
         "Something to reflect on is that a good creative brief should combine familiar structure with a fresh promise. Familiarity helps players understand the game quickly; novelty gives them a reason to care.",
       points: [
@@ -11767,6 +13952,7 @@ function buildPodcastConductorReadout(
       tools: ["Data Source & Health", "Glossary", "Terms of Service"],
       narrative:
         `[Return briefly to Data Source & Health.] Before wrapping, I want to be clear about the limits. This dashboard is based on stored snapshots and processed fields. Some information comes directly from source responses, and some classification is estimated when the source data is incomplete. That does not make the dashboard useless; it makes it a research tool. The value is in using the signals to ask better questions, then validating before building.`,
+      clipPotential: transparencyClip,
       reflection:
         "Remember that transparency increases trust: saying what the data can and cannot prove makes the analysis more credible, not weaker.",
       points: [
@@ -11779,20 +13965,239 @@ function buildPodcastConductorReadout(
     },
     {
       timestamp: "14:00 - 15:00",
-      title: "Patreon handoff",
-      role: "CTA",
-      tools: ["Podcast Conductor", "Dashboard Readouts", "Weekly Research Workflow"],
+      title: "Patreon episode close",
+      role: "Close + clips",
+      tools: ["Podcast Conductor", "Dashboard Readouts", "Clip Candidates"],
       narrative:
-        `[Close the dashboard or leave the main readout visible.] If this kind of walkthrough is useful, the Patreon version is where I will spend more time on the interpretation: what I would study, what I would ignore, and what I would test before committing to a game idea. The point is not to sell raw data. The point is to save creators time and help them think with more structure. My closing prompt for the week is simple: choose one format, one mechanic, and one visual promise, then research those before you build.`,
+        `[Close the dashboard or leave the main readout visible.] This episode is the Patreon product: a guided research walkthrough designed to save creators time and help them think with more structure. I am not selling raw data, and I am not publishing the full analysis outside Patreon. The only public-facing pieces I plan to pull from this episode are three short clips: one market pulse, one creator takeaway, and one data transparency reminder. My closing prompt for members is simple: choose one format, one mechanic, and one visual promise, then research those before you build.`,
+      clipPotential:
+        "Do not clip this as a standalone ad unless needed. Use it as the internal checklist for selecting the three public excerpts.",
       reflection:
-        "Something to reflect on is the real product being sold: not the data itself, but the guided interpretation, the research habit, and the time saved for creators.",
+        "Something to reflect on is the paid product itself: the value is guided interpretation and research discipline, while clips are short excerpts that point people toward the full Patreon episode.",
       points: [
-        "Keep the CTA focused on guided research and creative interpretation.",
-        "Position the value as research guidance and creative context, not access to raw platform data.",
-        "[Do not mention platform partnership, official status, or guaranteed outcomes.]",
+        "Clip candidate 1: the strongest current Roblox signal.",
+        "Clip candidate 2: the difference between median and average.",
+        "Clip candidate 3: transparency, limits, and why this is not a guarantee of success.",
+        "[Do not frame this as a public podcast with a paid upgrade.]",
       ],
     },
   ];
+
+  const episodeDate = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date());
+  const topGameName = topGame?.title ?? "the leading captured experience";
+  const topGamePlayers = topGame ? formatNumber(topGame.latestPlayers) : "N/A";
+  const topFiveSpoken = robloxTopFive.length
+    ? formatPodcastList(
+        robloxTopFive.map(
+          (game, index) =>
+            `number ${index + 1}, ${game.title}, at ${formatNumber(
+              game.latestPlayers
+            )} captured players`
+        )
+      )
+    : "not complete enough to call today";
+  const genreSpoken = robloxGenres.length
+    ? formatPodcastList(
+        robloxGenres.map(
+          (genre) =>
+            `${genre.rawGenre}, representing about ${genre.share}% of tracked players`
+        )
+      )
+    : "not complete enough to call cleanly today";
+  const labelSpoken = fortniteLabels.length
+    ? formatPodcastList(
+        fortniteLabels.map(
+          (label) => `${label.label}, appearing on ${formatNumber(label.count)} islands`
+        )
+      )
+    : "not complete enough to call today";
+  const ipSpoken = fortniteIpSignals.length
+    ? formatPodcastList(
+        fortniteIpSignals.map(
+          (signal) =>
+            `${signal.label}, detected across ${formatNumber(
+              signal.count
+            )} unique islands`
+        )
+      )
+    : "no clear collaboration pattern in the current imported window";
+  const averageGenre = robloxArchetype
+    ? getDisplayGenre(robloxArchetype, "roblox")
+    : strongestGenre?.rawGenre ?? "the current leading genre";
+  const averageSubgenre = robloxArchetype
+    ? getDisplaySubgenre(robloxArchetype, "roblox")
+    : "the most visible related subgenre";
+
+  const transcriptSections = [
+    {
+      title: "Opening",
+      text: `Welcome all, we are ${episodeDate}. Let's review the Snoutboard.
+
+[Pause. Keep the Roblox overview visible.]
+
+Today, we are going to take a calm walk through the dashboard and look at what the current signals may be telling us. I want to emphasize the word signals, because this is not a magic answer machine, and it is definitely not a guarantee that one particular idea will succeed. What it can do is help us slow down, look at the market with a little more structure, and ask better questions before a creator commits months of work to a project.
+
+The first thing I am noticing on the Roblox side is ${topGameName}. In the current dashboard view, it is showing ${topGamePlayers} captured players. That is our largest visible Roblox player signal at this moment. Now, the tempting reaction is to look at the leader and immediately ask, how do I make something like that? I think the more useful question is: what promise is this experience making to a player, and why is that promise so easy to understand?
+
+[Pause and look at the Top 5 Most Played Games card.]
+
+That distinction is going to guide the whole episode. We are not searching for a title to copy. We are searching for useful patterns: recognizable fantasies, clear loops, strong presentation, and reasons for players to return. Attention is evidence that something is connecting. It is not proof that the same idea will work for somebody else.`,
+    },
+    {
+      title: "Roblox market pulse",
+      text: `[Scroll through the Top 5 Most Played Games.]
+
+Let us start with the visible market pulse. The current five entries are ${topFiveSpoken}.
+
+That is an interesting list, because even when the experiences share a large audience, they do not necessarily make the same promise. Some may offer identity and social play. Others may offer progression, competition, collection, mastery, or a very direct fantasy that can be understood from a thumbnail and a few words.
+
+When I read this card, I like to imagine that I am a player seeing each experience for the first time. What do I understand in two seconds? Do I know what I am going to do? Do I know what I might earn, become, collect, or prove? And do I have a reason to believe that another player will be there with me?
+
+[Scroll to Most Played Genre Mix Estimated.]
+
+Now we can move from individual games to the genre picture. The three largest current genre signals are ${genreSpoken}. These are estimated groupings where the source taxonomy is incomplete, so I do not want to treat the percentages as perfect borders around the market. They are better understood as a way of organizing the captured activity.
+
+The important word here is concentration. If one genre is carrying a large share of tracked players, that tells us where attention is concentrated in this snapshot. It does not tell us that the genre is easy to enter. In fact, a large category can be attractive and crowded at the same time.
+
+Something to reflect on is whether the audience is responding to the broad genre itself or to a more specific subgenre mechanic inside it. A creator may not need to build another broad version of the leading category. They may need to identify one mechanic players already understand and combine it with a different fantasy, pace, or social structure.`,
+    },
+    {
+      title: "Average format and movement",
+      text: `[Scroll to the Fictional Roblox Experience Archetypes.]
+
+The average popular archetype currently points toward ${averageGenre} and ${averageSubgenre}. This is a synthetic profile, not a real game recommendation. It blends the visible dataset into a useful reference point.
+
+It is also worth remembering that an average and a median are not the same thing. The average mixes the values together and describes the center of gravity of the dataset. The median is closer to the middle observed entry. An average profile may not exist as an actual experience at all, but it can still reveal what the current dataset tends to emphasize.
+
+For a creator, this becomes a baseline question. If the average visible format looks like this, what would I preserve so the concept remains understandable, and what would I change so it does not disappear into the crowd?
+
+[Scroll back to Trending Games.]
+
+Now let us separate size from movement. The current player-gain prompt is ${robloxMovers[0]?.title ?? "not clear enough to call"}, with ${robloxMovers[0]?.metric ?? "no reliable percentage available"}. The position-gain prompt is ${robloxMovers[1]?.title ?? "not clear enough to call"}, with ${robloxMovers[1]?.metric ?? "no reliable movement available"}. The player-loss prompt is ${robloxMovers[2]?.title ?? "not clear enough to call"}, with ${robloxMovers[2]?.metric ?? "no reliable percentage available"}.
+
+[Pause.]
+
+This is where the dashboard gets more interesting. A large experience and a fast-moving experience are not necessarily the same thing. One signal describes scale. The other describes change. A sudden gain may reflect an update, a promotion, a social moment, a collaboration, or simple snapshot timing. A loss can be temporary for many of the same reasons.
+
+So I would not call these predictions. I would call them investigation leads. If a title moves sharply, go look at what changed. Look at the thumbnail, the update language, the game loop, the social conversation, and the timing. The number tells us where to look. It does not tell us the whole story.`,
+    },
+    {
+      title: "Activity over time",
+      text: `[Open Most Played Games Over Time, then Player Activity Landscape.]
+
+The over-time view helps us avoid becoming trapped by a single snapshot. One captured moment can be useful, but it can also be noisy. The better question is whether a signal persists across several captures.
+
+When I look at these curves, I am watching for three things. First, durability: does an experience remain visible over multiple days? Second, acceleration: is its captured player count moving consistently, or are we looking at one spike? Third, separation: is the leading group pulling away from the rest, or is the field becoming more competitive?
+
+The Player Activity Landscape gives us another way to see that movement. Rectangle size represents the captured activity used for the selected window, while color shows stored gain or loss. The Today, seven-day, and month views should be read as different lenses, not as interchangeable answers.
+
+[Switch between Today, 7D, and Month. Pause briefly on each.]
+
+Today gives us immediacy. Seven days gives us a short pattern. A month gives us a broader context, although the available history may be shorter than the full requested window. Because these are point-in-time snapshots, we are not observing every player who came and went between captures. We are observing the values that were available when the pipeline ran.
+
+That limitation matters, but it does not erase the value. It simply changes the claim we can make. We can say that the stored snapshots show a pattern. We should not say that we captured every fluctuation in the market.`,
+    },
+    {
+      title: "Fortnite metadata signals",
+      text: `[Switch to the Fortnite page and open Primary Label Usage Over Time.]
+
+The Fortnite side needs a different reading style. We do not currently treat the imported source order as a reliable popularity ranking. Instead, the useful material is the metadata: labels, descriptions, formats, collaboration references, and the way islands position themselves.
+
+The most repeated captured labels in the current view are ${labelSpoken}. I see these as packaging signals. They tell us which words and format descriptions appear repeatedly in the imported set. They do not prove which island has the strongest retention or the largest audience.
+
+That distinction is important because packaging and performance are related, but they are not identical. A label can help a player understand an island. It cannot tell us by itself whether the player stayed, returned, or recommended it.
+
+[Scroll to IP / Collaboration Signals.]
+
+The current IP and collaboration watch shows ${ipSpoken}. This card deduplicates islands within the selected window, so the same island appearing on multiple days should not be counted as a new collaboration example every time.
+
+Large intellectual properties can create immediate recognition, but recognition is not the same as a durable game loop. The useful creator question is not simply, which franchise is visible? It is, how does the island translate that recognizable world into an action the player wants to repeat?
+
+[Pause on one concrete imported-island example.]
+
+This is a good moment to examine the language. What is the first promise? Is the core action clear? Does the description lead with fantasy, competition, progression, or social identity? Those are lessons a creator can study even without using somebody else's intellectual property.`,
+    },
+    {
+      title: "Turning research into a concept",
+      text: `[Return to Roblox and scroll to My Game Idea Is.]
+
+Now we reach the practical part. The goal of this section is not to press a button and receive a guaranteed winning game. The goal is to compare a concept with the captured dataset and make the idea more specific.
+
+If ${strongestGenre?.rawGenre ?? "the leading visible genre"} is carrying the strongest current genre signal, I would not stop at that broad label. I would look one level deeper. Which subgenre mechanics are represented? Which are crowded? Which seem to have activity but fewer visible examples? And which mechanics fit the strengths of the team that would actually build the game?
+
+[Select a genre and subgenre, then look at Design Cues, Research Signal, and Warnings.]
+
+The Design Cues are useful because they translate a category into practical questions. What does the player do repeatedly? What creates progress? What gives the player status? What makes a session satisfying even if it is short?
+
+The Research Signal provides context, and the Warnings are just as important. Low representation can mean an underexplored space, but it can also mean weak demand, difficult production, poor discoverability, or incomplete classification. A sparse category is not automatically an opportunity.
+
+[Open the Game Template Generator.]
+
+The template generator should come after the research, not before it. It is a creative prompt built from visible patterns. I would use it to start a brief, then challenge every part of that brief. Is the title understandable? Is the fantasy distinct? Is the loop realistic to produce? Does the concept have one strong visual promise? And can we describe the reason to return in one sentence?
+
+The strongest use of this dashboard is not certainty. It is discipline. It helps move the conversation from, I have a vague idea, to, I understand the audience signal, the familiar mechanic, the creative difference, and the risk I still need to test.`,
+    },
+    {
+      title: "Transparency and close",
+      text: `[Return briefly to Data Source & Health.]
+
+Before we finish, I want to pause on transparency. The current Roblox source coverage is ${formatNumber(
+        robloxCoverage.count || robloxGames.length
+      )} records in the latest non-empty loaded view, and the current Fortnite source coverage is ${formatNumber(
+        fortniteCoverage.count || fortniteIslands.length
+      )} records. ${
+        latestAudit?.created_at
+          ? `The latest data-quality snapshot available to this dashboard is dated ${formatUtcTimestamp(
+              latestAudit.created_at
+            )}.`
+          : "A current data-quality timestamp is not available in this loaded view."
+      }
+
+Some fields come directly from captured source responses. Other fields are processed, normalized, or estimated when the source data is partial. That is why the dashboard uses words such as captured, stored, processed, and estimated.
+
+[Pause.]
+
+I do not think those qualifications weaken the research. I think they make it more honest. Good analysis should tell us both what the data suggests and what the data cannot prove.
+
+So, my takeaway today is this: study the player promise behind ${topGameName}, use ${strongestGenre?.rawGenre ?? "the leading genre signal"} as a starting point rather than a command, watch movement separately from total size, and treat Fortnite labels and collaboration references as positioning clues rather than popularity scores.
+
+Then take one concept and reduce it to three things: one recognizable format, one mechanic worth repeating, and one visual promise a player understands immediately. That gives you something concrete to research, prototype, and test.
+
+Thanks you all for the support. As always, if you want to book a meeting with us, go to our website and schedule a review session.`,
+    },
+  ];
+  const transcriptText = transcriptSections.map((section) => section.text).join("\n\n");
+  const transcriptWordCount = transcriptText
+    .replace(/\[[^\]]+\]/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const transcript = {
+    sections: transcriptSections,
+    wordCount: transcriptWordCount,
+    estimatedMinutes: `${Math.max(
+      1,
+      Math.round(transcriptWordCount / 128)
+    )} min`,
+    plainText: [
+      "COMPLETE HOST TRANSCRIPT",
+      `Estimated runtime: ${Math.max(
+        1,
+        Math.round(transcriptWordCount / 128)
+      )} minutes`,
+      `Word count: ${transcriptWordCount}`,
+      "",
+      ...transcriptSections.flatMap((section) => [
+        section.title.toUpperCase(),
+        section.text,
+        "",
+      ]),
+    ].join("\n"),
+  };
 
   const plainText = [
     "SNOUTBOARD PODCAST CONDUCTOR",
@@ -11803,15 +14208,18 @@ function buildPodcastConductorReadout(
       `Cards/tools: ${section.tools.join(", ")}`,
       "On-air copy:",
       section.narrative,
+      section.clipPotential ? `Clip potential: ${section.clipPotential}` : "",
       "Producer notes:",
       ...section.points.map((point) => `- ${point}`),
       `Reflection prompt: ${section.reflection}`,
       "",
     ]),
     "Host reminder: frame everything as independent creative research and interpreted signals, not official platform guidance or guaranteed business advice.",
+    "",
+    transcript.plainText,
   ].join("\n");
 
-  return { summaryCards, sections, plainText };
+  return { summaryCards, sections, transcript, plainText };
 }
 
 function formatPodcastList(items: string[]) {
@@ -11873,7 +14281,11 @@ function mergeFortniteGenrePresenceTrends(islands: any[]) {
   const byDate: Record<string, any> = {};
 
   islands
-    .filter((island) => genres.includes(island.inferred_genre ?? "Other"))
+    .filter((island) =>
+      genres.includes(
+        getFortniteCategoryDisplayLabel(island.inferred_genre, "inferred_genre")
+      )
+    )
     .forEach((island) => {
       const seenDateKeys = new Set<string>();
 
@@ -11885,7 +14297,10 @@ function mergeFortniteGenrePresenceTrends(islands: any[]) {
 
         seenDateKeys.add(dateKey);
 
-        const genre = island.inferred_genre ?? "Other";
+        const genre = getFortniteCategoryDisplayLabel(
+          island.inferred_genre,
+          "inferred_genre"
+        );
         if (!byDate[dateKey]) {
           byDate[dateKey] = {
             date: formatShortDate(snapshot.created_at),
@@ -11983,6 +14398,29 @@ function mergeFortniteLabelUsageTrends(islands: any[], limit: number) {
   const latestRankings = buildFortniteLabelRankings(islands);
   const labels = latestRankings.slice(0, limit).map((row: any) => row.label);
   const byDate: Record<string, any> = {};
+  const ensureDateRow = (snapshot: any) => {
+    const dateKey = getSnapshotDateKey(snapshot.created_at);
+    if (!dateKey) return null;
+
+    if (!byDate[dateKey]) {
+      byDate[dateKey] = {
+        date: formatShortDate(snapshot.created_at),
+        dateKey,
+      };
+
+      labels.forEach((label: string) => {
+        byDate[dateKey][label] = 0;
+      });
+    }
+
+    return byDate[dateKey];
+  };
+
+  islands.forEach((island) => {
+    (island.snapshots ?? []).forEach((snapshot: any) => {
+      ensureDateRow(snapshot);
+    });
+  });
 
   islands.forEach((island) => {
     const primaryLabel = getFortnitePrimaryLabel(island);
@@ -11992,17 +14430,11 @@ function mergeFortniteLabelUsageTrends(islands: any[], limit: number) {
     if (!islandLabels.length) return;
 
     (island.snapshots ?? []).forEach((snapshot: any) => {
-      const dateKey = getSnapshotDateKey(snapshot.created_at);
-      if (!dateKey) return;
-      if (!byDate[dateKey]) {
-        byDate[dateKey] = {
-          date: formatShortDate(snapshot.created_at),
-          dateKey,
-        };
-      }
+      const row = ensureDateRow(snapshot);
+      if (!row) return;
 
       islandLabels.forEach((label) => {
-        byDate[dateKey][label] = (byDate[dateKey][label] ?? 0) + 1;
+        row[label] = (row[label] ?? 0) + 1;
       });
     });
   });

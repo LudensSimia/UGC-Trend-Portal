@@ -1,5 +1,29 @@
 # Payment Integration Foundation
 
+Last updated: 2026-06-10
+
+## Current Status
+
+Payment integration for dashboard access is paused.
+
+Current monetization direction:
+
+- Paid Patreon episode: the full research readout.
+- Public clips: three short excerpts from that paid episode.
+- Data Strategy Sessions: future booking/payment flow, preferably linked out from the dashboard at first.
+
+The app has dormant billing/account foundation tables and plan definitions, but it does not currently have active Stripe Checkout, Stripe webhooks, customer portal, or production-ready paid account enforcement.
+
+Do not implement or promote paid dashboard access until:
+
+- Legal/data-use review is complete.
+- A checkout kill switch exists.
+- Account access is server-enforced.
+- Refund/cancellation flows are defined.
+- Platform-derived data-use wording is reviewed.
+
+The older Stripe rollout notes below are retained as future infrastructure context, not current launch direction.
+
 ## Current Account Status
 
 The app does not yet have full user accounts.

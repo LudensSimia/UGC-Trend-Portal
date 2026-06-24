@@ -1,4 +1,77 @@
-# UGC Trend Portal – Project Documentation
+# Snoutboard UGC Research Dashboard Documentation
+
+Last updated: 2026-06-10
+
+## Current Status
+
+Snoutboard is now a research dashboard and internal content engine for UGC creator research. The dashboard is not currently positioned as a paid data-access product. The paid product direction is the Patreon research episode generated from dashboard interpretation, plus short public clips and possible Data Strategy Sessions.
+
+Current name:
+
+```text
+Snoutboard - UGC Research Dashboard
+```
+
+Current stack:
+
+- Next.js App Router
+- React
+- Supabase Postgres
+- Recharts
+- Vercel Analytics
+- GitHub Actions scheduled refresh
+
+Current data posture:
+
+- Roblox is the stronger player-activity dataset because current-player snapshots are stored.
+- Fortnite should be described as metadata, label, IP/collaboration, source-visible, and estimated-format research unless a widget has a reliable source activity/ranking metric.
+- All platform signals are processed research inputs, not official advice or guarantees.
+
+Current internal-only tools:
+
+- Admin Access for local widget/copy/link controls.
+- Usage Language Print Review for exporting all static usage, disclaimer,
+  Terms, glossary, and footer language without dashboard data.
+- Podcast Conductor for generating a paid Patreon episode guide and a complete
+  12-15 minute host transcript from the current dashboard outputs.
+- Podcast PDF generator in `scripts/generate-podcast-conductor-pdf.py`.
+
+Podcast transcript behavior:
+
+- Appears at the bottom of the internal conductor.
+- Uses the same calculated values as the conductor sections.
+- Includes off-air bracketed navigation and pause cues.
+- Shows word count and estimated spoken runtime.
+- Is included at the bottom of the generated PDF.
+- Must remain framed as independent research, not official guidance or a
+  guarantee of results.
+
+Current safety wording:
+
+- Use "captured," "stored snapshot," "estimated," "processed," "directional signal," "metadata," and "research."
+- Avoid unsupported "official," "partner," "certified," "approved," "guaranteed," "best performing," "most popular," and "ranked."
+
+Current entry acknowledgement:
+
+- The dashboard is covered by a central blocking disclaimer on every page load.
+- Entry requires an explicit "I acknowledge and enter" action.
+- Terms of Service remain available before entry. The Glossary is available from the footer after entry.
+- The browser stores the acknowledgement version and UTC timestamp for continuity.
+- This record is not identity verification and does not replace lawyer-reviewed Terms, a Privacy Policy, or jurisdiction-specific consent requirements.
+- When disclaimer wording changes materially, update `DISCLAIMER_VERSION` in `src/app/page.tsx`.
+- The local Admin Access panel controls disclaimer copy, text alignment, paragraph emphasis, and the optional image shown in the acknowledgement gate.
+
+Attorney review workflow:
+
+- Open the local-only Admin Access panel.
+- Select `Print usage copy`.
+- Review or print the generated static-language document.
+- The document excludes fetched games, metrics, rankings, charts, and stored dashboard records.
+- Shared constants keep the printed Terms and Glossary aligned with the live modals.
+
+The older project notes below are retained as historical context and may describe previous dashboard/payment assumptions that are no longer current.
+
+# Historical UGC Trend Portal Notes
 
 ## 1. Project Goal
 

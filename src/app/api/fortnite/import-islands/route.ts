@@ -17,6 +17,16 @@ import {
 
 const supabase = createSupabaseServerClient();
 
+function getFortniteIslandUrl(islandCode: string) {
+  if (/^\d{4}-\d{4}-\d{4}$/.test(islandCode)) {
+    return `https://www.fortnite.com/creative/island-codes/${encodeURIComponent(
+      islandCode
+    )}`;
+  }
+
+  return "https://www.fortnite.com/discover";
+}
+
 /* =========================================================
    FORTNITE INTELLIGENCE LAYER
    ---------------------------------------------------------
@@ -359,11 +369,7 @@ export async function GET(req: Request) {
             description:
               island.description ??
               `${intelligence.inferred_genre} | ${intelligence.core_loop}`,
-            url:
-              island.url ??
-              `https://www.fortnite.com/@${
-                island.creator ?? island.creatorCode ?? ""
-              }/${islandCode}`,
+            url: island.url ?? getFortniteIslandUrl(String(islandCode)),
             thumbnail_url: island.imageUrl ?? island.thumbnailUrl ?? null,
             content_type: "island",
             raw_latest: island,
