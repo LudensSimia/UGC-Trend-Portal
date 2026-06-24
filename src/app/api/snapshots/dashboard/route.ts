@@ -12,9 +12,11 @@ export async function GET(req: Request) {
   if (unauthorized) return unauthorized;
 
   try {
+    const origin = new URL(req.url).origin;
+    const authorization = req.headers.get("authorization") ?? "";
     const [roblox, fortnite, audits] = await Promise.all([
-      loadRobloxDashboardData(),
-      loadFortniteDashboardData(),
+      loadRobloxDashboardData(origin, authorization),
+      loadFortniteDashboardData(origin, authorization),
       loadLatestAudits(),
     ]);
 
@@ -54,66 +56,74 @@ export async function GET(req: Request) {
   }
 }
 
-async function loadRobloxDashboardData() {
-  const { data, error } = await supabase
-    .from("games")
-    .select(
-      `
-        id,
-        title,
-        url,
-        thumbnail_url,
-        description,
-        genre,
-        inferred_genre,
-        inferred_subgenre,
-        core_loop,
-        extracted_tags,
-        design_pattern,
-        audience_signal,
-        build_complexity,
-        monetization_style,
-        roblox_chart_snapshots (
-          created_at,
-          current_players,
-          chart_rank,
-          sort_name
-        )
-      `
-    )
-    .eq("platform", "roblox");
+async function loadRobloxDashboardData(origin: string, authorization: string) {
+  const data = await loadCorePlatformData(origin, authorization, "roblox");
+  const items = data.map(withRobloxRollups);
+  const selectedIds = [...items]
+    .sort((a, b) => (b.latestPlayers ?? 0) - (a.latestPlayers ?? 0))
+    .slice(0, 25)
+    .map((item) => item.id);
 
-  if (error) throw new Error(`Roblox dashboard query failed: ${error.message}`);
-
-  return (data ?? []).map(withLatestRobloxSnapshot);
+  return mergeSelectedDescriptions("games", items, selectedIds);
 }
 
-async function loadFortniteDashboardData() {
-  const { data, error } = await supabase.from("fortnite_islands").select(`
-    id,
-    island_code,
-    title,
-    url,
-    thumbnail_url,
-    inferred_genre,
-    inferred_subgenre,
-    core_loop,
-    player_intent,
-    competition_level,
-    build_complexity,
-    extracted_tags,
-    design_pattern,
-    audience_signal,
-    raw_latest,
-    fortnite_island_snapshots (
-      created_at,
-      raw_payload
+async function loadFortniteDashboardData(origin: string, authorization: string) {
+  const data = await loadCorePlatformData(origin, authorization, "fortnite");
+  const items = data.map(withFortniteRollups);
+  const selectedIds = [...items]
+    .sort((a, b) =>
+      (a.inferred_genre ?? "").localeCompare(b.inferred_genre ?? "")
     )
-  `);
+    .slice(0, 25)
+    .map((item) => item.id);
 
-  if (error) throw new Error(`Fortnite dashboard query failed: ${error.message}`);
+  return mergeSelectedDescriptions("fortnite_islands", items, selectedIds);
+}
 
-  return data ?? [];
+async function loadCorePlatformData(
+  origin: string,
+  authorization: string,
+  platform: "roblox" | "fortnite"
+) {
+  const response = await fetch(
+    `${origin}/api/dashboard/data?platform=${platform}&scope=core&fresh=1`,
+    { headers: { authorization }, cache: "no-store" }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `${platform} core dashboard request failed with ${response.status}`
+    );
+  }
+
+  const payload = await response.json();
+  return Array.isArray(payload[platform]) ? payload[platform] : [];
+}
+
+async function mergeSelectedDescriptions(
+  table: "games" | "fortnite_islands",
+  items: any[],
+  selectedIds: string[]
+) {
+  if (!selectedIds.length) return items;
+
+  const { data, error } = await supabase
+    .from(table)
+    .select("id,description")
+    .in("id", selectedIds);
+
+  if (error) {
+    throw new Error(`${table} description query failed: ${error.message}`);
+  }
+
+  const descriptions = new Map(
+    (data ?? []).map((item) => [item.id, item.description])
+  );
+
+  return items.map((item) => ({
+    ...item,
+    description: descriptions.get(item.id) ?? null,
+  }));
 }
 
 async function loadLatestAudits() {
@@ -175,27 +185,28 @@ function buildPlatformSnapshot(platform: "roblox" | "fortnite", items: any[], au
   };
 }
 
-function withLatestRobloxSnapshot(game: any) {
-  const snapshots = game.roblox_chart_snapshots ?? [];
-  const sorted = [...snapshots].sort(
-    (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-  const latest = sorted[sorted.length - 1];
-  const earliest = sorted[0];
+function withRobloxRollups(game: any) {
+  const latest = game.roblox_rollups?.latest;
+  const day7 = game.roblox_rollups?.day_7;
 
   return {
     ...game,
-    snapshots: sorted,
     latestPlayers: latest?.current_players ?? 0,
     latestRank: latest?.chart_rank ?? null,
     latestSort: latest?.sort_name ?? null,
-    playerGainPercent:
-      earliest?.current_players && latest?.current_players
-        ? ((latest.current_players - earliest.current_players) /
-            Math.max(earliest.current_players, 1)) *
-          100
-        : 0,
+    playerGainPercent: day7?.player_change_percent ?? 0,
+  };
+}
+
+function withFortniteRollups(island: any) {
+  const latest = island.fortnite_rollups?.latest;
+
+  return {
+    ...island,
+    latestPlayers: 0,
+    latestRank: latest?.rank ?? latest?.source_order ?? null,
+    latestSort: latest?.rank_source ?? null,
+    playerGainPercent: 0,
   };
 }
 
