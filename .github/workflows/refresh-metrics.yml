@@ -34,14 +34,19 @@ jobs:
         run: |
           curl --fail --show-error --retry 2 --retry-all-errors --retry-delay 5 --max-time 180 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/dashboard/precompute?platform=roblox&scope=core"
 
-      - name: Precompute Roblox full dashboard payload
-        run: |
-          curl --fail --show-error --retry 2 --retry-all-errors --retry-delay 5 --max-time 180 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/dashboard/precompute?platform=roblox&scope=full"
-
       - name: Precompute Fortnite core dashboard payload
         run: |
           curl --fail --show-error --retry 2 --retry-all-errors --retry-delay 5 --max-time 180 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/dashboard/precompute?platform=fortnite&scope=core"
 
-      - name: Precompute Fortnite full dashboard payload
+      - name: Let database load settle before full-history caches
+        run: sleep 30
+
+      - name: Precompute Roblox full dashboard payload
+        continue-on-error: true
         run: |
-          curl --fail --show-error --retry 2 --retry-all-errors --retry-delay 5 --max-time 180 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/dashboard/precompute?platform=fortnite&scope=full"
+          curl --fail --show-error --retry 2 --retry-all-errors --retry-delay 10 --max-time 180 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/dashboard/precompute?platform=roblox&scope=full"
+
+      - name: Precompute Fortnite full dashboard payload
+        continue-on-error: true
+        run: |
+          curl --fail --show-error --retry 2 --retry-all-errors --retry-delay 10 --max-time 180 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/dashboard/precompute?platform=fortnite&scope=full"
