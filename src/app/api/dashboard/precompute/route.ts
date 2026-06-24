@@ -14,15 +14,37 @@ export async function GET(req: Request) {
   if (unauthorized) return unauthorized;
 
   const supabase = createSupabaseServerClient();
-  const origin = new URL(req.url).origin;
+  const requestUrl = new URL(req.url);
+  const origin = requestUrl.origin;
   const authorization = req.headers.get("authorization") ?? "";
   const generatedAt = new Date().toISOString();
   const sourceSnapshotDate = generatedAt.slice(0, 10);
   const summaries: Array<Record<string, unknown>> = [];
+  const platformParam = requestUrl.searchParams.get("platform");
+  const scopeParam = requestUrl.searchParams.get("scope");
+
+  if (platformParam && !PLATFORMS.includes(platformParam as (typeof PLATFORMS)[number])) {
+    return NextResponse.json(
+      { error: `Unsupported platform: ${platformParam}` },
+      { status: 400 }
+    );
+  }
+
+  if (scopeParam && !SCOPES.includes(scopeParam as (typeof SCOPES)[number])) {
+    return NextResponse.json(
+      { error: `Unsupported scope: ${scopeParam}` },
+      { status: 400 }
+    );
+  }
+
+  const platforms = platformParam
+    ? [platformParam as (typeof PLATFORMS)[number]]
+    : PLATFORMS;
+  const scopes = scopeParam ? [scopeParam as (typeof SCOPES)[number]] : SCOPES;
 
   try {
-    for (const platform of PLATFORMS) {
-      for (const scope of SCOPES) {
+    for (const platform of platforms) {
+      for (const scope of scopes) {
         const response = await fetch(
           `${origin}/api/dashboard/data?platform=${platform}&scope=${scope}&fresh=1`,
           { headers: { authorization }, cache: "no-store" }
