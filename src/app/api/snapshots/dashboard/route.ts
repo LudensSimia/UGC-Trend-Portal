@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { requireCronSecret } from "@/lib/serverAuth";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 const supabase = createSupabaseServerClient();
 
 export async function GET(req: Request) {
