@@ -6,6 +6,24 @@ const MOBILE_USER_AGENT_PATTERN =
 export function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
+  if (pathname.startsWith("/mobile")) {
+    const response = NextResponse.next();
+    const acknowledged = searchParams.get("ack") === "1";
+    response.headers.set(
+      "Cache-Control",
+      acknowledged
+        ? "public, max-age=60, stale-while-revalidate=300"
+        : "public, max-age=3600, stale-while-revalidate=86400"
+    );
+    response.headers.set(
+      "Vercel-CDN-Cache-Control",
+      acknowledged
+        ? "public, max-age=300, stale-while-revalidate=86400"
+        : "public, max-age=3600, stale-while-revalidate=86400"
+    );
+    return response;
+  }
+
   if (
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||

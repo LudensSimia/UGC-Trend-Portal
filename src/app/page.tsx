@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -71,14 +71,59 @@ type DashboardCopySettings = {
   mobileDisclaimerRobloxButton: string;
   mobileDisclaimerFortniteButton: string;
   mobileDisclaimerStorageNote: string;
+  mobileDataStrategySessionPrompt: string;
+  mobileDataStrategySessionLabel: string;
+  mobileDataStrategySessionUrl: string;
+  mobileDataStrategySessionEnabled: boolean;
+  mobileDataStrategySessionColor: string;
+  mobilePatreonButtonPrompt: string;
+  mobilePatreonButtonLabel: string;
+  mobilePatreonButtonUrl: string;
+  mobilePatreonButtonEnabled: boolean;
+  mobilePatreonButtonColor: string;
   termsButton: string;
   glossaryButton: string;
   podcastButton: string;
   adminButton: string;
+  dashboardBadgeMode: string;
   footerTrademark: string;
   footerVersion: string;
   footerAffiliation: string;
+  robloxShortcutPopularEnabled: boolean;
+  robloxShortcutPopularPrompt: string;
+  robloxShortcutPopularLabel: string;
+  robloxShortcutPopularColor: string;
+  robloxShortcutIdeaEnabled: boolean;
+  robloxShortcutIdeaPrompt: string;
+  robloxShortcutIdeaLabel: string;
+  robloxShortcutIdeaColor: string;
+  robloxShortcutLandscapeEnabled: boolean;
+  robloxShortcutLandscapePrompt: string;
+  robloxShortcutLandscapeLabel: string;
+  robloxShortcutLandscapeColor: string;
+  fortniteShortcutLabelsEnabled: boolean;
+  fortniteShortcutLabelsPrompt: string;
+  fortniteShortcutLabelsLabel: string;
+  fortniteShortcutLabelsColor: string;
+  fortniteShortcutIdeaEnabled: boolean;
+  fortniteShortcutIdeaPrompt: string;
+  fortniteShortcutIdeaLabel: string;
+  fortniteShortcutIdeaColor: string;
+  fortniteShortcutImportsEnabled: boolean;
+  fortniteShortcutImportsPrompt: string;
+  fortniteShortcutImportsLabel: string;
+  fortniteShortcutImportsColor: string;
+  dataStrategySessionPrompt: string;
+  dataStrategySessionLabel: string;
   dataStrategySessionUrl: string;
+  dataStrategySessionEnabled: boolean;
+  dataStrategySessionColor: string;
+  patreonButtonPrompt: string;
+  patreonButtonLabel: string;
+  patreonButtonUrl: string;
+  patreonButtonEnabled: boolean;
+  patreonButtonColor: string;
+  socialLinksEnabled: boolean;
   youtubeUrl: string;
   tiktokUrl: string;
   twitterUrl: string;
@@ -103,6 +148,7 @@ const INTERNAL_WIDGET_AUTO_LOAD_STORAGE_KEY = "snout-internal-widget-auto-load";
 const DISCLAIMER_ACKNOWLEDGEMENT_STORAGE_KEY = "snout-disclaimer-acknowledgement";
 const DISCLAIMER_ACKNOWLEDGEMENT_QUERY_KEY = "snout-disclaimer";
 const DISCLAIMER_VERSION = "2026-06-10";
+const IDEA_LANDSCAPE_MIN_SHARE = 0.05;
 
 function getDisclaimerAcknowledgementState() {
   if (typeof window === "undefined") {
@@ -164,7 +210,7 @@ const TERMS_SECTIONS = [
   {
     title: "Dashboard access",
     body:
-      "These terms apply to dashboard use and newsletter content. All information is informational and does not provide business advice, official platform guidance, or guaranteed outcomes.",
+      "These terms apply to dashboard use. All information is informational and does not provide business advice, official platform guidance, or guaranteed outcomes.",
   },
   {
     title: "Acknowledgement and acceptance",
@@ -284,20 +330,65 @@ const DEFAULT_DASHBOARD_COPY: DashboardCopySettings = {
     "Snoutboard does not guarantee player growth, discoverability, revenue, platform placement, or creator success. Independently verify information before relying on it.",
   mobileDisclaimerAcknowledgement:
     "By continuing, you acknowledge that you have read and understood this notice. Choose the platform you want to load.",
-  mobileDisclaimerRobloxButton: "Acknowledge & Open Roblox",
-  mobileDisclaimerFortniteButton: "Acknowledge & Open Fortnite",
+  mobileDisclaimerRobloxButton: "Acknowledge & Check Roblox Public API Data",
+  mobileDisclaimerFortniteButton: "Acknowledge & Check Fortnite Public API Data",
   mobileDisclaimerStorageNote:
     "This acknowledgement is stored on this device and will be requested again if the notice is revised.",
+  mobileDataStrategySessionPrompt: "Book time with a data expert",
+  mobileDataStrategySessionLabel: "Data Strategy Session",
+  mobileDataStrategySessionUrl: "",
+  mobileDataStrategySessionEnabled: true,
+  mobileDataStrategySessionColor: "#0d69ac",
+  mobilePatreonButtonPrompt: "Support the research",
+  mobilePatreonButtonLabel: "Patreon",
+  mobilePatreonButtonUrl: "",
+  mobilePatreonButtonEnabled: true,
+  mobilePatreonButtonColor: "#f96854",
   termsButton: "Terms of service",
   glossaryButton: "Glossary",
   podcastButton: "Podcast conductor",
   adminButton: "Admin access",
+  dashboardBadgeMode: "beta",
   footerTrademark:
     "SnoutBoard is a trademark product of Forgotten Diamond Software, LLC.",
   footerVersion: "v0.01",
   footerAffiliation:
     "Snoutboard is independent and is not affiliated with, endorsed by, sponsored by, certified by, approved by, or operated by Roblox, Epic Games, Fortnite, or any related platform owner.",
+  robloxShortcutPopularEnabled: true,
+  robloxShortcutPopularPrompt: "See what's popular",
+  robloxShortcutPopularLabel: "Most Played Games Over Time",
+  robloxShortcutPopularColor: "#0d69ac",
+  robloxShortcutIdeaEnabled: true,
+  robloxShortcutIdeaPrompt: "Start a new project",
+  robloxShortcutIdeaLabel: "My Game Idea Is",
+  robloxShortcutIdeaColor: "#0d69ac",
+  robloxShortcutLandscapeEnabled: true,
+  robloxShortcutLandscapePrompt: "Track what's rising or falling",
+  robloxShortcutLandscapeLabel: "Player Activity Landscape",
+  robloxShortcutLandscapeColor: "#0d69ac",
+  fortniteShortcutLabelsEnabled: true,
+  fortniteShortcutLabelsPrompt: "See repeated format signals",
+  fortniteShortcutLabelsLabel: "Primary Label Usage Over Time",
+  fortniteShortcutLabelsColor: "#7c3aed",
+  fortniteShortcutIdeaEnabled: true,
+  fortniteShortcutIdeaPrompt: "Start a new island concept",
+  fortniteShortcutIdeaLabel: "My Fortnite Island Idea Is",
+  fortniteShortcutIdeaColor: "#7c3aed",
+  fortniteShortcutImportsEnabled: true,
+  fortniteShortcutImportsPrompt: "Review imported island metadata",
+  fortniteShortcutImportsLabel: "Latest Imported Fortnite Islands",
+  fortniteShortcutImportsColor: "#7c3aed",
+  dataStrategySessionPrompt: "Book time with a data expert",
+  dataStrategySessionLabel: "Data Strategy Session",
   dataStrategySessionUrl: "",
+  dataStrategySessionEnabled: true,
+  dataStrategySessionColor: "#0d69ac",
+  patreonButtonPrompt: "Support the research",
+  patreonButtonLabel: "Patreon",
+  patreonButtonUrl: "",
+  patreonButtonEnabled: true,
+  patreonButtonColor: "#f96854",
+  socialLinksEnabled: true,
   youtubeUrl: "",
   tiktokUrl: "",
   twitterUrl: "",
@@ -499,11 +590,13 @@ function mergeTierVisibility(value: any): TierVisibilitySettings {
 }
 
 function mergeDashboardCopy(value: any): DashboardCopySettings {
-  const merged = { ...DEFAULT_DASHBOARD_COPY };
+  const merged: Record<string, string | boolean> = { ...DEFAULT_DASHBOARD_COPY };
 
   Object.keys(DEFAULT_DASHBOARD_COPY).forEach((key) => {
     if (typeof value?.[key] === "string") {
-      merged[key as keyof DashboardCopySettings] = value[key];
+      merged[key] = value[key];
+    } else if (typeof value?.[key] === "boolean") {
+      merged[key] = value[key];
     }
   });
 
@@ -525,8 +618,16 @@ function mergeDashboardCopy(value: any): DashboardCopySettings {
   if (merged.disclaimerButton === "Acknowledge & Dismiss") {
     merged.disclaimerButton = DEFAULT_DASHBOARD_COPY.disclaimerButton;
   }
+  if (merged.mobileDisclaimerRobloxButton === "Acknowledge & Open Roblox") {
+    merged.mobileDisclaimerRobloxButton =
+      DEFAULT_DASHBOARD_COPY.mobileDisclaimerRobloxButton;
+  }
+  if (merged.mobileDisclaimerFortniteButton === "Acknowledge & Open Fortnite") {
+    merged.mobileDisclaimerFortniteButton =
+      DEFAULT_DASHBOARD_COPY.mobileDisclaimerFortniteButton;
+  }
 
-  return merged;
+  return merged as DashboardCopySettings;
 }
 
 function mergeWidgetCopyOverrides(value: any): WidgetCopyOverrides {
@@ -766,6 +867,10 @@ export default function Home() {
     widgetCopyOverrides[key]?.title?.trim() || fallback;
   const widgetSubtitle = (key: string, fallback: string) =>
     widgetCopyOverrides[key]?.subtitle?.trim() || fallback;
+  const dashboardTitleBadge =
+    dashboardCopy.dashboardBadgeMode === "footerVersion"
+      ? dashboardCopy.footerVersion
+      : "Beta";
 
   async function loadPlatformData(
     platform: Platform,
@@ -972,6 +1077,42 @@ export default function Home() {
       : getFortniteIslandsInWindow(activeGenreAnalysisItems, activeTwoOptionIdeaWindow);
   }, [activeGenreAnalysisItems, activePlatform, activeTwoOptionIdeaWindow, ideaWidgetLoaded]);
 
+  const ideaGenres = useMemo(() => {
+    return getMinimumShareLabels(
+      activeIdeaAnalysisItems,
+      (item) => getDisplayGenre(item, activePlatform),
+      IDEA_LANDSCAPE_MIN_SHARE
+    );
+  }, [activeIdeaAnalysisItems, activePlatform]);
+
+  const ideaSubgenres = useMemo(() => {
+    const baseItems = selectedGenre
+      ? activeIdeaAnalysisItems.filter(
+          (item) => getDisplayGenre(item, activePlatform) === selectedGenre
+        )
+      : activeIdeaAnalysisItems;
+
+    return getMinimumShareLabels(
+      baseItems,
+      (item) => getDisplaySubgenre(item, activePlatform),
+      IDEA_LANDSCAPE_MIN_SHARE,
+      activeIdeaAnalysisItems.length
+    );
+  }, [activeIdeaAnalysisItems, activePlatform, selectedGenre]);
+
+  useEffect(() => {
+    if (selectedGenre && !ideaGenres.includes(selectedGenre)) {
+      setSelectedGenre("");
+      setSelectedSubgenre("");
+    }
+  }, [ideaGenres, selectedGenre]);
+
+  useEffect(() => {
+    if (selectedSubgenre && !ideaSubgenres.includes(selectedSubgenre)) {
+      setSelectedSubgenre("");
+    }
+  }, [ideaSubgenres, selectedSubgenre]);
+
   const filteredIdeaItems = activeIdeaAnalysisItems.filter((item) => {
     const genreMatch = !selectedGenre || getDisplayGenre(item, activePlatform) === selectedGenre;
     const subgenreMatch =
@@ -1122,8 +1263,8 @@ export default function Home() {
     selectedSubgenre,
     setSelectedGenre,
     setSelectedSubgenre,
-    genres,
-    subgenres,
+    genres: ideaGenres,
+    subgenres: ideaSubgenres,
     filteredIdeaItems,
     ideaPercent,
     topSimilar,
@@ -1164,10 +1305,10 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-black tracking-tight">
                   Snoutboard - UGC Research Dashboard
-                </h1>
-                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
-                  Beta
-                </span>
+	                </h1>
+	                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+	                  {dashboardTitleBadge}
+	                </span>
               </div>
             </div>
           </div>
@@ -1227,126 +1368,194 @@ export default function Home() {
           </div>
         </header>
 
-        <DashboardDisclaimerCard
-          copy={dashboardCopy}
-          dashboardStarted={dashboardStarted}
-          loading={loading}
-          activePlatform={activePlatform}
-          error={dataLoadError}
-          onLoadPlatform={(platform) =>
-            void loadPlatformWithConfiguredWidgets(platform)
-          }
-        />
+        {!dashboardStarted ? (
+          <DashboardDisclaimerCard
+            copy={dashboardCopy}
+            dashboardStarted={dashboardStarted}
+            loading={loading}
+            activePlatform={activePlatform}
+            error={dataLoadError}
+            onLoadPlatform={(platform) =>
+              void loadPlatformWithConfiguredWidgets(platform)
+            }
+          />
+        ) : null}
 
         {dashboardStarted && (activePlatform === "roblox" || activePlatform === "fortnite") ? (
-          <nav
-            aria-label={`${activePlatform === "roblox" ? "Roblox" : "Fortnite"} dashboard shortcuts`}
-            className="mb-4 flex flex-wrap items-center justify-between gap-3"
-          >
-            <div className="flex flex-wrap gap-2">
-              {(activePlatform === "roblox"
-                ? [
-                    [
-                      "#most-played-games-over-time",
-                      "See what's popular",
-                      "Most Played Games Over Time",
-                    ],
-                    ["#my-game-idea-is", "Start a new project", "My Game Idea Is"],
-                    [
-                      "#player-activity-landscape",
-                      "Track what's rising or falling",
-                      "Player Activity Landscape",
-                    ],
-                    [
-                      dashboardCopy.dataStrategySessionUrl || "#",
-                      "Book time with a data expert",
-                      "Data Strategy Session",
-                      "cta",
-                    ],
-                  ]
-                : [
-                    [
-                      "#primary-label-usage-over-time",
-                      "See repeated format signals",
-                      "Primary Label Usage Over Time",
-                    ],
-                    [
-                      "#my-fortnite-island-idea-is",
-                      "Start a new island concept",
-                      "My Fortnite Island Idea Is",
-                    ],
-                    [
-                      "#latest-imported-fortnite-islands",
-                      "Review imported island metadata",
-                      "Latest Imported Fortnite Islands",
-                    ],
-                    [
-                      dashboardCopy.dataStrategySessionUrl || "#",
-                      "Book time with a data expert",
-                      "Data Strategy Session",
-                      "cta",
-                    ],
-                  ]
-              ).map(([href, prompt, label, variant]) => (
-                <Fragment key={href}>
-                  <a
-                    href={href}
-                    className={
-                      variant === "cta"
-                        ? "rounded-2xl border px-4 py-3 text-left text-white shadow-sm transition"
-                        : "rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
-                    }
-                    style={
-                      variant === "cta"
-                        ? {
-                            backgroundColor: accent,
-                            borderColor: accent,
-                          }
-                        : undefined
-                    }
-                  >
-                    <span
-                      className={`block text-[11px] font-bold normal-case tracking-normal ${
-                        variant === "cta" ? "text-white/75" : "text-slate-400"
-                      }`}
-                    >
-                      {prompt}
-                    </span>
-                    <span
-                      className={`mt-0.5 block text-xs font-black uppercase tracking-wide ${
-                        variant === "cta" ? "text-white" : "text-slate-500"
-                      }`}
-                    >
-                      {label}
-                    </span>
-                  </a>
-                </Fragment>
-              ))}
+	      <nav
+	        aria-label={`${activePlatform === "roblox" ? "Roblox" : "Fortnite"} dashboard shortcuts`}
+	        className="mb-4 flex flex-wrap items-center justify-between gap-3"
+	      >
+	        <div className="flex flex-wrap gap-2">
+	          {(activePlatform === "roblox"
+	            ? [
+	                dashboardCopy.robloxShortcutPopularEnabled
+	                  ? [
+		                      "#most-played-games-over-time",
+		                      dashboardCopy.robloxShortcutPopularPrompt,
+		                      dashboardCopy.robloxShortcutPopularLabel,
+		                      "shortcut",
+		                      dashboardCopy.robloxShortcutPopularColor,
+		                    ]
+		                  : null,
+	                dashboardCopy.robloxShortcutIdeaEnabled
+	                  ? [
+		                      "#my-game-idea-is",
+		                      dashboardCopy.robloxShortcutIdeaPrompt,
+		                      dashboardCopy.robloxShortcutIdeaLabel,
+		                      "shortcut",
+		                      dashboardCopy.robloxShortcutIdeaColor,
+		                    ]
+		                  : null,
+	                dashboardCopy.robloxShortcutLandscapeEnabled
+	                  ? [
+		                      "#player-activity-landscape",
+		                      dashboardCopy.robloxShortcutLandscapePrompt,
+		                      dashboardCopy.robloxShortcutLandscapeLabel,
+		                      "shortcut",
+		                      dashboardCopy.robloxShortcutLandscapeColor,
+		                    ]
+		                  : null,
+		                dashboardCopy.dataStrategySessionEnabled
+		                  ? [
+		                      dashboardCopy.dataStrategySessionUrl || "#",
+			                      dashboardCopy.dataStrategySessionPrompt,
+			                      dashboardCopy.dataStrategySessionLabel,
+			                      "cta",
+			                      dashboardCopy.dataStrategySessionColor,
+			                    ]
+			                  : null,
+		                dashboardCopy.patreonButtonEnabled
+		                  ? [
+		                      dashboardCopy.patreonButtonUrl || "#",
+			                      dashboardCopy.patreonButtonPrompt,
+			                      dashboardCopy.patreonButtonLabel,
+			                      "cta",
+			                      dashboardCopy.patreonButtonColor,
+			                    ]
+			                  : null,
+		              ]
+		            : [
+	                dashboardCopy.fortniteShortcutLabelsEnabled
+	                  ? [
+		                      "#primary-label-usage-over-time",
+		                      dashboardCopy.fortniteShortcutLabelsPrompt,
+		                      dashboardCopy.fortniteShortcutLabelsLabel,
+		                      "shortcut",
+		                      dashboardCopy.fortniteShortcutLabelsColor,
+		                    ]
+		                  : null,
+	                dashboardCopy.fortniteShortcutIdeaEnabled
+	                  ? [
+		                      "#my-fortnite-island-idea-is",
+		                      dashboardCopy.fortniteShortcutIdeaPrompt,
+		                      dashboardCopy.fortniteShortcutIdeaLabel,
+		                      "shortcut",
+		                      dashboardCopy.fortniteShortcutIdeaColor,
+		                    ]
+		                  : null,
+	                dashboardCopy.fortniteShortcutImportsEnabled
+	                  ? [
+		                      "#latest-imported-fortnite-islands",
+		                      dashboardCopy.fortniteShortcutImportsPrompt,
+		                      dashboardCopy.fortniteShortcutImportsLabel,
+		                      "shortcut",
+		                      dashboardCopy.fortniteShortcutImportsColor,
+		                    ]
+		                  : null,
+		                dashboardCopy.dataStrategySessionEnabled
+		                  ? [
+		                      dashboardCopy.dataStrategySessionUrl || "#",
+			                      dashboardCopy.dataStrategySessionPrompt,
+			                      dashboardCopy.dataStrategySessionLabel,
+			                      "cta",
+			                      dashboardCopy.dataStrategySessionColor,
+			                    ]
+			                  : null,
+		                dashboardCopy.patreonButtonEnabled
+		                  ? [
+		                      dashboardCopy.patreonButtonUrl || "#",
+			                      dashboardCopy.patreonButtonPrompt,
+			                      dashboardCopy.patreonButtonLabel,
+			                      "cta",
+			                      dashboardCopy.patreonButtonColor,
+			                    ]
+			                  : null,
+		              ]
+		          ).filter(Boolean).map(([href, prompt, label, variant, color]: any, index) => {
+		            const isExternalLink =
+		              typeof href === "string" && /^https?:\/\//i.test(href);
+		            const buttonColor =
+		              typeof color === "string" && color.trim() ? color : accent;
+
+		            return (
+		              <Fragment key={`${activePlatform}-${label}-${href}-${index}`}>
+		                <a
+		                  href={href}
+	                  target={isExternalLink ? "_blank" : undefined}
+	                  rel={isExternalLink ? "noreferrer" : undefined}
+	                  className={
+	                    variant === "cta"
+	                      ? "rounded-2xl border px-4 py-3 text-left text-white shadow-sm transition"
+	                      : "rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
+	                  }
+	                  style={
+	                    variant === "cta"
+		                      ? {
+		                          backgroundColor: buttonColor,
+		                          borderColor: buttonColor,
+		                        }
+		                      : {
+		                          borderColor: buttonColor,
+		                          color: buttonColor,
+		                        }
+		                  }
+		                >
+	                  <span
+	                    className={`block text-[11px] font-bold normal-case tracking-normal ${
+		                      variant === "cta" ? "text-white/75" : "opacity-70"
+	                    }`}
+	                  >
+	                    {prompt}
+	                  </span>
+	                  <span
+	                    className={`mt-0.5 block text-xs font-black uppercase tracking-wide ${
+		                      variant === "cta" ? "text-white" : ""
+	                    }`}
+	                  >
+	                    {label}
+	                  </span>
+	                </a>
+	              </Fragment>
+	            );
+	          })}
             </div>
-            <div className="flex items-center gap-2" aria-label="Social media links">
-              {[
-                ["YouTube", "/youtube-logo.png", "h-4 w-6", dashboardCopy.youtubeUrl],
-                ["TikTok", "/tiktok-logo.png", "h-5 w-5", dashboardCopy.tiktokUrl],
-                ["Twitter / X", "/twitter-logo-black.png", "h-5 w-5", dashboardCopy.twitterUrl],
-              ].map(([label, src, size, href]) => (
-                <a
-                  key={label}
-                  href={href || "#"}
-                  aria-label={href ? `${label} link` : `${label} link coming soon`}
-                  title={href ? `${label} link` : `${label} link coming soon`}
-                  target={href ? "_blank" : undefined}
-                  rel={href ? "noreferrer" : undefined}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
-                >
-                  <img
-                    src={src}
-                    alt=""
-                    aria-hidden="true"
-                    className={`${size} object-contain opacity-75 transition hover:opacity-100`}
-                  />
-                </a>
-              ))}
-            </div>
+	            {dashboardCopy.socialLinksEnabled ? (
+	              <div className="flex items-center gap-2" aria-label="Social media links">
+	                {[
+	                  ["YouTube", "/youtube-logo.png", "h-4 w-6", dashboardCopy.youtubeUrl],
+	                  ["TikTok", "/tiktok-logo.png", "h-5 w-5", dashboardCopy.tiktokUrl],
+	                  ["Twitter / X", "/twitter-logo-black.png", "h-5 w-5", dashboardCopy.twitterUrl],
+	                ].map(([label, src, size, href]) => (
+	                  <a
+	                    key={label}
+	                    href={href || "#"}
+	                    aria-label={href ? `${label} link` : `${label} link coming soon`}
+	                    title={href ? `${label} link` : `${label} link coming soon`}
+	                    target={href ? "_blank" : undefined}
+	                    rel={href ? "noreferrer" : undefined}
+	                    className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 transition hover:border-[#0d69ac]/40 hover:bg-[#0d69ac]/10"
+	                  >
+	                    <img
+	                      src={src}
+	                      alt=""
+	                      aria-hidden="true"
+	                      className={`${size} object-contain opacity-75 transition hover:opacity-100`}
+	                    />
+	                  </a>
+	                ))}
+	              </div>
+	            ) : null}
           </nav>
         ) : null}
 
@@ -1762,7 +1971,7 @@ export default function Home() {
                         <option value="">
                           {activePlatform === "roblox" ? "Select Genre" : "Select Estimated Genre"}
                         </option>
-                        {genres.map((genre) => (
+                        {ideaGenres.map((genre) => (
                           <option key={genre} value={genre}>
                             {genre}
                           </option>
@@ -1777,12 +1986,15 @@ export default function Home() {
                         <option value="">
                           {activePlatform === "roblox" ? "Select Subgenre" : "Select Estimated Subgenre"}
                         </option>
-                        {subgenres.map((subgenre) => (
+                        {ideaSubgenres.map((subgenre) => (
                           <option key={subgenre} value={subgenre}>
                             {subgenre}
                           </option>
                         ))}
                       </select>
+                      <p className="text-xs font-bold leading-5 text-slate-400">
+                        Showing segments with at least 5% presence in the selected data window to avoid outlier-only suggestions.
+                      </p>
                     </div>
 
                     <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
@@ -1872,6 +2084,7 @@ export default function Home() {
               </section>
             ) : canAccess("roblox_idea_card") || canAccess("roblox_research_cards") ? (
               <DeferredWidgetCard
+                id="my-game-idea-is"
                 title={widgetTitle("roblox_idea_card", "My Game Idea Is")}
                 description={widgetSubtitle("roblox_idea_card", "Load genre, subgenre, similar-experience, design-cue, and warning signals for idea research.")}
                 panel={panel}
@@ -2753,6 +2966,9 @@ function FortniteDashboardView({ context }: any) {
                     </option>
                   ))}
                 </select>
+                <p className="text-xs font-bold leading-5 text-slate-400">
+                  Showing segments with at least 5% presence in the selected data window to avoid outlier-only suggestions.
+                </p>
               </div>
 
               <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
@@ -2833,6 +3049,7 @@ function FortniteDashboardView({ context }: any) {
         </section>
       ) : canAccess("fortnite_idea_card") || canAccess("fortnite_research_cards") ? (
         <DeferredWidgetCard
+          id="my-fortnite-island-idea-is"
           title={widgetTitle("fortnite_idea_card", "My Fortnite Island Idea Is")}
           description={widgetSubtitle("fortnite_idea_card", "Load estimated genres, subgenres, similar islands, design cues, and warnings for concept research.")}
           panel={panel}
@@ -2898,6 +3115,7 @@ function FortniteDashboardView({ context }: any) {
         </section>
       ) : canAccess("fortnite_island_cards") ? (
         <DeferredWidgetCard
+          id="latest-imported-fortnite-islands"
           title={widgetTitle("fortnite_island_cards", "Latest Imported Fortnite Islands")}
           description={widgetSubtitle("fortnite_island_cards", "Load the detailed cards and metadata for the latest imported island collection.")}
           panel={panel}
@@ -9440,6 +9658,20 @@ function countBy(items: any[], getKey: (item: any) => string) {
   }, {});
 }
 
+function getMinimumShareLabels(
+  items: any[],
+  getLabel: (item: any) => string,
+  minimumShare: number,
+  referenceTotal = items.length
+) {
+  if (!items.length || referenceTotal <= 0) return [];
+
+  return Object.entries(countBy(items, getLabel))
+    .filter(([, count]) => count / referenceTotal >= minimumShare)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([label]) => label);
+}
+
 function countLabels(islands: any[]) {
   return islands.reduce((counts: Record<string, number>, island) => {
     getFortniteTopLabels(island, 3).forEach((label) => {
@@ -10444,6 +10676,14 @@ function DashboardDisclaimerCard({
   error: string;
   onLoadPlatform: (platform: Platform) => void;
 }) {
+  function handlePlatformLink(
+    event: MouseEvent<HTMLAnchorElement>,
+    platform: Platform
+  ) {
+    event.preventDefault();
+    onLoadPlatform(platform);
+  }
+
   return (
     <section className="mb-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -10478,27 +10718,35 @@ function DashboardDisclaimerCard({
 
       {!dashboardStarted ? (
         <div className="mt-4 border-t border-slate-200 pt-4">
-          <p className="text-sm font-bold text-slate-700">
-            Acknowledge the disclaimer and choose which platform data to load.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => onLoadPlatform("roblox")}
-              disabled={loading}
-              className="rounded-xl bg-[#0d69ac] px-5 py-3 text-sm font-black text-white transition hover:bg-[#0b5a93] disabled:cursor-wait disabled:opacity-60"
-            >
-              {loading && activePlatform === "roblox" ? "Loading Roblox..." : "Acknowledge & Load Roblox"}
-            </button>
-            <button
-              type="button"
-              onClick={() => onLoadPlatform("fortnite")}
-              disabled={loading}
-              className="rounded-xl bg-[#7c3aed] px-5 py-3 text-sm font-black text-white transition hover:bg-[#6d28d9] disabled:cursor-wait disabled:opacity-60"
-            >
-              {loading && activePlatform === "fortnite" ? "Loading Fortnite..." : "Acknowledge & Load Fortnite"}
-            </button>
-          </div>
+	          <p className="text-sm font-bold text-slate-700">
+	            Acknowledge the disclaimer and choose which platform data to load.
+	          </p>
+	          <div className="mt-3 flex flex-wrap gap-3">
+	            <a
+	              href="/mobile?platform=roblox"
+	              onClick={(event) => handlePlatformLink(event, "roblox")}
+	              aria-disabled={loading}
+	              className={`touch-manipulation rounded-xl bg-[#0d69ac] px-5 py-3 text-sm font-black text-white no-underline transition hover:bg-[#0b5a93] ${
+	                loading ? "cursor-wait opacity-60" : ""
+	              }`}
+	            >
+	              {loading && activePlatform === "roblox"
+	                ? "Checking Roblox data..."
+	                : "Acknowledge & Check Roblox Public API Data"}
+	            </a>
+	            <a
+	              href="/mobile?platform=fortnite"
+	              onClick={(event) => handlePlatformLink(event, "fortnite")}
+	              aria-disabled={loading}
+	              className={`touch-manipulation rounded-xl bg-[#7c3aed] px-5 py-3 text-sm font-black text-white no-underline transition hover:bg-[#6d28d9] ${
+	                loading ? "cursor-wait opacity-60" : ""
+	              }`}
+	            >
+	              {loading && activePlatform === "fortnite"
+	                ? "Checking Fortnite data..."
+	                : "Acknowledge & Check Fortnite Public API Data"}
+	            </a>
+	          </div>
           {error ? <p className="mt-3 text-sm font-bold text-red-600">{error}</p> : null}
         </div>
       ) : null}
@@ -10507,6 +10755,7 @@ function DashboardDisclaimerCard({
 }
 
 function DeferredWidgetCard({
+  id,
   title,
   description,
   panel,
@@ -10515,6 +10764,7 @@ function DeferredWidgetCard({
   onLoad,
   className = "mb-6",
 }: {
+  id?: string;
   title: string;
   description: string;
   panel: string;
@@ -10524,7 +10774,10 @@ function DeferredWidgetCard({
   className?: string;
 }) {
   return (
-    <section className={className}>
+    <section
+      id={id}
+      className={[className, id ? "scroll-mt-6" : ""].filter(Boolean).join(" ")}
+    >
       <div className={`rounded-3xl border p-6 ${panel}`}>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="max-w-2xl">
@@ -10874,6 +11127,159 @@ function AdminCopySection({
         "Button used to acknowledge the disclaimer and enter the dashboard.",
     },
     {
+      key: "termsButton",
+      label: "Terms button",
+      description: "Footer button that opens the Terms of Service.",
+    },
+    {
+      key: "glossaryButton",
+      label: "Glossary button",
+      description: "Footer button that opens the glossary.",
+    },
+    {
+      key: "adminButton",
+      label: "Admin access button",
+      description: "Internal-only footer button label.",
+    },
+    {
+      key: "footerTrademark",
+      label: "Footer trademark line",
+      description: "Small footer text near the version number.",
+      multiline: true,
+    },
+	    {
+	      key: "footerVersion",
+	      label: "Footer version",
+	      description: "Version pill text.",
+	    },
+    {
+      key: "footerAffiliation",
+      label: "Footer affiliation notice",
+      description: "Centered affiliation notice at the bottom of the dashboard.",
+      multiline: true,
+    },
+  ];
+
+  function updateCopy(key: keyof DashboardCopySettings, value: string) {
+    onChange({
+      ...copy,
+      [key]: value,
+    });
+  }
+
+  function updateCopyBoolean(key: keyof DashboardCopySettings, value: boolean) {
+    onChange({
+      ...copy,
+      [key]: value,
+    });
+  }
+
+  function updateDisclaimerImage(file: File | null) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        updateCopy("disclaimerImageUrl", reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const alignmentOptions = [
+    { key: "left", label: "Left" },
+    { key: "center", label: "Middle" },
+    { key: "right", label: "Right" },
+  ];
+  const textStyleOptions = [
+    { key: "regular", label: "Regular" },
+    { key: "emphasis", label: "Emphasis" },
+  ];
+	  const shortcutGroups = [
+    {
+      title: "Roblox shortcuts",
+      description: "Top-row Roblox buttons, shown after Roblox data is loaded.",
+      items: [
+	        {
+	          name: "Most Played Games Over Time",
+	          enabledKey: "robloxShortcutPopularEnabled",
+	          titleKey: "robloxShortcutPopularLabel",
+	          subtitleKey: "robloxShortcutPopularPrompt",
+	          colorKey: "robloxShortcutPopularColor",
+	        },
+	        {
+	          name: "My Game Idea Is",
+	          enabledKey: "robloxShortcutIdeaEnabled",
+	          titleKey: "robloxShortcutIdeaLabel",
+	          subtitleKey: "robloxShortcutIdeaPrompt",
+	          colorKey: "robloxShortcutIdeaColor",
+	        },
+	        {
+	          name: "Player Activity Landscape",
+	          enabledKey: "robloxShortcutLandscapeEnabled",
+	          titleKey: "robloxShortcutLandscapeLabel",
+	          subtitleKey: "robloxShortcutLandscapePrompt",
+	          colorKey: "robloxShortcutLandscapeColor",
+	        },
+      ],
+    },
+    {
+      title: "Fortnite shortcuts",
+      description: "Top-row Fortnite buttons, shown after Fortnite data is loaded.",
+      items: [
+	        {
+	          name: "Primary Label Usage Over Time",
+	          enabledKey: "fortniteShortcutLabelsEnabled",
+	          titleKey: "fortniteShortcutLabelsLabel",
+	          subtitleKey: "fortniteShortcutLabelsPrompt",
+	          colorKey: "fortniteShortcutLabelsColor",
+	        },
+	        {
+	          name: "My Fortnite Island Idea Is",
+	          enabledKey: "fortniteShortcutIdeaEnabled",
+	          titleKey: "fortniteShortcutIdeaLabel",
+	          subtitleKey: "fortniteShortcutIdeaPrompt",
+	          colorKey: "fortniteShortcutIdeaColor",
+	        },
+	        {
+	          name: "Latest Imported Fortnite Islands",
+	          enabledKey: "fortniteShortcutImportsEnabled",
+	          titleKey: "fortniteShortcutImportsLabel",
+	          subtitleKey: "fortniteShortcutImportsPrompt",
+	          colorKey: "fortniteShortcutImportsColor",
+	        },
+      ],
+    },
+	    {
+	      title: "Booking shortcut",
+	      description: "Optional top-row CTAs that can point to Calendly, Patreon, or another external page.",
+	      items: [
+	        {
+	          name: "Data Strategy Session",
+	          enabledKey: "dataStrategySessionEnabled",
+	          titleKey: "dataStrategySessionLabel",
+	          subtitleKey: "dataStrategySessionPrompt",
+	          urlKey: "dataStrategySessionUrl",
+	          colorKey: "dataStrategySessionColor",
+	        },
+	        {
+	          name: "Patreon",
+	          enabledKey: "patreonButtonEnabled",
+	          titleKey: "patreonButtonLabel",
+	          subtitleKey: "patreonButtonPrompt",
+	          urlKey: "patreonButtonUrl",
+	          colorKey: "patreonButtonColor",
+	        },
+	      ],
+	    },
+	  ] as const;
+  const mobileDisclaimerFields: Array<{
+    key: keyof DashboardCopySettings;
+    label: string;
+    description: string;
+    multiline?: boolean;
+  }> = [
+    {
       key: "mobileDisclaimerVersion",
       label: "Mobile disclaimer version",
       description:
@@ -10911,12 +11317,14 @@ function AdminCopySection({
     {
       key: "mobileDisclaimerRobloxButton",
       label: "Mobile Roblox acknowledgement button",
-      description: "Button that acknowledges the notice and requests Roblox data.",
+      description:
+        "Button that acknowledges the notice and proceeds to check Roblox public API data.",
     },
     {
       key: "mobileDisclaimerFortniteButton",
       label: "Mobile Fortnite acknowledgement button",
-      description: "Button that acknowledges the notice and requests Fortnite data.",
+      description:
+        "Button that acknowledges the notice and proceeds to check Fortnite public API data.",
     },
     {
       key: "mobileDisclaimerStorageNote",
@@ -10924,90 +11332,27 @@ function AdminCopySection({
       description: "Explains how the acknowledgement is remembered on the device.",
       multiline: true,
     },
-    {
-      key: "termsButton",
-      label: "Terms button",
-      description: "Footer button that opens the Terms of Service.",
-    },
-    {
-      key: "glossaryButton",
-      label: "Glossary button",
-      description: "Footer button that opens the glossary.",
-    },
-    {
-      key: "adminButton",
-      label: "Admin access button",
-      description: "Internal-only footer button label.",
-    },
-    {
-      key: "footerTrademark",
-      label: "Footer trademark line",
-      description: "Small footer text near the version number.",
-      multiline: true,
-    },
-    {
-      key: "footerVersion",
-      label: "Footer version",
-      description: "Version pill text.",
-    },
-    {
-      key: "footerAffiliation",
-      label: "Footer affiliation notice",
-      description: "Centered affiliation notice at the bottom of the dashboard.",
-      multiline: true,
-    },
-    {
-      key: "dataStrategySessionUrl",
-      label: "Data Strategy Session URL",
-      description: "Booking link used by the Data Strategy Session CTA button.",
-    },
-    {
-      key: "youtubeUrl",
-      label: "YouTube URL",
-      description: "Destination for the YouTube social icon.",
-    },
-    {
-      key: "tiktokUrl",
-      label: "TikTok URL",
-      description: "Destination for the TikTok social icon.",
-    },
-    {
-      key: "twitterUrl",
-      label: "X / Twitter URL",
-      description: "Destination for the X / Twitter social icon.",
-    },
   ];
+  const mobileCtaItems = [
+    {
+      name: "Book a session",
+      enabledKey: "mobileDataStrategySessionEnabled",
+      titleKey: "mobileDataStrategySessionLabel",
+      subtitleKey: "mobileDataStrategySessionPrompt",
+      urlKey: "mobileDataStrategySessionUrl",
+      colorKey: "mobileDataStrategySessionColor",
+    },
+    {
+      name: "Support Patreon",
+      enabledKey: "mobilePatreonButtonEnabled",
+      titleKey: "mobilePatreonButtonLabel",
+      subtitleKey: "mobilePatreonButtonPrompt",
+      urlKey: "mobilePatreonButtonUrl",
+      colorKey: "mobilePatreonButtonColor",
+    },
+  ] as const;
 
-  function updateCopy(key: keyof DashboardCopySettings, value: string) {
-    onChange({
-      ...copy,
-      [key]: value,
-    });
-  }
-
-  function updateDisclaimerImage(file: File | null) {
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        updateCopy("disclaimerImageUrl", reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-
-  const alignmentOptions = [
-    { key: "left", label: "Left" },
-    { key: "center", label: "Middle" },
-    { key: "right", label: "Right" },
-  ];
-  const textStyleOptions = [
-    { key: "regular", label: "Regular" },
-    { key: "emphasis", label: "Emphasis" },
-  ];
-
-  return (
+	  return (
     <section className="mt-8 border-t border-slate-200 pt-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -11030,7 +11375,325 @@ function AdminCopySection({
 
       <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
         <h4 className="text-sm font-black text-slate-800">
-          Disclaimer presentation
+          Top shortcut buttons
+        </h4>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          These controls match the shortcut row at the top of the dashboard. Use
+          the checkbox to feature or hide each button.
+        </p>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          {shortcutGroups.map((group) => (
+            <div key={group.title} className="rounded-2xl bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                {group.title}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                {group.description}
+              </p>
+
+              <div className="mt-4 space-y-4">
+                {group.items.map((item) => (
+                  <div
+                    key={item.name}
+                    className="rounded-2xl border border-slate-200 p-3"
+                  >
+                    <label className="flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(copy[item.enabledKey])}
+                        onChange={(event) =>
+                          updateCopyBoolean(
+                            item.enabledKey,
+                            event.target.checked
+                          )
+                        }
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-[#0d69ac]"
+                      />
+                      <span>
+                        <span className="block text-sm font-black text-slate-800">
+                          {item.name}
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-500">
+                          Feature this shortcut in the dashboard top row.
+                        </span>
+                      </span>
+                    </label>
+
+                    <div className="mt-3 grid gap-3">
+                      <label className="block">
+                        <span className="text-xs font-bold text-slate-500">
+                          Title
+                        </span>
+                        <input
+                          type="text"
+                          value={String(copy[item.titleKey])}
+                          onChange={(event) =>
+                            updateCopy(item.titleKey, event.target.value)
+                          }
+                          className="mt-1 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+                        />
+                      </label>
+	                      <label className="block">
+	                        <span className="text-xs font-bold text-slate-500">
+	                          Subtitle
+	                        </span>
+                        <input
+                          type="text"
+                          value={String(copy[item.subtitleKey])}
+                          onChange={(event) =>
+                            updateCopy(item.subtitleKey, event.target.value)
+                          }
+	                          className="mt-1 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	                        />
+	                      </label>
+	                      <label className="block">
+	                        <span className="text-xs font-bold text-slate-500">
+	                          Button color
+	                        </span>
+	                        <div className="mt-1 flex items-center gap-2">
+	                          <input
+	                            type="color"
+	                            value={
+	                              /^#[0-9a-f]{6}$/i.test(String(copy[item.colorKey]))
+	                                ? String(copy[item.colorKey])
+	                                : "#0d69ac"
+	                            }
+	                            onChange={(event) =>
+	                              updateCopy(item.colorKey, event.target.value)
+	                            }
+	                            className="h-10 w-12 cursor-pointer rounded-xl border border-slate-200 bg-slate-50 p-1"
+	                          />
+	                          <input
+	                            type="text"
+	                            value={String(copy[item.colorKey])}
+	                            onChange={(event) =>
+	                              updateCopy(item.colorKey, event.target.value)
+	                            }
+	                            placeholder="#0d69ac"
+	                            className="min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	                          />
+	                        </div>
+	                      </label>
+	                      {"urlKey" in item ? (
+	                        <label className="block">
+                          <span className="text-xs font-bold text-slate-500">
+                            URL
+                          </span>
+                          <input
+                            type="url"
+                            placeholder="https://calendly.com/..."
+                            value={String(copy[item.urlKey])}
+                            onChange={(event) =>
+                              updateCopy(item.urlKey, event.target.value)
+                            }
+                            className="mt-1 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+	      </div>
+	      </div>
+
+	      <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+	        <h4 className="text-sm font-black text-slate-800">
+	          Mobile dashboard
+	        </h4>
+	        <p className="mt-1 text-xs leading-5 text-slate-500">
+	          Controls the mobile disclaimer, mobile entry buttons, and bottom CTA
+	          buttons shown in the mobile research brief.
+	        </p>
+
+	        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+	          {mobileDisclaimerFields.map((field) => (
+	            <label
+	              key={field.key}
+	              className="block rounded-2xl bg-white p-4"
+	            >
+	              <span className="text-sm font-black text-slate-800">
+	                {field.label}
+	              </span>
+	              <span className="mt-1 block text-xs leading-5 text-slate-500">
+	                {field.description}
+	              </span>
+	              {field.multiline ? (
+	                <textarea
+	                  value={String(copy[field.key])}
+	                  onChange={(event) => updateCopy(field.key, event.target.value)}
+	                  rows={4}
+	                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	                />
+	              ) : (
+	                <input
+	                  type="text"
+	                  value={String(copy[field.key])}
+	                  onChange={(event) => updateCopy(field.key, event.target.value)}
+	                  className="mt-3 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	                />
+	              )}
+	            </label>
+	          ))}
+	        </div>
+
+	        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+	          {mobileCtaItems.map((item) => (
+	            <div key={item.name} className="rounded-2xl bg-white p-4">
+	              <label className="flex cursor-pointer items-start gap-3">
+	                <input
+	                  type="checkbox"
+	                  checked={Boolean(copy[item.enabledKey])}
+	                  onChange={(event) =>
+	                    updateCopyBoolean(item.enabledKey, event.target.checked)
+	                  }
+	                  className="mt-1 h-4 w-4 rounded border-slate-300 text-[#0d69ac]"
+	                />
+	                <span>
+	                  <span className="block text-sm font-black text-slate-800">
+	                    {item.name}
+	                  </span>
+	                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+	                    Feature this CTA at the bottom of the mobile app.
+	                  </span>
+	                </span>
+	              </label>
+
+	              <div className="mt-3 grid gap-3">
+	                <label className="block">
+	                  <span className="text-xs font-bold text-slate-500">
+	                    Title
+	                  </span>
+	                  <input
+	                    type="text"
+	                    value={String(copy[item.titleKey])}
+	                    onChange={(event) =>
+	                      updateCopy(item.titleKey, event.target.value)
+	                    }
+	                    className="mt-1 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	                  />
+	                </label>
+	                <label className="block">
+	                  <span className="text-xs font-bold text-slate-500">
+	                    Subtitle
+	                  </span>
+	                  <input
+	                    type="text"
+	                    value={String(copy[item.subtitleKey])}
+	                    onChange={(event) =>
+	                      updateCopy(item.subtitleKey, event.target.value)
+	                    }
+	                    className="mt-1 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	                  />
+	                </label>
+	                <label className="block">
+	                  <span className="text-xs font-bold text-slate-500">
+	                    URL
+	                  </span>
+	                  <input
+	                    type="url"
+	                    value={String(copy[item.urlKey])}
+	                    onChange={(event) =>
+	                      updateCopy(item.urlKey, event.target.value)
+	                    }
+	                    placeholder="https://..."
+	                    className="mt-1 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	                  />
+	                </label>
+	                <label className="block">
+	                  <span className="text-xs font-bold text-slate-500">
+	                    Button color
+	                  </span>
+	                  <div className="mt-1 flex items-center gap-2">
+	                    <input
+	                      type="color"
+	                      value={
+	                        /^#[0-9a-f]{6}$/i.test(String(copy[item.colorKey]))
+	                          ? String(copy[item.colorKey])
+	                          : "#0d69ac"
+	                      }
+	                      onChange={(event) =>
+	                        updateCopy(item.colorKey, event.target.value)
+	                      }
+	                      className="h-10 w-12 cursor-pointer rounded-xl border border-slate-200 bg-slate-50 p-1"
+	                    />
+	                    <input
+	                      type="text"
+	                      value={String(copy[item.colorKey])}
+	                      onChange={(event) =>
+	                        updateCopy(item.colorKey, event.target.value)
+	                      }
+	                      placeholder="#0d69ac"
+	                      className="min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	                    />
+	                  </div>
+	                </label>
+	              </div>
+	            </div>
+	          ))}
+	        </div>
+	      </div>
+
+	      <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+	        <div className="flex flex-wrap items-start justify-between gap-3">
+	          <div>
+	            <h4 className="text-sm font-black text-slate-800">
+	              Social media icons
+	            </h4>
+	            <p className="mt-1 text-xs leading-5 text-slate-500">
+	              Show or hide the social icon widget in the top shortcut row, then
+	              add destination links when the channels are ready.
+	            </p>
+	          </div>
+	          <label className="flex cursor-pointer items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500">
+	            <input
+	              type="checkbox"
+	              checked={copy.socialLinksEnabled}
+	              onChange={(event) =>
+	                updateCopyBoolean("socialLinksEnabled", event.target.checked)
+	              }
+	              className="h-4 w-4 rounded border-slate-300 text-[#0d69ac]"
+	            />
+	            Show icons
+	          </label>
+	        </div>
+
+	        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+	          {[
+	            ["youtubeUrl", "YouTube URL", "Destination for the YouTube social icon."],
+	            ["tiktokUrl", "TikTok URL", "Destination for the TikTok social icon."],
+	            ["twitterUrl", "X / Twitter URL", "Destination for the X / Twitter social icon."],
+	          ].map(([key, label, description]) => (
+	            <label key={key} className="block rounded-2xl bg-white p-4">
+	              <span className="text-sm font-black text-slate-800">
+	                {label}
+	              </span>
+	              <span className="mt-1 block text-xs leading-5 text-slate-500">
+	                {description}
+	              </span>
+	              <input
+	                type="url"
+	                value={String(copy[key as keyof DashboardCopySettings])}
+	                onChange={(event) =>
+	                  updateCopy(
+	                    key as keyof DashboardCopySettings,
+	                    event.target.value
+	                  )
+	                }
+	                placeholder="https://..."
+	                className="mt-3 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
+	              />
+	            </label>
+	          ))}
+	        </div>
+	      </div>
+
+	      <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+	        <h4 className="text-sm font-black text-slate-800">
+	          Disclaimer presentation
         </h4>
         <p className="mt-1 text-xs leading-5 text-slate-500">
           Local visual controls for the acknowledgement portal.
@@ -11073,7 +11736,7 @@ function AdminCopySection({
                     {label}
                   </span>
                   <select
-                    value={copy[key as keyof DashboardCopySettings]}
+                    value={String(copy[key as keyof DashboardCopySettings])}
                     onChange={(event) =>
                       updateCopy(
                         key as keyof DashboardCopySettings,
@@ -11142,10 +11805,36 @@ function AdminCopySection({
             </div>
           </div>
         </div>
-      </div>
+	      </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {fields.map((field) => (
+	      <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+	        <h4 className="text-sm font-black text-slate-800">
+	          Dashboard title badge
+	        </h4>
+	        <p className="mt-1 text-xs leading-5 text-slate-500">
+	          Controls the small badge shown next to the dashboard name.
+	        </p>
+	        <label className="mt-4 block max-w-md">
+	          <span className="text-xs font-bold text-slate-500">
+	            Badge display
+	          </span>
+	          <select
+	            value={copy.dashboardBadgeMode}
+	            onChange={(event) =>
+	              updateCopy("dashboardBadgeMode", event.target.value)
+	            }
+	            className="mt-2 w-full rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 outline-none transition focus:border-[#0d69ac]"
+	          >
+	            <option value="beta">Beta</option>
+	            <option value="footerVersion">
+	              Current build ({copy.footerVersion})
+	            </option>
+	          </select>
+	        </label>
+	      </div>
+
+	      <div className="mt-4 grid gap-4 md:grid-cols-2">
+	        {fields.map((field) => (
           <label key={field.key} className="block rounded-2xl border border-slate-200 p-4">
             <span className="text-sm font-black text-slate-800">
               {field.label}
@@ -11155,15 +11844,16 @@ function AdminCopySection({
             </span>
             {field.multiline ? (
               <textarea
-                value={copy[field.key]}
+                value={String(copy[field.key])}
                 onChange={(event) => updateCopy(field.key, event.target.value)}
                 rows={4}
                 className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
               />
             ) : (
               <input
-                type="text"
-                value={copy[field.key]}
+                type={field.key.endsWith("Url") ? "url" : "text"}
+                placeholder={field.key.endsWith("Url") ? "https://..." : undefined}
+                value={String(copy[field.key])}
                 onChange={(event) => updateCopy(field.key, event.target.value)}
                 className="mt-3 w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
               />
@@ -12083,11 +12773,19 @@ function UsageCopyReviewModal({
             ))}
           </PrintCopySection>
 
-          <PrintCopySection title="Footer and Product Identification">
-            <PrintCopyItem title="Trademark notice" body={copy.footerTrademark} />
-            <PrintCopyItem title="Build version" body={copy.footerVersion} />
-            <PrintCopyItem title="Affiliation notice" body={copy.footerAffiliation} />
-          </PrintCopySection>
+	          <PrintCopySection title="Footer and Product Identification">
+	            <PrintCopyItem title="Trademark notice" body={copy.footerTrademark} />
+	            <PrintCopyItem title="Build version" body={copy.footerVersion} />
+	            <PrintCopyItem
+	              title="Dashboard title badge"
+	              body={
+	                copy.dashboardBadgeMode === "footerVersion"
+	                  ? `Current build (${copy.footerVersion})`
+	                  : "Beta"
+	              }
+	            />
+	            <PrintCopyItem title="Affiliation notice" body={copy.footerAffiliation} />
+	          </PrintCopySection>
         </article>
       </div>
     </div>
@@ -12157,10 +12855,16 @@ function printUsageCopyDocument(copy: DashboardCopySettings, generatedDate: stri
     {
       title: "Footer and Product Identification",
       items: [
-        ["Trademark notice", copy.footerTrademark],
-        ["Build version", copy.footerVersion],
-        ["Affiliation notice", copy.footerAffiliation],
-      ],
+	        ["Trademark notice", copy.footerTrademark],
+	        ["Build version", copy.footerVersion],
+	        [
+	          "Dashboard title badge",
+	          copy.dashboardBadgeMode === "footerVersion"
+	            ? `Current build (${copy.footerVersion})`
+	            : "Beta",
+	        ],
+	        ["Affiliation notice", copy.footerAffiliation],
+	      ],
     },
   ];
 

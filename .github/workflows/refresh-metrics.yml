@@ -38,6 +38,10 @@ jobs:
         run: |
           curl --fail --show-error --retry 2 --retry-all-errors --retry-delay 5 --max-time 180 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/dashboard/precompute?platform=fortnite&scope=core"
 
+      - name: Precompute mobile dashboard payload
+        run: |
+          curl --fail --show-error --retry 2 --retry-all-errors --retry-delay 5 --max-time 180 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://ugc-trend-portal.vercel.app/api/mobile/precompute"
+
       - name: Let database load settle before full-history caches
         run: sleep 30
 

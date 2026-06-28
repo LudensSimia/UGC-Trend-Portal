@@ -1,5 +1,5 @@
-import MobileLabClient from "./MobileLabClient";
+import { redirect } from "next/navigation";
 
 export default function MobileLabPage() {
-  return <MobileLabClient />;
+  redirect("/mobile");
 }

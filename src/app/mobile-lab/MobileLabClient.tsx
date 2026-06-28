@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import type {
   FortniteMobileLabPayload,
   MobileLabFortniteIsland,
@@ -28,6 +28,16 @@ type MobileDisclaimerCopy = {
   mobileDisclaimerRobloxButton: string;
   mobileDisclaimerFortniteButton: string;
   mobileDisclaimerStorageNote: string;
+  mobileDataStrategySessionPrompt: string;
+  mobileDataStrategySessionLabel: string;
+  mobileDataStrategySessionUrl: string;
+  mobileDataStrategySessionEnabled: boolean;
+  mobileDataStrategySessionColor: string;
+  mobilePatreonButtonPrompt: string;
+  mobilePatreonButtonLabel: string;
+  mobilePatreonButtonUrl: string;
+  mobilePatreonButtonEnabled: boolean;
+  mobilePatreonButtonColor: string;
 };
 
 const DEFAULT_MOBILE_DISCLAIMER_COPY: MobileDisclaimerCopy = {
@@ -41,21 +51,48 @@ const DEFAULT_MOBILE_DISCLAIMER_COPY: MobileDisclaimerCopy = {
     "Snoutboard does not guarantee player growth, discoverability, revenue, platform placement, or creator success. Independently verify information before relying on it.",
   mobileDisclaimerAcknowledgement:
     "By continuing, you acknowledge that you have read and understood this notice. Choose the platform you want to load.",
-  mobileDisclaimerRobloxButton: "Acknowledge & Open Roblox",
-  mobileDisclaimerFortniteButton: "Acknowledge & Open Fortnite",
+  mobileDisclaimerRobloxButton: "Acknowledge & Check Roblox Public API Data",
+  mobileDisclaimerFortniteButton: "Acknowledge & Check Fortnite Public API Data",
   mobileDisclaimerStorageNote:
     "This acknowledgement is stored on this device and will be requested again if the notice is revised.",
+  mobileDataStrategySessionPrompt: "Book time with a data expert",
+  mobileDataStrategySessionLabel: "Data Strategy Session",
+  mobileDataStrategySessionUrl: "",
+  mobileDataStrategySessionEnabled: true,
+  mobileDataStrategySessionColor: "#0d69ac",
+  mobilePatreonButtonPrompt: "Support the research",
+  mobilePatreonButtonLabel: "Patreon",
+  mobilePatreonButtonUrl: "",
+  mobilePatreonButtonEnabled: true,
+  mobilePatreonButtonColor: "#f96854",
 };
 
 function mergeMobileDisclaimerCopy(value: unknown): MobileDisclaimerCopy {
   if (!value || typeof value !== "object") return DEFAULT_MOBILE_DISCLAIMER_COPY;
   const source = value as Record<string, unknown>;
-  return Object.fromEntries(
+  const merged = Object.fromEntries(
     Object.entries(DEFAULT_MOBILE_DISCLAIMER_COPY).map(([key, fallback]) => [
       key,
-      typeof source[key] === "string" ? source[key] : fallback,
+      typeof fallback === "boolean"
+        ? typeof source[key] === "boolean"
+          ? source[key]
+          : fallback
+        : typeof source[key] === "string"
+          ? source[key]
+          : fallback,
     ])
   ) as MobileDisclaimerCopy;
+
+  if (merged.mobileDisclaimerRobloxButton === "Acknowledge & Open Roblox") {
+    merged.mobileDisclaimerRobloxButton =
+      DEFAULT_MOBILE_DISCLAIMER_COPY.mobileDisclaimerRobloxButton;
+  }
+  if (merged.mobileDisclaimerFortniteButton === "Acknowledge & Open Fortnite") {
+    merged.mobileDisclaimerFortniteButton =
+      DEFAULT_MOBILE_DISCLAIMER_COPY.mobileDisclaimerFortniteButton;
+  }
+
+  return merged;
 }
 
 function compactNumber(value: number | null | undefined) {
@@ -317,6 +354,14 @@ function DisclaimerText({ copy }: { copy: MobileDisclaimerCopy }) {
 }
 
 function EntryDisclaimer({ copy, onAccept }: { copy: MobileDisclaimerCopy; onAccept: (platform: Platform) => void }) {
+  function handleAccept(
+    event: MouseEvent<HTMLAnchorElement>,
+    platform: Platform
+  ) {
+    event.preventDefault();
+    onAccept(platform);
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 px-3 py-6 text-slate-900">
       <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -334,12 +379,20 @@ function EntryDisclaimer({ copy, onAccept }: { copy: MobileDisclaimerCopy; onAcc
           {copy.mobileDisclaimerAcknowledgement}
         </p>
         <div className="mt-5 grid gap-3">
-          <button type="button" onClick={() => onAccept("roblox")} className="min-h-12 rounded-xl bg-[#0d69ac] px-4 text-sm font-black text-white">
+          <a
+            href="/mobile?platform=roblox"
+            onClick={(event) => handleAccept(event, "roblox")}
+            className="flex min-h-12 touch-manipulation items-center justify-center rounded-xl bg-[#0d69ac] px-4 text-center text-sm font-black text-white no-underline"
+          >
             {copy.mobileDisclaimerRobloxButton}
-          </button>
-          <button type="button" onClick={() => onAccept("fortnite")} className="min-h-12 rounded-xl bg-[#7c3aed] px-4 text-sm font-black text-white">
+          </a>
+          <a
+            href="/mobile?platform=fortnite"
+            onClick={(event) => handleAccept(event, "fortnite")}
+            className="flex min-h-12 touch-manipulation items-center justify-center rounded-xl bg-[#7c3aed] px-4 text-center text-sm font-black text-white no-underline"
+          >
             {copy.mobileDisclaimerFortniteButton}
-          </button>
+          </a>
         </div>
         <p className="mt-4 text-xs leading-5 text-slate-400">
           {copy.mobileDisclaimerStorageNote}
@@ -358,6 +411,59 @@ function LoadingBrief({ platform }: { platform: Platform }) {
         <div className="h-full w-2/3 animate-pulse rounded-full" style={{ backgroundColor: color }} />
       </div>
       <p className="mt-4 text-sm text-slate-500">Preparing the seven-day mobile brief...</p>
+    </section>
+  );
+}
+
+function MobileCtaButtons({ copy }: { copy: MobileDisclaimerCopy }) {
+  const items = [
+    copy.mobileDataStrategySessionEnabled
+      ? {
+          href: copy.mobileDataStrategySessionUrl || "#",
+          prompt: copy.mobileDataStrategySessionPrompt,
+          label: copy.mobileDataStrategySessionLabel,
+          color: copy.mobileDataStrategySessionColor || ROBLOX_BLUE,
+        }
+      : null,
+    copy.mobilePatreonButtonEnabled
+      ? {
+          href: copy.mobilePatreonButtonUrl || "#",
+          prompt: copy.mobilePatreonButtonPrompt,
+          label: copy.mobilePatreonButtonLabel,
+          color: copy.mobilePatreonButtonColor || "#f96854",
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    href: string;
+    prompt: string;
+    label: string;
+    color: string;
+  }>;
+
+  if (!items.length) return null;
+
+  return (
+    <section className="mt-4 grid gap-3">
+      {items.map((item, index) => {
+        const isExternal = /^https?:\/\//i.test(item.href);
+        return (
+          <a
+            key={`${item.label}-${index}`}
+            href={item.href}
+            target={isExternal ? "_blank" : undefined}
+            rel={isExternal ? "noreferrer" : undefined}
+            className="rounded-2xl px-4 py-4 text-center text-white no-underline shadow-sm"
+            style={{ backgroundColor: item.color }}
+          >
+            <span className="block text-[11px] font-bold opacity-75">
+              {item.prompt}
+            </span>
+            <span className="mt-0.5 block text-sm font-black uppercase tracking-wide">
+              {item.label}
+            </span>
+          </a>
+        );
+      })}
     </section>
   );
 }
@@ -396,10 +502,10 @@ export default function MobileLabClient() {
     }
   }
 
-  useEffect(() => {
-    let resolvedCopy = DEFAULT_MOBILE_DISCLAIMER_COPY;
-    try {
-      const storedCopy = window.localStorage.getItem(DASHBOARD_COPY_STORAGE_KEY);
+	  useEffect(() => {
+	    let resolvedCopy = DEFAULT_MOBILE_DISCLAIMER_COPY;
+	    try {
+	      const storedCopy = window.localStorage.getItem(DASHBOARD_COPY_STORAGE_KEY);
       if (storedCopy) {
         resolvedCopy = mergeMobileDisclaimerCopy(JSON.parse(storedCopy));
         setMobileCopy(resolvedCopy);
@@ -413,11 +519,16 @@ export default function MobileLabClient() {
           setAcknowledged(true);
           setPlatform(savedPlatform);
           void requestPlatform(savedPlatform);
-        }
-      }
-    } catch {
-      window.localStorage.removeItem(DISCLAIMER_STORAGE_KEY);
-    }
+	        }
+	      }
+	    } catch (error) {
+	      console.warn("Mobile disclaimer state could not be restored:", error);
+	      try {
+	        window.localStorage.removeItem(DISCLAIMER_STORAGE_KEY);
+	      } catch {
+	        // Mobile storage may be unavailable; the entry buttons still work.
+	      }
+	    }
 
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== DASHBOARD_COPY_STORAGE_KEY || !event.newValue) return;
@@ -438,19 +549,23 @@ export default function MobileLabClient() {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  function acceptDisclaimer(nextPlatform: Platform) {
-    window.localStorage.setItem(
-      DISCLAIMER_STORAGE_KEY,
-      JSON.stringify({
-        version: mobileCopy.mobileDisclaimerVersion,
-        platform: nextPlatform,
-        acknowledgedAt: new Date().toISOString(),
-      })
-    );
-    setAcknowledged(true);
-    setShowDisclaimer(false);
-    void requestPlatform(nextPlatform);
-  }
+	  function acceptDisclaimer(nextPlatform: Platform) {
+	    setAcknowledged(true);
+	    setShowDisclaimer(false);
+	    try {
+	      window.localStorage.setItem(
+	        DISCLAIMER_STORAGE_KEY,
+	        JSON.stringify({
+	          version: mobileCopy.mobileDisclaimerVersion,
+	          platform: nextPlatform,
+	          acknowledgedAt: new Date().toISOString(),
+	        })
+	      );
+	    } catch (error) {
+	      console.warn("Mobile disclaimer acknowledgement could not be stored:", error);
+	    }
+	    void requestPlatform(nextPlatform);
+	  }
 
   function changePlatform(nextPlatform: Platform) {
     try {
@@ -478,10 +593,13 @@ export default function MobileLabClient() {
         <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
             <img src="/LogoSnoutBoard.svg" alt="Snoutboard" className="h-12 w-12 object-contain" />
-            <div>
-              <p className="text-[11px] font-black uppercase text-emerald-700">Experimental mobile server</p>
-              <h1 className="mt-1 text-xl font-black leading-tight">Snoutboard Mobile Lab</h1>
-            </div>
+	            <div>
+	              <p className="text-[11px] font-black uppercase text-emerald-700">Experimental mobile server</p>
+	              <h1 className="mt-1 text-xl font-black leading-tight">Snoutboard Mobile Lab</h1>
+	              <span className="mt-2 inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+	                Beta
+	              </span>
+	            </div>
           </div>
 
           <div className="mt-5 grid grid-cols-2 rounded-full bg-slate-100 p-1">
@@ -548,6 +666,8 @@ export default function MobileLabClient() {
             </>
           ) : null}
         </div>
+
+        <MobileCtaButtons copy={mobileCopy} />
 
         <footer className="py-8 text-center text-xs leading-5 text-slate-500">
           Experimental route only. The existing dashboard and mobile printout are unchanged.

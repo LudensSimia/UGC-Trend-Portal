@@ -50,3 +50,11 @@ export type FortniteMobileLabPayload = {
 };
 
 export type MobileLabPayload = RobloxMobileLabPayload | FortniteMobileLabPayload;
+
+export type MobilePublicPayload = {
+  generatedAt: string;
+  payloadGeneratedAt?: string;
+  precomputed?: boolean;
+  roblox: RobloxMobileLabPayload;
+  fortnite: FortniteMobileLabPayload;
+};
